@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  bot:
+    build: .
+    container_name: qqwarframe-bot
+    restart: unless-stopped
+    # Linux 下用 host 网络最简单：容器里的 127.0.0.1 就是宿主机
+    # （NapCat 在宿主机或同样 host 网络的容器里都能直接连）
+    network_mode: host
+    environment:
+      TZ: Asia/Shanghai
+      QQWF_WS_URL: ws://127.0.0.1:3001
+      QQWF_ACCESS_TOKEN: ""
+      # 宿主机上的 v2rayN/Clash HTTP 代理端口
+      QQWF_PROXY: http://127.0.0.1:10809
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+    # 如果 NapCat 是同一 compose 里的另一个容器（bridge 网络），
+    # 删除上面的 network_mode，改成：
+    # networks: [qqwf]
+    # environment:
+    #   QQWF_WS_URL: ws://napcat:3001
+# networks:
+#   qqwf:

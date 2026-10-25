@@ -1,0 +1,297 @@
+{
+  "apiVersion": "0.25.0",
+  "data": [
+    {
+      "id": "5c182b739603780081b09a53",
+      "slug": "mesa_prime_set",
+      "gameRef": "/Lotus/Powersuits/Cowgirl/MesaPrime",
+      "tags": [
+        "set",
+        "prime",
+        "warframe"
+      ],
+      "setRoot": true,
+      "ducats": 260,
+      "reqMasteryRank": 0,
+      "tradingTax": 8000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Mesa Prime Set",
+          "thumb": "items/images/en/thumbs/mesa_prime_set.128x128.png"
+        },
+        "zh-hans": {
+          "name": "Mesa Prime 一套",
+          "thumb": "items/images/zh/thumbs/mesa_prime_set.128x128.png"
+        }
+      },
+      "setParts": [
+        "part1",
+        "part2"
+      ]
+    },
+    {
+      "id": "5b2985e2eb069f04ea65b0f2",
+      "slug": "rubico_prime_set",
+      "gameRef": "/Lotus/Weapons/Tenno/Rifle/SniperRiflePrime",
+      "tags": [
+        "weapon",
+        "primary",
+        "prime",
+        "set"
+      ],
+      "setRoot": true,
+      "ducats": 180,
+      "reqMasteryRank": 12,
+      "tradingTax": 8000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Rubico Prime Set",
+          "thumb": "items/images/en/thumbs/rubico_prime_set.128x128.png"
+        },
+        "zh-hans": {
+          "name": "绝路 Prime 一套",
+          "thumb": "items/images/zh/thumbs/rubico_prime_set.128x128.png"
+        }
+      }
+    },
+    {
+      "id": "5b2985e2eb069f04ea65b0f0",
+      "slug": "rubico_prime_blueprint",
+      "gameRef": "/Lotus/Types/Recipes/Weapons/RubicoPrimeBlueprint",
+      "tags": [
+        "weapon",
+        "primary",
+        "prime",
+        "blueprint"
+      ],
+      "ducats": 45,
+      "reqMasteryRank": 12,
+      "tradingTax": 4000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Rubico Prime Blueprint",
+          "thumb": "items/images/en/thumbs/rubico_prime_blueprint.128x128.png"
+        },
+        "zh-hans": {
+          "name": "绝路 Prime 蓝图",
+          "thumb": "items/images/zh/thumbs/rubico_prime_blueprint.128x128.png"
+        }
+      }
+    },
+    {
+      "id": "5b2985e2eb069f04ea65b0f1",
+      "slug": "rubico_prime_barrel",
+      "gameRef": "/Lotus/Types/Recipes/Weapons/WeaponParts/RubicoPrimeBarrel",
+      "tags": [
+        "component",
+        "weapon",
+        "prime"
+      ],
+      "ducats": 15,
+      "tradingTax": 2000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Rubico Prime Barrel",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "绝路 Prime 枪管",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "56783f24cbfa8f0432dd89ab",
+      "slug": "rhino_prime_set",
+      "gameRef": "/Lotus/Powersuits/Rhino/RhinoPrime",
+      "tags": [
+        "set",
+        "prime",
+        "warframe"
+      ],
+      "setRoot": true,
+      "ducats": 225,
+      "reqMasteryRank": 0,
+      "tradingTax": 8000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Rhino Prime Set",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "Rhino Prime 一套",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "56783f24cbfa8f0432dd89ac",
+      "slug": "nova_prime_set",
+      "gameRef": "/Lotus/Powersuits/AntiMatter/NovaPrime",
+      "tags": [
+        "set",
+        "prime",
+        "warframe"
+      ],
+      "setRoot": true,
+      "ducats": 175,
+      "tradingTax": 8000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Nova Prime Set",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "Nova Prime 一套",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "54a74454e779892d5e515644",
+      "slug": "split_chamber",
+      "gameRef": "/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsMod",
+      "tags": [
+        "mod",
+        "primary",
+        "rifle",
+        "rare"
+      ],
+      "maxRank": 5,
+      "tradingTax": 2000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Split Chamber",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "分裂膛室",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "54a74454e779892d5e515645",
+      "slug": "primed_pressure_point",
+      "gameRef": "/Lotus/Upgrades/Mods/Melee/Expert/WeaponMeleeDamageModExpert",
+      "tags": [
+        "mod",
+        "legendary",
+        "melee"
+      ],
+      "maxRank": 10,
+      "tradingTax": 4000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Primed Pressure Point",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "压迫点 Prime",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "551085aee77989729e1416d0",
+      "slug": "arcane_barrier",
+      "gameRef": "/Lotus/Upgrades/CosmeticEnhancers/Defensive/InstantShieldOnDamage",
+      "tags": [
+        "legendary",
+        "arcane_enhancement"
+      ],
+      "maxRank": 5,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Arcane Barrier",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "屏障赋能",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "5b2985e2eb069f04ea65b0f4",
+      "slug": "ignis_wraith_set",
+      "gameRef": "/Lotus/Weapons/Grineer/LongGuns/GrineerFlameThrower/FlameThrowerWraith",
+      "tags": [
+        "weapon",
+        "primary",
+        "set"
+      ],
+      "setRoot": true,
+      "tradingTax": 8000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Ignis Wraith Set",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "伊格尼斯 亡魂 一套",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "56783f24cbfa8f0432dd89ad",
+      "slug": "frost_prime_chassis_blueprint",
+      "gameRef": "/Lotus/Types/Recipes/WarframeRecipes/FrostPrimeChassisBlueprint",
+      "tags": [
+        "component",
+        "prime",
+        "warframe",
+        "blueprint"
+      ],
+      "ducats": 25,
+      "tradingTax": 2000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Frost Prime Chassis Blueprint",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "Frost Prime 机体 蓝图",
+          "thumb": ""
+        }
+      }
+    },
+    {
+      "id": "6055f0f0f1f1f1f1f1f1f1f1",
+      "slug": "loki_prime_set",
+      "gameRef": "/Lotus/Powersuits/Loki/LokiPrime",
+      "tags": [
+        "set",
+        "prime",
+        "warframe"
+      ],
+      "setRoot": true,
+      "ducats": 200,
+      "tradingTax": 8000,
+      "tradable": true,
+      "i18n": {
+        "en": {
+          "name": "Loki Prime Set",
+          "thumb": ""
+        },
+        "zh-hans": {
+          "name": "Loki Prime 一套",
+          "thumb": ""
+        }
+      }
+    }
+  ],
+  "error": null
+}

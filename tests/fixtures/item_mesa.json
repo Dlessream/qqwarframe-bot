@@ -1,0 +1,32 @@
+{
+  "apiVersion": "0.25.0",
+  "data": {
+    "id": "5c182b739603780081b09a53",
+    "slug": "mesa_prime_set",
+    "gameRef": "/Lotus/Powersuits/Cowgirl/MesaPrime",
+    "tags": ["set", "prime", "warframe"],
+    "setRoot": true,
+    "setParts": ["a", "b", "c", "d", "e"],
+    "ducats": 260,
+    "reqMasteryRank": 0,
+    "tradingTax": 8000,
+    "tradable": true,
+    "i18n": {
+      "en": {
+        "name": "Mesa Prime Set",
+        "description": "Cast a long shadow with this lethal enforcer.",
+        "wikiLink": "https://wiki.warframe.com/w/Mesa/Prime",
+        "icon": "items/images/en/mesa_prime_set.png",
+        "thumb": "items/images/en/thumbs/mesa_prime_set.128x128.png"
+      },
+      "zh-hans": {
+        "name": "Mesa Prime 一套",
+        "description": "用这位致命的执法者投下长长的阴影。",
+        "wikiLink": "https://warframe.huijiwiki.com/wiki/Mesa/Prime",
+        "icon": "items/images/zh/mesa_prime_set.png",
+        "thumb": "items/images/zh/thumbs/mesa_prime_set.128x128.png"
+      }
+    }
+  },
+  "error": null
+}

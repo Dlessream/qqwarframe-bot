@@ -1,0 +1,38 @@
+# 本地配置与运行产物
+config.json
+data/items_cache.json
+data/items_cache.json.tmp
+data/alerts.json
+data/alerts.json.tmp
+logs/
+*.log
+preview_*.png
+_preview.py
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+
+# Docker 挂载目录
+config/
+
+# 一键部署（含 NapCat / Xray）
+.env
+xray/
+napcat/
+deploy/vless.txt
+
+# 本地 GitHub 工具与凭据（禁止提交）
+tools/
+.ghconfig/
+.github_token
+.gitconfig
+gh_login.log
+gh_device.log
+gh_device_code.txt
+_gh_*.py
+_sim_wm_world.py

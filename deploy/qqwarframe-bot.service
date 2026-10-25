@@ -1,0 +1,25 @@
+[Unit]
+Description=QQ Warframe Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qqwarframe
+Group=qqwarframe
+WorkingDirectory=/opt/qqwarframe-bot
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+# 使用 install.sh 创建的虚拟环境（推荐）：
+ExecStart=/opt/qqwarframe-bot/.venv/bin/python /opt/qqwarframe-bot/run.py
+# 不用虚拟环境时改成：
+# ExecStart=/usr/bin/python3 /opt/qqwarframe-bot/run.py
+Restart=always
+RestartSec=5
+
+# 也可以用环境变量覆盖配置（优先级高于 config.json）：
+# Environment=QQWF_PROXY=http://127.0.0.1:10809
+# Environment=QQWF_WS_URL=ws://127.0.0.1:3001
+
+[Install]
+WantedBy=multi-user.target

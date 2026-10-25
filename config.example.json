@@ -1,0 +1,109 @@
+{
+  "onebot": {
+    "ws_url": "ws://127.0.0.1:3001",
+    "access_token": "",
+    "reconnect_min_seconds": 1,
+    "reconnect_max_seconds": 60,
+    "heartbeat_seconds": 25,
+    "heartbeat_timeout_seconds": 75,
+    "api_timeout_seconds": 15
+  },
+  "behavior": {
+    "prefixes": [
+      "#",
+      "＃"
+    ],
+    "allow_private": true,
+    "respond_to_at": true,
+    "at_sender": true,
+    "whitelist_groups": [],
+    "blacklist_groups": [],
+    "cooldown_seconds": 3,
+    "max_replies_per_minute": 20,
+    "max_reply_chars": 1200,
+    "preload_items": true
+  },
+  "warframe_market": {
+    "base_url": "https://api.warframe.market",
+    "language": "zh-hans",
+    "platform": "pc",
+    "crossplay": true,
+    "timeout_seconds": 15,
+    "retries": 2,
+    "max_requests_per_second": 3,
+    "proxy": "http://127.0.0.1:10809",
+    "insecure_tls": false,
+    "cache_ttl_seconds": 43200,
+    "cache_file": "data/items_cache.json",
+    "alias_file": "data/aliases.json",
+    "top_orders": 5,
+    "price_orders": 8,
+    "user_agent": "QQWarframeBot/1.0 (+https://warframe.market)"
+  },
+  "wiki": {
+    "api_url": "https://warframe.huijiwiki.com/api.php",
+    "site_url": "https://warframe.huijiwiki.com/wiki/",
+    "timeout_seconds": 15,
+    "retries": 2,
+    "proxy": "http://127.0.0.1:10809",
+    "summary_chars": 280,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "fallback_bwiki": true,
+    "bwiki_base": "https://wiki.biligame.com/warframe",
+    "cookie": ""
+  },
+  "worldstate": {
+    "enabled": true,
+    "base_url": "https://api.warframestat.us",
+    "language": "zh",
+    "timeout_seconds": 12,
+    "retries": 1,
+    "proxy": "http://127.0.0.1:10809",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+  },
+  "image": {
+    "enabled": true,
+    "font": "",
+    "font_bold": ""
+  },
+  "alerts": {
+    "enabled": true,
+    "file": "data/alerts.json",
+    "check_seconds": 300,
+    "max_per_chat": 20
+  },
+  "log": {
+    "level": "INFO",
+    "file": "logs/bot.log"
+  },
+  "auto_update": {
+    "enabled": true,
+    "interval_seconds": 21600,
+    "on_start": true,
+    "market": true,
+    "riven": true,
+    "manual_cooldown_seconds": 600,
+    "arbi": true
+  },
+  "cache": {
+    "enabled": true,
+    "item_seconds": 3600,
+    "orders_seconds": 60,
+    "stats_seconds": 900,
+    "riven_seconds": 300,
+    "worldstate_seconds": 60,
+    "wiki_seconds": 600
+  },
+  "riven": {
+    "disposition_override": 1.2
+  },
+  "arbi": {
+    "enabled": true,
+    "base_url": "https://arbi.wf.wiki",
+    "timeout_seconds": 20,
+    "retries": 1,
+    "proxy": "http://127.0.0.1:10809",
+    "cache_seconds": 21600,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+  }
+}

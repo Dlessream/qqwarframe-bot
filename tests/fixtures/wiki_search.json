@@ -1,0 +1,26 @@
+{
+  "batchcomplete": "",
+  "query": {
+    "searchinfo": {"totalhits": 6},
+    "search": [
+      {
+        "ns": 0,
+        "title": "高斯",
+        "pageid": 7100,
+        "size": 12000,
+        "wordcount": 900,
+        "snippet": "<span class=\"searchmatch\">高斯</span>是一款以速度为主题的战甲，能够通过电池充能强化技能。",
+        "timestamp": "2026-08-01T00:00:00Z"
+      },
+      {
+        "ns": 0,
+        "title": "高斯/技能",
+        "pageid": 7101,
+        "size": 3000,
+        "wordcount": 200,
+        "snippet": "此处列出<span class=\"searchmatch\">高斯</span>的四个技能。",
+        "timestamp": "2026-08-01T00:00:00Z"
+      }
+    ]
+  }
+}

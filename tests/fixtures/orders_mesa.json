@@ -1,0 +1,107 @@
+{
+  "apiVersion": "0.25.0",
+  "data": {
+    "sell": [
+      {
+        "id": "o1",
+        "type": "sell",
+        "platinum": 60,
+        "quantity": 12,
+        "perTrade": 1,
+        "visible": true,
+        "createdAt": "2026-08-29T11:06:41Z",
+        "updatedAt": "2026-10-23T15:12:48Z",
+        "itemId": "5c182b739603780081b09a53",
+        "user": {
+          "id": "u1",
+          "ingameName": "adadaAS",
+          "slug": "adadaas",
+          "reputation": 4,
+          "platform": "pc",
+          "crossplay": true,
+          "locale": "en",
+          "status": "ingame",
+          "lastSeen": "2026-10-23T15:12:13Z"
+        }
+      },
+      {
+        "id": "o2",
+        "type": "sell",
+        "platinum": 63,
+        "quantity": 11,
+        "perTrade": 1,
+        "visible": true,
+        "user": {
+          "id": "u2",
+          "ingameName": "Novaky_Nov",
+          "reputation": 19,
+          "platform": "pc",
+          "status": "ingame"
+        }
+      },
+      {
+        "id": "o3",
+        "type": "sell",
+        "platinum": 65,
+        "quantity": 1,
+        "perTrade": 1,
+        "visible": true,
+        "user": {
+          "id": "u3",
+          "ingameName": "Ga9er",
+          "reputation": 0,
+          "platform": "pc",
+          "status": "online"
+        }
+      }
+    ],
+    "buy": [
+      {
+        "id": "b1",
+        "type": "buy",
+        "platinum": 50,
+        "quantity": 25,
+        "perTrade": 1,
+        "visible": true,
+        "user": {
+          "id": "u4",
+          "ingameName": "Tayfun0606",
+          "reputation": 83,
+          "platform": "pc",
+          "status": "ingame"
+        }
+      },
+      {
+        "id": "b2",
+        "type": "buy",
+        "platinum": 45,
+        "quantity": 1,
+        "perTrade": 1,
+        "visible": true,
+        "user": {
+          "id": "u5",
+          "ingameName": "cobaka00000",
+          "reputation": 1,
+          "platform": "pc",
+          "status": "ingame"
+        }
+      },
+      {
+        "id": "b3",
+        "type": "buy",
+        "platinum": 40,
+        "quantity": 1,
+        "perTrade": 1,
+        "visible": true,
+        "user": {
+          "id": "u6",
+          "ingameName": "-BiG-DaD-",
+          "reputation": 7,
+          "platform": "pc",
+          "status": "online"
+        }
+      }
+    ]
+  },
+  "error": null
+}
