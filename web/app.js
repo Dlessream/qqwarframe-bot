@@ -278,7 +278,11 @@
       const result = await api("/api/update/check", { method: "POST", body: {} });
       if (result.update) render(Object.assign({}, state.status, { update: result.update }));
       const update = result.update || {};
-      toast(update.available ? "发现新版本" : (update.local_changed ? "检测到本地代码变化" : "当前已是最新"));
+      let message = "当前已是最新";
+      if (update.available) message = "发现新版本";
+      else if (update.local_changed) message = "检测到本地代码变化";
+      else if (update.state !== "up_to_date") message = update.last_error || "无法确认版本";
+      toast(message);
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") toast("检查失败：" + exc.message);
     } finally {
