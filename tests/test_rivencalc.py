@@ -78,6 +78,18 @@ class CalculateTest(unittest.TestCase):
         self.assertEqual(find_stat(self.analysis.two, "穿透").range_text(),
                          "2.3 ~ 2.8")
 
+    def test_ammo_efficiency(self):
+        analysis = calculate(weapon(disposition=1.0))
+        self.assertEqual(find_stat(analysis.two, "弹药效率").range_text(),
+                         "40.1 ~ 49%")
+        self.assertEqual(find_stat(analysis.three_neg, "弹药效率").range_text(),
+                         "38 ~ 46.4%")
+        self.assertEqual(
+            find_stat(analysis.negatives_three, "弹药效率").range_text(),
+            "-37.1 ~ -30.4%")
+        self.assertEqual(canonical_name("弹效"), "弹药效率")
+        self.assertEqual(canonical_name("+45% 弹药效率"), "弹药效率")
+
     def test_recoil_inverted(self):
         positive = find_stat(self.analysis.two, "后坐力")
         negative = find_stat(self.analysis.negatives_two, "后坐力")
