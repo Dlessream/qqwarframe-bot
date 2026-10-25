@@ -151,6 +151,23 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_groups()})
                     return
+                if path == "/api/catalog":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    params = parse_qs(parsed.query)
+                    try:
+                        result = server.app.catalog_groups(
+                            params.get("category", ["all"])[0],
+                            params.get("q", [""])[0],
+                            int(params.get("offset", ["0"])[0] or 0),
+                            int(params.get("limit", ["40"])[0] or 40))
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, **result})
+                    return
                 if path == "/api/items":
                     if not self._authorized():
                         self._unauthorized()

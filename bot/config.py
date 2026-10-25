@@ -50,6 +50,7 @@ DEFAULTS: Dict[str, Any] = {
         "alias_file": "data/aliases.json",
         "top_orders": 5,
         "price_orders": 8,
+        "realtime_quotes": True,
         "user_agent": "QQWarframeBot/1.0 (+https://warframe.market)",
     },
     "wiki": {
@@ -159,6 +160,7 @@ _ENV_OVERRIDES = {
     "QQWF_WIKI_PROXY_MODE": ("wiki", "proxy_mode", "str"),
     "QQWF_WORLDSTATE_PROXY": ("worldstate", "proxy", "str"),
     "QQWF_PLATFORM": ("warframe_market", "platform", "str"),
+    "QQWF_WM_REALTIME": ("warframe_market", "realtime_quotes", "bool"),
     "QQWF_LANGUAGE": ("warframe_market", "language", "str"),
     "QQWF_LOG_LEVEL": ("log", "level", "str"),
     "QQWF_IMAGE": ("image", "enabled", "bool"),
@@ -290,6 +292,7 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         60, _as_int(market["cache_ttl_seconds"], "warframe_market.cache_ttl_seconds", 60))
     market["top_orders"] = max(1, _as_int(market["top_orders"], "warframe_market.top_orders", 1))
     market["price_orders"] = max(1, _as_int(market["price_orders"], "warframe_market.price_orders", 1))
+    market["realtime_quotes"] = bool(market.get("realtime_quotes", True))
 
     wiki = cfg["wiki"]
     wiki["timeout_seconds"] = max(3, _as_int(wiki["timeout_seconds"], "wiki.timeout_seconds", 3))

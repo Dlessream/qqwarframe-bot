@@ -133,7 +133,17 @@
         <span id="sourceInfo">正在读取 warframe market 可交易物品…</span>
         <span id="aliasCount" class="source-count"></span>
       </div>
+      <div class="alias-tools">
+        <input id="aliasFilter" class="input" type="text" placeholder="筛选物品名 / 英文名 / slug">
+        <button id="aliasFilterBtn" class="btn btn-ghost btn-sm" type="button">筛选</button>
+      </div>
+      <div id="aliasTabs" class="alias-tabs"></div>
       <div id="aliasGroups" class="alias-groups"></div>
+      <div class="alias-pager">
+        <button id="aliasPrev" class="btn btn-ghost btn-sm" type="button">上一页</button>
+        <span id="aliasPage" class="alias-page">—</span>
+        <button id="aliasNext" class="btn btn-ghost btn-sm" type="button">下一页</button>
+      </div>
       <details class="alias-new">
         <summary>新增别名组（4 个别名位）</summary>
         <div class="alias-names">

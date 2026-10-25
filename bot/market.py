@@ -767,11 +767,13 @@ class MarketClient:
 
     # ------------------------------------------------------------------ 订单
     def top_orders(self, slug: str, limit: int = 5,
-                   platform: Optional[str] = None) -> Tuple[List[Order], List[Order]]:
+                   platform: Optional[str] = None,
+                   force: bool = False) -> Tuple[List[Order], List[Order]]:
         key = ("orders", slug, int(limit), platform)
-        cached = self.cache.get(key)
-        if cached is not None:
-            return list(cached[0]), list(cached[1])
+        if not force:
+            cached = self.cache.get(key)
+            if cached is not None:
+                return list(cached[0]), list(cached[1])
         result = self._top_orders_uncached(slug, limit, platform)
         self.cache.set(key, result, self.order_cache_seconds)
         return list(result[0]), list(result[1])
@@ -822,8 +824,13 @@ class MarketClient:
         return sell[:limit], buy[:limit]
 
     # ------------------------------------------------------------------ 行情
-    def statistics(self, slug: str, platform: Optional[str] = None) -> MarketStats:
+    def statistics(self, slug: str, platform: Optional[str] = None,
+                   force: bool = False) -> MarketStats:
         key = ("stats", slug, platform)
+        if force:
+            result = self._statistics_uncached(slug, platform)
+            self.cache.set(key, result, self.stats_cache_seconds)
+            return result
         return self.cache.get_or_set(
             key, lambda: self._statistics_uncached(slug, platform),
             self.stats_cache_seconds)

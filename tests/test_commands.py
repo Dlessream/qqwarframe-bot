@@ -44,6 +44,7 @@ class FakeMarket:
         self.index = index
         self.detail_calls = []
         self.platforms = []
+        self.force = []
         self.fail = False
 
     def lookup(self, query, category=None, limit=5):
@@ -55,13 +56,14 @@ class FakeMarket:
         self.detail_calls.append(slug)
         return self.index.get(slug)
 
-    def top_orders(self, slug, limit=5, platform=None):
+    def top_orders(self, slug, limit=5, platform=None, force=False):
+        self.force.append(force)
         self.platforms.append(platform)
         return ([Order("sell", 60, 12, "adadaAS", "ingame"),
                  Order("sell", 63, 11, "Novaky_Nov", "ingame")],
                 [Order("buy", 50, 25, "Tayfun0606", "ingame")])
 
-    def statistics(self, slug, platform=None):
+    def statistics(self, slug, platform=None, force=False):
         return MarketStats(
             h48=StatSummary(412, 61.8, 62, 55, 70),
             d90=StatSummary(13404, 71.5, 70, 55, 89),
@@ -272,6 +274,12 @@ class HandleTest(unittest.TestCase):
         router, market, _ = make_router(fail_market=True)
         replies = texts(router.handle("#查 mesa", self.ctx))
         self.assertIn("查询失败", replies[0])
+
+    def test_wm_realtime_force(self):
+        router, market, _ = make_router()
+        router.handle("#wm mesa", self.ctx)
+        self.assertTrue(market.force)
+        self.assertTrue(all(market.force))
 
     def test_unknown_command_falls_back_to_query(self):
         replies = texts(self.router.handle("#牛甲", self.ctx))

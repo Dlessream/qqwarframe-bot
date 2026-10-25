@@ -10,6 +10,13 @@
     autoPrompted: false,
     groupsDirty: false,
     aliasesLoaded: false,
+    aliasGroups: [],
+    aliasCategory: "all",
+    catalogCounts: {},
+    catalogTotal: 0,
+    catalogLimit: 40,
+    catalogOffset: 0,
+    catalogQuery: "",
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -358,19 +365,57 @@
   function renderAliasGroups(data) {
     const source = data.source || {};
     const groups = data.groups || [];
+    state.aliasGroups = groups;
+    state.catalogCounts = data.counts || {};
+    state.catalogTotal = Number(data.total || 0);
+    state.catalogOffset = Number(data.offset || 0);
+    state.catalogLimit = Number(data.limit || 40);
     const parts = [];
     parts.push(source.name || "warframe market");
     parts.push("<b>" + Number(source.items || 0) + "</b> 可交易物品");
     parts.push("上次刷新 " + formatAge(source.last_refresh_seconds));
+    if (source.realtime) parts.push("wm 实时报价");
     if (source.error) parts.push("物品源：" + source.error);
     $("sourceInfo").innerHTML = parts.join(" · ");
-    const total = groups.reduce((sum, group) => sum + (group.aliases || []).length, 0);
-    setText("aliasCount", groups.length + " 个目标 / " + total + " 个别名");
+    setText("aliasCount", Number(source.aliases || 0) + " 个别名");
+    renderAliasTabs();
+    renderAliasRows();
+  }
 
+  function renderAliasTabs() {
+    const labels = {
+      all: "全部", warframe: "战甲", weapon: "武器",
+      relic: "遗物", mod: "模组", other: "其他",
+    };
+    const counts = state.catalogCounts || {};
+    const tabs = $("aliasTabs");
+    tabs.innerHTML = "";
+    Object.keys(labels).forEach((key) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "alias-tab" + (state.aliasCategory === key ? " active" : "");
+      button.textContent = labels[key] + " " + Number(counts[key] || 0);
+      button.addEventListener("click", () => {
+        state.aliasCategory = key;
+        state.catalogOffset = 0;
+        loadAliases();
+      });
+      tabs.appendChild(button);
+    });
+  }
+
+  function renderAliasRows() {
     const list = $("aliasGroups");
+    const groups = state.aliasGroups || [];
     list.innerHTML = "";
+    const page = Math.floor(state.catalogOffset / state.catalogLimit) + 1;
+    const pages = Math.max(1, Math.ceil(state.catalogTotal / state.catalogLimit));
+    setText("aliasPage", "第 " + page + " / " + pages + " 页 · " +
+      state.catalogTotal + " 条");
+    $("aliasPrev").disabled = state.catalogOffset <= 0;
+    $("aliasNext").disabled = state.catalogOffset + state.catalogLimit >= state.catalogTotal;
     if (!groups.length) {
-      list.innerHTML = '<div class="alias-empty">还没有别名。</div>';
+      list.innerHTML = '<div class="alias-empty">这个分组没有物品。</div>';
       return;
     }
     groups.forEach((group) => {
@@ -454,7 +499,13 @@
 
   async function loadAliases() {
     try {
-      const data = await api("/api/alias-groups");
+      const params = new URLSearchParams({
+        category: state.aliasCategory,
+        offset: String(state.catalogOffset),
+        limit: String(state.catalogLimit),
+      });
+      if (state.catalogQuery) params.set("q", state.catalogQuery);
+      const data = await api("/api/catalog?" + params.toString());
       state.aliasesLoaded = true;
       renderAliasGroups(data);
     } catch (exc) {
@@ -591,6 +642,22 @@
     $("aliasSearch").addEventListener("click", searchItems);
     $("aliasTranslate").addEventListener("click", translateTarget);
     $("aliasSave").addEventListener("click", saveAlias);
+    $("aliasFilterBtn").addEventListener("click", () => {
+      state.catalogQuery = $("aliasFilter").value.trim();
+      state.catalogOffset = 0;
+      loadAliases();
+    });
+    $("aliasFilter").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") $("aliasFilterBtn").click();
+    });
+    $("aliasPrev").addEventListener("click", () => {
+      state.catalogOffset = Math.max(0, state.catalogOffset - state.catalogLimit);
+      loadAliases();
+    });
+    $("aliasNext").addEventListener("click", () => {
+      state.catalogOffset += state.catalogLimit;
+      loadAliases();
+    });
     $("dataRefresh").addEventListener("click", refreshData);
     $("aliasTarget").addEventListener("keydown", (event) => {
       if (event.key === "Enter") searchItems();

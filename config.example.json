@@ -39,6 +39,7 @@
     "alias_file": "data/aliases.json",
     "top_orders": 5,
     "price_orders": 8,
+    "realtime_quotes": true,
     "user_agent": "QQWarframeBot/1.0 (+https://warframe.market)"
   },
   "wiki": {

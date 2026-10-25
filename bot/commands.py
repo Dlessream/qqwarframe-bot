@@ -153,6 +153,8 @@ class CommandRouter:
         self.prefixes = list(config.get("behavior", {}).get("prefixes") or ["#"])
         self.top_orders = int(config.get("warframe_market", {}).get("top_orders", 5))
         self.price_orders = int(config.get("warframe_market", {}).get("price_orders", 8))
+        self.wm_realtime = bool(
+            config.get("warframe_market", {}).get("realtime_quotes", True))
         self.default_platform = str(
             config.get("warframe_market", {}).get("platform", "pc"))
         self.riven = riven
@@ -349,7 +351,7 @@ class CommandRouter:
         try:
             sell, buy = self.market.top_orders(
                 item.slug, limit=self.price_orders if price_only else self.top_orders,
-                platform=platform)
+                platform=platform, force=self.wm_realtime)
         except MarketError as exc:
             self.log.warning("订单查询失败 %s：%s", item.slug, exc)
             sell, buy = [], []
@@ -359,7 +361,8 @@ class CommandRouter:
 
         stats = None
         try:
-            stats = self.market.statistics(item.slug, platform=platform)
+            stats = self.market.statistics(item.slug, platform=platform,
+                                           force=self.wm_realtime)
         except MarketError as exc:
             self.log.warning("行情查询失败 %s：%s", item.slug, exc)
         except Exception as exc:  # pragma: no cover - 防御

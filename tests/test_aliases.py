@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from bot.aliases import AliasStore, DEFAULT_ALIASES
+from bot.app import _item_category
 from bot.market import Item, ItemIndex
 
 
@@ -113,6 +114,20 @@ class AliasStoreTest(unittest.TestCase):
                          "rubico_prime_receiver")
         self.assertEqual(index.search("绝路蓝图")[0].item.slug,
                          "rubico_prime_blueprint")
+
+    def test_categories(self):
+        self.assertEqual(_item_category(Item(
+            slug="volt_prime_blueprint", tags=("warframe", "prime")))[0],
+            "warframe")
+        self.assertEqual(_item_category(Item(
+            slug="rubico_prime_set", tags=("weapon", "prime", "set")))[0],
+            "weapon")
+        self.assertEqual(_item_category(Item(
+            slug="axi_a1_relic", tags=("relic", "axi")))[0],
+            "relic")
+        self.assertEqual(_item_category(Item(
+            slug="split_chamber", tags=("mod", "rifle")))[0],
+            "mod")
 
 
 if __name__ == "__main__":

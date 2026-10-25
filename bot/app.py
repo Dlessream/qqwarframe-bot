@@ -35,6 +35,22 @@ from .worldstate import WorldStateClient, WorldStateError
 LOGGER = logging.getLogger("qqwarframe.app")
 
 
+def _item_category(item):
+    if item is None:
+        return "other", "其他"
+    tags = set(item.tags)
+    if "relic" in tags or "relics" in tags:
+        return "relic", "遗物"
+    if "mod" in tags or "arcane_enhancement" in tags:
+        return "mod", "模组"
+    if "warframe" in tags:
+        return "warframe", "战甲"
+    if "weapon" in tags or tags & {"primary", "secondary", "melee", "archgun",
+                                   "archmelee", "companion", "sentinel"}:
+        return "weapon", "武器"
+    return "other", "其他"
+
+
 class BotApp:
     def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None,
                  config_path: Optional[str] = None):
@@ -421,6 +437,7 @@ class BotApp:
             "language": str(self.market.cfg.get("language") or ""),
             "items": count,
             "tradable": count,
+            "realtime": bool(self.market.cfg.get("realtime_quotes", True)),
             "last_refresh_seconds": round(self.market.cache_age(), 1),
             "alias_file": self.market.alias_file,
             "aliases": len(self.alias_store.load()),
@@ -445,6 +462,65 @@ class BotApp:
             source["error"] = error
         return {"source": source, "aliases": entries}
 
+    def catalog_groups(self, category: str = "all", query: str = "",
+                       offset: int = 0, limit: int = 40) -> Dict[str, Any]:
+        index = self.market.index
+        category = str(category or "all").lower()
+        query = str(query or "").strip().casefold()
+        offset = max(0, int(offset or 0))
+        limit = max(1, min(100, int(limit or 40)))
+        entries = self.alias_store.entries()
+        by_slug: Dict[str, Dict[str, Any]] = {}
+        for entry in entries:
+            group = by_slug.setdefault(entry["slug"], {
+                "aliases": [], "builtin": [],
+            })
+            group["aliases"].append(entry["alias"])
+            if entry.get("builtin"):
+                group["builtin"].append(entry["alias"])
+        counts = {key: 0 for key in ("all", "warframe", "weapon",
+                                     "relic", "mod", "other")}
+        matches = []
+        for item in index.items:
+            kind, label = _item_category(item)
+            counts["all"] += 1
+            counts[kind] = counts.get(kind, 0) + 1
+            if category != "all" and kind != category:
+                continue
+            haystack = " ".join((item.name or "", item.name_en or "",
+                                 item.slug or "")).casefold()
+            if query and query not in haystack:
+                continue
+            matches.append((kind, label, item))
+        matches.sort(key=lambda row: (row[0], row[2].name or row[2].slug))
+        total = len(matches)
+        page = matches[offset:offset + limit]
+        groups = []
+        for kind, label, item in page:
+            alias_info = by_slug.get(item.slug, {"aliases": [], "builtin": []})
+            groups.append({
+                "slug": item.slug,
+                "name": item.name,
+                "name_en": item.name_en,
+                "missing": False,
+                "category": kind,
+                "category_label": label,
+                "aliases": alias_info["aliases"],
+                "builtin": alias_info["builtin"],
+                "parts": [],
+            })
+        source = self._market_source(index)
+        return {
+            "source": source,
+            "category": category,
+            "query": query,
+            "counts": counts,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "groups": groups,
+        }
+
     def alias_groups(self) -> Dict[str, Any]:
         index = None
         error = ""
@@ -456,11 +532,14 @@ class BotApp:
         for entry in self.alias_store.entries():
             slug = entry["slug"]
             item = index.get(slug) if index is not None else None
+            category, category_label = _item_category(item)
             group = groups.setdefault(slug, {
                 "slug": slug,
                 "name": item.name if item else "",
                 "name_en": item.name_en if item else "",
                 "missing": item is None,
+                "category": category,
+                "category_label": category_label,
                 "aliases": [],
                 "builtin": [],
             })
