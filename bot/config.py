@@ -54,15 +54,19 @@ DEFAULTS: Dict[str, Any] = {
         "user_agent": "QQWarframeBot/1.0 (+https://warframe.market)",
     },
     "wiki": {
-        "api_url": "https://warframe.huijiwiki.com/api.php",
-        "site_url": "https://warframe.huijiwiki.com/wiki/",
+        "engine": "english",
+        "api_url": "https://wiki.warframe.com/api.php",
+        "site_url": "https://wiki.warframe.com/w/",
+        "language": "en",
         "timeout_seconds": 15,
         "retries": 2,
         "proxy": "http://127.0.0.1:10809",
         "proxy_mode": "auto",
         "proxy_fallbacks": ["none"],
         "summary_chars": 280,
-        "fallback_bwiki": True,
+        "fallback_fandom": True,
+        "fandom_api": "https://warframe.fandom.com/api.php",
+        "fallback_bwiki": False,
         "bwiki_base": "https://wiki.biligame.com/warframe",
         "user_agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -306,6 +310,17 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
     wiki["proxy_mode"] = str(wiki.get("proxy_mode") or "auto").lower()
     if wiki["proxy_mode"] not in ("auto", "custom", "direct", "system"):
         raise ConfigError("wiki.proxy_mode 只能是 auto/custom/direct/system")
+    wiki["engine"] = str(wiki.get("engine") or "english").lower()
+    if wiki["engine"] not in ("english", "chinese"):
+        raise ConfigError("wiki.engine 只能是 english / chinese")
+    if wiki["engine"] == "english":
+        if ("huijiwiki" in str(wiki.get("api_url") or "")
+                or "biligame" in str(wiki.get("api_url") or "")):
+            wiki["api_url"] = "https://wiki.warframe.com/api.php"
+            wiki["site_url"] = "https://wiki.warframe.com/w/"
+            wiki["language"] = "en"
+        wiki["fallback_fandom"] = bool(wiki.get("fallback_fandom", True))
+        wiki["fallback_bwiki"] = False
     wiki["proxy_fallbacks"] = _as_str_list(
         wiki.get("proxy_fallbacks"), "wiki.proxy_fallbacks")
 

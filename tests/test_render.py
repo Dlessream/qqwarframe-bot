@@ -113,7 +113,7 @@ class RenderWikiTest(unittest.TestCase):
     def test_missing(self):
         text = render_wiki("zzz", None, [])
         self.assertIn("没有找到", text)
-        self.assertIn("huijiwiki", text)
+        self.assertIn("wiki.warframe.com", text)
 
 
 class RenderMiscTest(unittest.TestCase):

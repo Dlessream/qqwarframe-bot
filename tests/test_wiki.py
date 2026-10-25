@@ -3,8 +3,10 @@ import os
 import unittest
 from urllib.parse import parse_qs, urlparse
 
-from bot.wiki import (BWikiClient, WikiClient, WikiError, WikiHit, WikiPage,
-                      clean_wiki_text, extract_bwiki_intro, extract_bwiki_title,
+from bot.net import HttpError
+from bot.wiki import (BWikiClient, EnglishFandomClient, WikiClient, WikiError,
+                      WikiHit, WikiPage, clean_wiki_text, extract_bwiki_intro,
+                      extract_bwiki_title, extract_english_intro,
                       parse_bwiki_search)
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -264,4 +266,50 @@ class BWikiTitleGuardTest(unittest.TestCase):
         client = BWikiClient({"summary_chars": 100, "proxy": "none"})
         client.http = TextHttp()
         self.assertIsNone(client.page("高斯"))
+
+
+class EnglishWikiTest(unittest.TestCase):
+    HTML = ("<h2>Volt</h2><p>This is Volt, a versatile warrior.</p>"
+            "<table><tr><td>ignore me</td></tr></table>"
+            "<p>Volt can bend electricity.</p>")
+
+    def test_extract_intro(self):
+        text = extract_english_intro(self.HTML, 200)
+        self.assertIn("versatile warrior", text)
+        self.assertIn("bend electricity", text)
+        self.assertNotIn("ignore me", text)
+
+    def test_fandom_page_links_official_wiki(self):
+        class Fake:
+            def get_json(self, url, headers=None):
+                if "action=parse" in url:
+                    return {"parse": {"title": "Volt", "pageid": 1,
+                                      "text": {"*": EnglishWikiTest.HTML}}}
+                return {"query": {"search": []}}
+
+        client = EnglishFandomClient({
+            "fandom_api": "https://warframe.fandom.com/api.php",
+            "site_url": "https://wiki.warframe.com/w/",
+            "proxy": "none", "summary_chars": 200,
+        }, http=Fake())
+        page = client.page("Volt")
+        self.assertEqual(page.title, "Volt")
+        self.assertIn("versatile warrior", page.extract)
+        self.assertEqual(page.url, "https://wiki.warframe.com/w/Volt")
+
+    def test_official_403_falls_back_to_english(self):
+        class Broken:
+            def get_json(self, url, headers=None):
+                raise HttpError("403", status=403)
+
+        class Fallback:
+            def lookup(self, query, limit=3):
+                return WikiPage("Volt", "This is Volt.",
+                                "https://wiki.warframe.com/w/Volt"), []
+
+        client = make_client(Broken(), fallback_fandom=True)
+        client.fandom = Fallback()
+        page, _hits = client.lookup("Volt")
+        self.assertEqual(page.title, "Volt")
+        self.assertIn("wiki.warframe.com", page.url)
 

@@ -996,10 +996,20 @@ def wiki_reply(query: str, page: Optional[WikiPage],
                hits: Sequence[WikiHit]) -> Reply:
     text = render.render_wiki(query, page, hits)
     if page is None:
-        return Reply(text=text)
+        from urllib.parse import quote
+        search_url = ("https://wiki.warframe.com/w/Special:Search?search="
+                      + quote(str(query or "")))
+        return Reply(
+            text=text,
+            image=lambda: imagecard.wiki_card(
+                "未找到：%s" % query,
+                "英文维基没有找到这个关键词。\n"
+                "可以换英文名或更短的关键词，例如 Volt、Rubico、Riven Mod。",
+                search_url, "英文维基 · wiki.warframe.com"))
+    label = render.wiki_label(page.url)
     return Reply(text=text, image=lambda: imagecard.wiki_card(
         page.title, page.extract, page.url,
-        "中文维基 · warframe.huijiwiki.com"))
+        "%s · wiki.warframe.com" % label))
 
 
 # ---------------------------------------------------------------------- 提醒

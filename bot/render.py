@@ -194,14 +194,25 @@ def render_not_found(query: str) -> str:
             "· 该物品可能不可交易（如普通战甲本体、任务钥匙）" % query)
 
 
+def wiki_label(url: str = "") -> str:
+    value = str(url or "")
+    if "huijiwiki" in value or "biligame" in value:
+        return "中文维基"
+    return "英文维基"
+
+
 def render_wiki(query: str, page: Optional[WikiPage],
                 hits: Sequence[WikiHit] = ()) -> str:
     if page is None:
-        return ("中文维基里没有找到“%s”。\n"
-                "· 试试更短的关键词，例如“高斯”“绝路”“紫卡”\n"
-                "· 也可以直接访问：https://warframe.huijiwiki.com/" % query)
+        from urllib.parse import quote
+        search = ("https://wiki.warframe.com/w/Special:Search?search="
+                  + quote(str(query or "")))
+        return ("英文维基里没有找到“%s”。\n"
+                "· 试试英文关键词，例如 Volt、Rubico、Riven Mod\n"
+                "· 也可以直接搜索：%s" % (query, search))
 
-    lines = ["【%s】中文维基" % page.title, "", page.extract, "", page.url]
+    label = wiki_label(page.url)
+    lines = ["【%s】%s" % (page.title, label), "", page.extract, "", page.url]
     others = [hit for hit in hits if hit.title != page.title][:3]
     if others:
         lines.append("")
@@ -236,7 +247,7 @@ def render_help(prefix: str = "#") -> str:
         "%s提醒列表 / %s取消提醒 <编号|all>" % (prefix, prefix),
         "%s更新               立即刷新缓存数据" % prefix,
         "%s数据状态           各数据源更新时间" % prefix,
-        "%swiki <关键词>      中文维基" % prefix,
+        "%swiki <关键词>      英文维基" % prefix,
         "%s翻译 <物品名>      中英双语对照" % prefix,
         "%s帮助               显示本菜单" % prefix,
         DIVIDER,

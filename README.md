@@ -1,12 +1,12 @@
 # QQ Warframe 查询机器人 v2
 
-一个跑在自己电脑上的 QQ 机器人：查武器、战甲、MOD、赋能、遗物、套装等**所有可交易物品**的实时报价与行情，支持**套装拆件比价、紫卡、紫卡分析、Baro 奸商、突击、仲裁、中文维基、降价提醒**，所有缓存数据后台自动更新。
+一个跑在自己电脑上的 QQ 机器人：查武器、战甲、MOD、赋能、遗物、套装等**所有可交易物品**的实时报价与行情，支持**套装拆件比价、紫卡、紫卡分析、Baro 奸商、突击、仲裁、英文维基、降价提醒**，所有缓存数据后台自动更新。
 
 **所有查询结果都以图片卡片发送**（深色 Warframe 风格），文字只作为图片不可用时的兜底。
 
 - 市场数据：<https://warframe.market/zh-hans/>（官方 API v2，简体中文名）
 - 世界状态：<https://api.warframestat.us>（奸商/突击/仲裁）
-- 中文维基：<https://warframe.huijiwiki.com/>
+- 英文维基：<https://wiki.warframe.com/>（官方；Cloudflare 拦截时用 Fandom 英文镜像）
 - QQ 接入：OneBot 11（NapCatQQ / LLOneBot / Lagrange.OneBot）
 - 运行环境：Python 3.8+，仅依赖 Pillow（已装则开箱即用）
 - Linux 一键部署：NapCat + Xray（VLESS 节点）+ 机器人，见 [LINUX.md](LINUX.md)
@@ -23,7 +23,7 @@
 | --- | --- |
 | ![仲裁评级](docs/arbi.png) | ![仲裁任务](docs/arbitration.png) |
 
-| 奸商 | 中文维基 |
+| 奸商 | 英文维基 |
 | --- | --- |
 | ![奸商](docs/baro.png) | ![维基](docs/wiki.png) |
 
@@ -56,7 +56,7 @@
 | Web 控制台 | `http://127.0.0.1:8080`：运行状态、缓存、日志、更新检查；更新前必须确认 |
 | 更新提示 | 轮询 GitHub 新提交 + 监听本地 `bot/*.py` 变化，弹窗询问“是否更新/重启” |
 | 短缓存 | 订单 60 秒、行情 15 分钟、世界状态 60 秒、维基 10 分钟，重复查询秒回 |
-| 中文维基 | 词条摘要图片 + 直达链接 |
+| 英文维基 | 词条摘要图片 + 直达 `wiki.warframe.com` 链接 |
 | 稳定性 | 12h 物品缓存、3 请求/秒限流、429 重试、断线重连 |
 
 ---
@@ -92,7 +92,7 @@
 | `#取消提醒 <编号\|all>` | 取消提醒 |
 | `#更新` | 立即后台刷新所有缓存（含短缓存，10 分钟冷却） |
 | `#数据状态` | 查看各数据源的条数与更新时间 |
-| `#wiki <关键词>` | 中文维基摘要 |
+| `#wiki <关键词>` | 英文维基摘要图片 + 链接 |
 | `#翻译 <物品名>` | 物品名中英双语对照 |
 | `#帮助` | 指令菜单（图片） |
 
@@ -581,15 +581,21 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `api_url` | huijiwiki 的 `api.php` | 想换 B 站 WIKI 改这里 |
-| `site_url` | huijiwiki 的 `/wiki/` | 词条链接前缀 |
+| `engine` | `english` | `english` 用官方英文 Wiki；`chinese` 保留旧 huijiwiki/BWIKI |
+| `api_url` | `https://wiki.warframe.com/api.php` | 官方英文 Wiki MediaWiki API |
+| `site_url` | `https://wiki.warframe.com/w/` | 词条链接前缀 |
+| `language` | `en` | 请求英文内容 |
 | `summary_chars` | 280 | 摘要字数 |
 | `proxy` | `http://127.0.0.1:10809` | **仅 Wiki 使用**的代理，不影响市场/世界状态 |
 | `proxy_mode` | `auto` | `auto` 按顺序尝试；`custom` 只用 `proxy`；`direct` 强制直连；`system` 用系统代理 |
 | `proxy_fallbacks` | `["none"]` | `auto` 模式下备选线路，`none` 表示直连 |
 | `cookie` | `""` | 浏览器 Cookie（含 `cf_clearance`），用于绕过 Cloudflare |
-| `fallback_bwiki` | true | huijiwiki 失败时自动尝试 BWIKI |
-| `bwiki_base` | `https://wiki.biligame.com/warframe` | BWIKI 地址 |
+| `fallback_fandom` | true | 官方 Wiki 被 Cloudflare 403 时，用 Fandom 英文镜像取正文 |
+| `fandom_api` | `https://warframe.fandom.com/api.php` | Fandom 英文镜像 API |
+| `fallback_bwiki` | false | 旧中文 BWIKI 兜底，默认关闭 |
+| `bwiki_base` | `https://wiki.biligame.com/warframe` | 旧中文 BWIKI 地址 |
+
+`#wiki` 返回**图片卡片**（标题、英文摘要、链接），文字回复同时附链接。官方 API 被 Cloudflare 拦截时，内容来自 Fandom 英文镜像，但卡片链接始终指向 `wiki.warframe.com`。
 
 ### worldstate
 
@@ -743,7 +749,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**310 个离线测试**，不联网、不连 QQ，覆盖：
+**313 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -815,7 +821,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 310 个测试 + fixtures
+├── tests/                 # 313 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -851,17 +857,19 @@ v2rayN 没开，或端口不是 10809。启动 v2rayN，或在 `config.json` 里
 
 **5. `#wiki` 提示被 Cloudflare 拦截（403/567）**
 
-huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
+`wiki.warframe.com` 会拦截部分网络/机房 IP。处理顺序：
 
-1. 先用浏览器打开 `https://warframe.huijiwiki.com/wiki/高斯`。如果浏览器能开、
+1. 先用浏览器打开 `https://wiki.warframe.com/w/Volt`。如果浏览器能开、
    机器人不行，说明是 Cloudflare 拦了脚本请求。
-2. 在浏览器里按 F12 → Network → 刷新词条 → 复制请求头里的 `Cookie`
-   （包含 `cf_clearance`），粘贴到 `config.json` 的 `wiki.cookie`。
-   同时保持 `wiki.user_agent` 与浏览器一致（默认已是 Chrome UA）。
-3. 仍不行就换一个能过验证的代理（`wiki.proxy`），或把
+2. 机器人会自动改用 Fandom 英文镜像取正文，卡片链接仍指向
+   `https://wiki.warframe.com/w/...`；如果 Fandom 也不可用，才会返回“未找到”卡片。
+3. 想强制走官方源：在浏览器里按 F12 → Network → 刷新词条 → 复制 `Cookie`
+   （含 `cf_clearance`），粘贴到 `config.json` 的 `wiki.cookie`；
+   同时保持 `wiki.user_agent` 与浏览器一致（默认 Chrome UA）。
+4. 也可以换一个能过验证的代理（`wiki.proxy`），或把
    `wiki.proxy_mode` 设为 `direct` 试试直连；`auto` 会先走代理、
    失败后自动尝试 `proxy_fallbacks`（默认 `none`）。
-4. 机器人失败时也会直接回复两个可点击的词条链接，至少能手动打开。
+5. 失败卡片和文字回复都会附上官方搜索链接，至少能手动打开。
 
 **6. 中文名全是英文**
 
@@ -915,7 +923,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 - 市场数据来自 warframe.market 官方 API v2（`/v2/items`、`/v2/item`、
   `/v2/orders/item/{slug}/top`、`/v1/items/{slug}/statistics`、`/v2/riven/*`），
   官方限制约 3 请求/秒，本项目内置限流与 12 小时缓存。
-- 世界状态来自 warframestat.us；中文维基首选 huijiwiki，被 WAF 拦截时自动尝试 B 站 WIKI（内容遵循 CC BY-SA，回复保留原链接）。
+- 世界状态来自 warframestat.us；英文维基首选 `wiki.warframe.com`，Cloudflare 拦截时自动用 Fandom 英文镜像取正文，回复和图片始终保留官方链接。
 - 市场索引、紫卡武器表、仲裁评级由后台按 `auto_update.interval_seconds` 自动刷新；买卖单/行情/世界状态/维基走 `cache` 里的短 TTL，过期后重新请求。
 - 紫卡截图 OCR 使用本机 Tesseract，不上传图片；识别结果仅用于本次回复。
 - 仲裁评级来自 [arbi.wf.wiki](https://arbi.wf.wiki/) 的公开 JSON（梯队、节点、轮换表），回复保留原链接。
@@ -927,6 +935,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 

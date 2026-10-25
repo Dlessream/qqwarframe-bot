@@ -70,6 +70,7 @@ class WikiPage:
     extract: str
     url: str
     pageid: int = 0
+    source: str = ""
 
 
 def clean_wiki_text(text: str, limit: int = 0) -> str:
@@ -106,7 +107,8 @@ class WikiClient:
         self.cfg = config
         self.log = logger or LOGGER
         self.api_url = str(config["api_url"])
-        self.site_url = str(config.get("site_url", "https://warframe.huijiwiki.com/wiki/"))
+        self.site_url = str(config.get("site_url", "https://wiki.warframe.com/w/"))
+        self.language = str(config.get("language") or "en")
         self.summary_chars = int(config.get("summary_chars", 280))
         cache_cfg = cache_config or {}
         self.cache = TTLCache(cache_cfg, prefix="wiki")
@@ -125,8 +127,11 @@ class WikiClient:
                     logger=self.log,
                 ))
         self.http = self._http_clients[0]
+        self.fandom = None
+        if config.get("fallback_fandom", False):
+            self.fandom = EnglishFandomClient(config, logger=self.log)
         self.bwiki = None
-        if config.get("fallback_bwiki", True):
+        if config.get("fallback_bwiki", False):
             self.bwiki = BWikiClient(config, logger=self.log)
 
     # ------------------------------------------------------------------ 基础
@@ -136,7 +141,9 @@ class WikiClient:
         url = self.api_url + ("&" if "?" in self.api_url else "?") + urllib.parse.urlencode(query)
         headers = {
             "Accept": "application/json",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+            "Accept-Language": ("en-US,en;q=0.9,zh-CN;q=0.4"
+                                if self.language.startswith("en")
+                                else "zh-CN,zh;q=0.9,en;q=0.6"),
             "Referer": self.site_url,
         }
         if self.cookie:
@@ -225,6 +232,7 @@ class WikiClient:
             extract=extract,
             url=self.page_url(real_title),
             pageid=int(row.get("pageid") or 0),
+            source="英文维基",
         )
 
     def _parse_intro(self, title: str) -> str:
@@ -254,10 +262,11 @@ class WikiClient:
 
     def _lookup_uncached(self, query: str,
                          limit: int = 3) -> Tuple[Optional[WikiPage], List[WikiHit]]:
-        """先按标题精确查；失败再搜索并取第一条的摘要。
+        """官方英文 Wiki 优先；被 Cloudflare 拦截时用 Fandom 英文镜像内容。
 
-        huijiwiki 被 WAF 拦截或不可用时，自动尝试 B 站 WIKI（HTML 抓取）。
+        返回页面的链接始终指向 https://wiki.warframe.com/。
         """
+        official_error: Optional[WikiError] = None
         try:
             page = self.page(query)
             if page:
@@ -267,15 +276,16 @@ class WikiClient:
                 first = self.page(hits[0].title)
                 return first, hits
         except WikiError as exc:
-            self.log.warning("huijiwiki 查询失败，尝试 BWIKI 兜底：%s", exc)
-            if self.bwiki is not None:
-                try:
-                    page, hits = self.bwiki.lookup(query, limit=limit)
-                    if page or hits:
-                        return page, hits
-                except BWikiError as fallback_exc:
-                    self.log.warning("BWIKI 兜底也失败：%s", fallback_exc)
-            raise
+            official_error = exc
+            self.log.warning("官方英文 Wiki 查询失败，尝试 Fandom 英文镜像：%s", exc)
+
+        if self.fandom is not None:
+            try:
+                page, hits = self.fandom.lookup(query, limit=limit)
+                if page or hits:
+                    return page, hits
+            except Exception as exc:
+                self.log.warning("Fandom 英文镜像失败：%s", exc)
 
         if self.bwiki is not None:
             try:
@@ -284,7 +294,157 @@ class WikiClient:
                     return page, hits
             except BWikiError as exc:
                 self.log.warning("BWIKI 兜底失败：%s", exc)
+
+        if official_error is not None:
+            # Cloudflare 403 时给“未找到”卡片（带官方搜索链接）；
+            # 其他接口错误仍抛给命令层，避免把故障伪装成没这个词条。
+            if "403" in str(official_error):
+                return None, []
+            raise official_error
         return None, []
+
+
+def extract_english_intro(html_text: str, limit: int = 280) -> str:
+    """从 Fandom 英文 Wiki 的 parse HTML 中取正文段落。"""
+    chunk = re.sub(
+        r"<(script|style|table|noscript|figure|aside|nav|sup)[^>]*>.*?</\1>",
+        " ", str(html_text or ""), flags=re.S | re.I)
+    paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", chunk, re.S)
+    parts: List[str] = []
+    for paragraph in paragraphs:
+        text = clean_wiki_text(paragraph)
+        if len(text) < 20:
+            continue
+        parts.append(text)
+        if sum(len(part) for part in parts) > limit * 1.6:
+            break
+    if not parts:
+        return clean_wiki_text(chunk, limit)
+    return clean_wiki_text("\n".join(parts), limit)
+
+
+class EnglishFandomClient:
+    """英文 Wiki 内容兜底。
+
+    wiki.warframe.com 的 API 可能被 Cloudflare 拦截；Fandom 上的英文
+    WARFRAME Wiki 是同一批英文资料。链接仍统一指向官方 wiki.warframe.com。
+    """
+
+    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None,
+                 http: Optional[HttpClient] = None):
+        self.api_url = str(config.get("fandom_api")
+                           or "https://warframe.fandom.com/api.php")
+        self.site_url = str(config.get("site_url")
+                            or "https://wiki.warframe.com/w/")
+        self.summary_chars = int(config.get("summary_chars", 280))
+        self.log = logger or LOGGER
+        self.cookie = str(config.get("cookie") or "").strip()
+        self._http_clients: List[HttpClient] = []
+        if http is not None:
+            self._http_clients = [http]
+        else:
+            for proxy in wiki_proxy_candidates(config):
+                self._http_clients.append(HttpClient(
+                    user_agent=config.get("user_agent", BROWSER_UA),
+                    timeout=config.get("timeout_seconds", 15),
+                    proxy=proxy,
+                    retries=config.get("retries", 2),
+                    logger=self.log,
+                ))
+        self.http = self._http_clients[0]
+
+    def _call(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        query = {"format": "json", "formatversion": "1"}
+        query.update(params)
+        url = self.api_url + ("&" if "?" in self.api_url else "?") + \
+            urllib.parse.urlencode(query)
+        headers = {
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://warframe.fandom.com/",
+        }
+        if self.cookie:
+            headers["Cookie"] = self.cookie
+        last_error = None
+        clients = self._http_clients
+        if self.http is not clients[0]:
+            clients = [self.http]
+        for index, client in enumerate(clients):
+            try:
+                data = client.get_json(url, headers=headers)
+                if not isinstance(data, dict):
+                    raise WikiError("Fandom 返回格式异常。")
+                if data.get("error"):
+                    raise WikiError(str(data["error"]))
+                return data
+            except Exception as exc:
+                last_error = exc
+                if index + 1 < len(clients):
+                    continue
+        raise WikiError("Fandom 英文镜像请求失败（%s）。" % last_error)
+
+    def _official_url(self, title: str) -> str:
+        readable = (str(title or "").replace(" ", "_")
+                    .replace("%", "%25").replace("#", "%23")
+                    .replace("?", "%3F"))
+        return self.site_url + readable
+
+    def search(self, query: str, limit: int = 5) -> List[WikiHit]:
+        data = self._call({
+            "action": "query", "list": "search", "srsearch": query,
+            "srlimit": max(1, min(int(limit), 10)), "srnamespace": "0",
+            "srprop": "snippet",
+        })
+        hits = []
+        for row in ((data.get("query") or {}).get("search") or []):
+            title = clean_wiki_text(str(row.get("title") or ""))
+            if not title:
+                continue
+            hits.append(WikiHit(
+                title=title,
+                snippet=clean_wiki_text(str(row.get("snippet") or ""), 90),
+                pageid=int(row.get("pageid") or 0),
+                url=self._official_url(title),
+            ))
+        return hits
+
+    def page(self, title: str) -> Optional[WikiPage]:
+        data = self._call({
+            "action": "parse", "page": title, "prop": "text",
+            "section": "0", "redirects": "1", "formatversion": "1",
+        })
+        parse = data.get("parse") or {}
+        real_title = clean_wiki_text(str(parse.get("title") or title))
+        raw = parse.get("text") or ""
+        if isinstance(raw, dict):
+            raw = raw.get("*") or raw.get("content") or ""
+        extract = extract_english_intro(str(raw), self.summary_chars)
+        if not extract:
+            return None
+        return WikiPage(
+            title=real_title,
+            extract=extract,
+            url=self._official_url(real_title),
+            pageid=int(parse.get("pageid") or 0),
+            source="英文维基",
+        )
+
+    def lookup(self, query: str,
+               limit: int = 3) -> Tuple[Optional[WikiPage], List[WikiHit]]:
+        page = None
+        try:
+            page = self.page(query)
+        except WikiError as exc:
+            self.log.debug("Fandom 精确页失败，改搜索：%s", exc)
+        if page:
+            return page, []
+        hits = self.search(query, limit=limit)
+        if hits:
+            try:
+                return self.page(hits[0].title), hits
+            except WikiError as exc:
+                self.log.debug("Fandom 搜索结果页失败：%s", exc)
+        return None, hits
 
 
 def _first_page(pages: Any) -> Optional[Dict[str, Any]]:

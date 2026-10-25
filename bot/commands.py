@@ -316,7 +316,7 @@ class CommandRouter:
                 "查询失败：%s\n稍后再试；若持续失败，请运行 python selftest.py 自检。" % exc)]
         except WikiError as exc:
             return [present.error_reply(
-                "维基查询失败：%s\n稍后再试，或直接访问 https://warframe.huijiwiki.com/" % exc)]
+                "维基查询失败：%s\n稍后再试，或直接访问 https://wiki.warframe.com/" % exc)]
         except WorldStateError as exc:
             return [present.error_reply("世界状态查询失败：%s" % exc)]
 
@@ -709,8 +709,10 @@ class CommandRouter:
         if page is not None:
             zh = page.title
             en = item.name_en if item is not None else argument
+            source = ("英文维基" if "wiki.warframe.com" in page.url
+                      else "中文维基")
             return present.translation_reply(
-                argument, zh, en or argument, "中文维基", page.url)
+                argument, zh, en or argument, source, page.url)
         if item is not None:
             zh = item.name or item.name_en
             en = item.name_en or item.name
@@ -723,7 +725,7 @@ class CommandRouter:
     def _wiki(self, argument: str, ctx: Context) -> Reply:
         if not argument:
             return present.error_reply(
-                "用法：%swiki <关键词>\n例如：%swiki 高斯" % (ctx.prefix, ctx.prefix))
+                "用法：%swiki <关键词>\n例如：%swiki Volt" % (ctx.prefix, ctx.prefix))
         try:
             page, hits = self.wiki.lookup(argument, limit=3)
         except WikiError as exc:
@@ -732,8 +734,8 @@ class CommandRouter:
             return present.error_reply(
                 "维基查询失败：%s\n"
                 "如果浏览器能打开下面链接，说明是 Cloudflare 拦截了机器人请求：\n"
-                "· https://warframe.huijiwiki.com/wiki/%s\n"
-                "· https://wiki.biligame.com/warframe/%s\n"
+                "· https://wiki.warframe.com/w/%s\n"
+                "· https://warframe.fandom.com/wiki/%s\n"
                 "可换一个能通过验证的代理（wiki.proxy），或稍后再试。"
                 % (exc, keyword, keyword))
         return present.wiki_reply(argument, page, hits)

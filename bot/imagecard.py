@@ -823,17 +823,30 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
             if lines:
                 lines.append("")
             continue
-        # 逐字换行（中文没有空格）
-        current = ""
-        for char in paragraph:
-            candidate = current + char
-            if _tsize(draw, candidate, body_font)[0] <= WIDTH - 2 * PAD:
-                current = candidate
-            else:
+        # 中文逐字换行；英文按单词换行，避免把 abilities 拆成 abilit/ies。
+        if " " in paragraph:
+            current = ""
+            for word in paragraph.split(" "):
+                candidate = (current + " " + word).strip()
+                if _tsize(draw, candidate, body_font)[0] <= WIDTH - 2 * PAD:
+                    current = candidate
+                else:
+                    if current:
+                        lines.append(current)
+                    current = word
+            if current:
                 lines.append(current)
-                current = char
-        if current:
-            lines.append(current)
+        else:
+            current = ""
+            for char in paragraph:
+                candidate = current + char
+                if _tsize(draw, candidate, body_font)[0] <= WIDTH - 2 * PAD:
+                    current = candidate
+                else:
+                    lines.append(current)
+                    current = char
+            if current:
+                lines.append(current)
         lines.append("")
 
     if len(lines) > max_lines:
@@ -851,7 +864,7 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
     _divider(draw, y)
     y += 14
     url_font = _font(14)
-    draw.text((PAD, y), _fit(draw, url, url_font, WIDTH - 2 * PAD),
+    draw.text((PAD, y), _fit(draw, "链接 " + url, url_font, WIDTH - 2 * PAD),
               font=url_font, fill=CYAN)
     y += 30
 
@@ -885,7 +898,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s提醒 <名称> <价>" % prefix, "降价提醒"],
         ["%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"],
         ["%s更新 / %s数据状态" % (prefix, prefix), "刷新缓存、查看数据源"],
-        ["%swiki <关键词>" % prefix, "中文维基"],
+        ["%swiki <关键词>" % prefix, "英文维基"],
         ["%s翻译 <物品名>" % prefix, "中英双语对照"],
         ["%s帮助" % prefix, "显示本菜单"],
     ]
