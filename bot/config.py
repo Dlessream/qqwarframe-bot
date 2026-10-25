@@ -117,7 +117,7 @@ DEFAULTS: Dict[str, Any] = {
         "public_url": "",
         "log_lines": 200,
         "update": {
-            "repo": "z13207091735-source/qqwarframe-bot",
+            "repo": "Dlessream/qqwarframe-bot",
             "branch": "main",
             "check_seconds": 600,
             "proxy": "",

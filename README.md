@@ -395,7 +395,7 @@ BUILD_COMMIT=<部署时的 git commit>
   "public_url": "",
   "log_lines": 200,
   "update": {
-    "repo": "z13207091735-source/qqwarframe-bot",
+    "repo": "Dlessream/qqwarframe-bot",
     "branch": "main",
     "check_seconds": 600,
     "proxy": "",
@@ -580,7 +580,7 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | `token` | `""` | 访问令牌；非空时 API 必须带 `X-Admin-Token` |
 | `public_url` | `""` | QQ 更新提示中显示的地址 |
 | `log_lines` | 200 | 日志接口最多返回行数 |
-| `update.repo` | `z13207091735-source/qqwarframe-bot` | GitHub 仓库 |
+| `update.repo` | `Dlessream/qqwarframe-bot` | GitHub 仓库 |
 | `update.branch` | `main` | 分支 |
 | `update.check_seconds` | 600 | 远程检查间隔（最小 60 秒） |
 | `update.proxy` | `""` | 留空使用市场代理 |
