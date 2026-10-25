@@ -1,7 +1,7 @@
 """紫卡（Riven）查询。
 
-warframe.market 的 v2 只公开紫卡武器（倾向、类型），拍卖数据仍走 v1：
-    GET /v1/rivens/items/{weapon_slug}?buyout_policy=direct
+warframe.market 的 v2 只公开紫卡武器（倾向、类型），拍卖数据走 v1：
+    GET /v1/auctions/search?type=riven&weapon_url_name={slug}
 若该接口不可用（官方已多次调整），就只展示武器倾向信息并明确说明。
 """
 
@@ -11,6 +11,7 @@ import logging
 import re
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -200,11 +201,13 @@ class RivenClient:
 
     def _auctions_uncached(self, slug: str,
                            limit: int = 5) -> Tuple[List[RivenAuction], str]:
-        """依次尝试官方可能使用的拍卖路径，任一可用即可。"""
+        """官方拍卖搜索：/v1/auctions/search（2026-10 实测可用）。"""
+        quoted = urllib.parse.quote(slug)
         paths = (
-            "/v2/rivens/items/%s?buyout_policy=direct" % slug,
-            "/v2/riven/items/%s?buyout_policy=direct" % slug,
-            "/v1/rivens/items/%s?buyout_policy=direct" % slug,
+            "/v1/auctions/search?type=riven&weapon_url_name=%s"
+            "&buyout_policy=direct&sort_by=price_asc" % quoted,
+            "/v1/auctions/search?type=riven&weapon_url_name=%s"
+            "&sort_by=price_asc" % quoted,
         )
         data = None
         last_error = None
@@ -245,8 +248,9 @@ class RivenClient:
                 continue
             if price <= 0:
                 continue
+            item = row.get("item") if isinstance(row.get("item"), dict) else row
             attributes = []
-            for attr in row.get("attributes") or []:
+            for attr in item.get("attributes") or []:
                 if not isinstance(attr, dict):
                     continue
                 url_name = str(attr.get("url_name") or "")
@@ -264,8 +268,8 @@ class RivenClient:
             result.append(RivenAuction(
                 price=price,
                 seller=str(owner.get("ingame_name") or owner.get("ingameName") or "?"),
-                rank=int(row.get("rank") or 0),
-                re_rolls=int(row.get("re_rolls") or 0),
+                rank=int(item.get("mod_rank") or row.get("rank") or 0),
+                re_rolls=int(item.get("re_rolls") or row.get("re_rolls") or 0),
                 attributes=attributes,
             ))
         result.sort(key=lambda auction: auction.price)

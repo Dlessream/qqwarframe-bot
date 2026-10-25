@@ -123,6 +123,24 @@ class AuctionTest(unittest.TestCase):
         self.assertTrue(any("暴击几率" in attr for attr in first.attributes))
         self.assertTrue(any("变焦" in attr and "-" in attr for attr in first.attributes))
 
+    def test_nested_item_shape(self):
+        payload = {"payload": {"auctions": [
+            {"buyout_price": 55, "closed": False,
+             "owner": {"ingame_name": "NestedSeller"},
+             "item": {"mod_rank": 8, "re_rolls": 2,
+                      "attributes": [
+                          {"url_name": "critical_chance", "value": 90.2,
+                           "positive": True},
+                      ]}},
+        ]}}
+        client = RivenClient(FakeMarket(auctions=payload))
+        auctions, note = client.auctions("rubico", limit=5)
+        self.assertEqual(note, "")
+        self.assertEqual(auctions[0].price, 55)
+        self.assertEqual(auctions[0].rank, 8)
+        self.assertEqual(auctions[0].re_rolls, 2)
+        self.assertIn("暴击几率", auctions[0].attributes[0])
+
     def test_limit(self):
         client = RivenClient(FakeMarket())
         auctions, _ = client.auctions("rubico", limit=1)

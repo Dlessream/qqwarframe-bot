@@ -723,7 +723,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**298 个离线测试**，不联网、不连 QQ，覆盖：
+**299 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -794,7 +794,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 298 个测试 + fixtures
+├── tests/                 # 299 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -820,8 +820,13 @@ v2rayN 没开，或端口不是 10809。启动 v2rayN，或在 `config.json` 里
 
 **4. 紫卡没有拍卖价格**
 
-warframe.market 的紫卡拍卖 v1 接口已多次调整。机器人会先尝试拍卖接口，
-不可用时仍展示**武器倾向、类型、MR**，并明确提示接口暂不可用。
+紫卡拍卖使用官方：
+
+```text
+/v1/auctions/search?type=riven&weapon_url_name=<weapon>&buyout_policy=direct&sort_by=price_asc
+```
+
+如果官方改版导致 404/403，机器人仍展示**武器倾向、类型、MR**，并明确提示接口暂不可用。拍卖缓存默认 5 分钟。
 
 **5. `#wiki` 提示被 Cloudflare 拦截（403/567）**
 
@@ -901,6 +906,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 
