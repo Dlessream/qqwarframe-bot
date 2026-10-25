@@ -542,7 +542,9 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | `api_url` | huijiwiki 的 `api.php` | 想换 B 站 WIKI 改这里 |
 | `site_url` | huijiwiki 的 `/wiki/` | 词条链接前缀 |
 | `summary_chars` | 280 | 摘要字数 |
-| `proxy` | `http://127.0.0.1:10809` | 代理 |
+| `proxy` | `http://127.0.0.1:10809` | **仅 Wiki 使用**的代理，不影响市场/世界状态 |
+| `proxy_mode` | `auto` | `auto` 按顺序尝试；`custom` 只用 `proxy`；`direct` 强制直连；`system` 用系统代理 |
+| `proxy_fallbacks` | `["none"]` | `auto` 模式下备选线路，`none` 表示直连 |
 | `cookie` | `""` | 浏览器 Cookie（含 `cf_clearance`），用于绕过 Cloudflare |
 | `fallback_bwiki` | true | huijiwiki 失败时自动尝试 BWIKI |
 | `bwiki_base` | `https://wiki.biligame.com/warframe` | BWIKI 地址 |
@@ -692,14 +694,14 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**284 个离线测试**，不联网、不连 QQ，覆盖：
+**287 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
 - 世界状态解析、钢铁裂缝、虚空风暴/九重天、赏金、希图斯 7 档赏金/帐篷 A-C、深层/时光科研、紫卡范围/roll 评分/OCR
 - 仲裁评级 JSON 解析、节点查找、轮换兜底
 - 市场响应解析、48h 统计聚合、缓存、429 重试
-- 维基摘要与 HTML 回退、世界状态时间解析
+- 维基摘要与 HTML 回退、Wiki 专用代理线路切换、世界状态时间解析
 - 提醒存储的增删改查与持久化
 - 自动更新调度、手动触发冷却、数据源状态汇总
 - 群黑白名单、黑名单优先级、私聊不受影响
@@ -762,7 +764,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 284 个测试 + fixtures
+├── tests/                 # 287 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -801,7 +803,8 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
    （包含 `cf_clearance`），粘贴到 `config.json` 的 `wiki.cookie`。
    同时保持 `wiki.user_agent` 与浏览器一致（默认已是 Chrome UA）。
 3. 仍不行就换一个能过验证的代理（`wiki.proxy`），或把
-   `wiki.api_url` / `wiki.site_url` 换成你能访问的 MediaWiki 镜像。
+   `wiki.proxy_mode` 设为 `direct` 试试直连；`auto` 会先走代理、
+   失败后自动尝试 `proxy_fallbacks`（默认 `none`）。
 4. 机器人失败时也会直接回复两个可点击的词条链接，至少能手动打开。
 
 **6. 中文名全是英文**
@@ -865,6 +868,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 

@@ -58,6 +58,8 @@ DEFAULTS: Dict[str, Any] = {
         "timeout_seconds": 15,
         "retries": 2,
         "proxy": "http://127.0.0.1:10809",
+        "proxy_mode": "auto",
+        "proxy_fallbacks": ["none"],
         "summary_chars": 280,
         "fallback_bwiki": True,
         "bwiki_base": "https://wiki.biligame.com/warframe",
@@ -154,6 +156,7 @@ _ENV_OVERRIDES = {
     "QQWF_ACCESS_TOKEN": ("onebot", "access_token", "str"),
     "QQWF_PROXY": ("warframe_market", "proxy", "str"),
     "QQWF_WIKI_PROXY": ("wiki", "proxy", "str"),
+    "QQWF_WIKI_PROXY_MODE": ("wiki", "proxy_mode", "str"),
     "QQWF_WORLDSTATE_PROXY": ("worldstate", "proxy", "str"),
     "QQWF_PLATFORM": ("warframe_market", "platform", "str"),
     "QQWF_LANGUAGE": ("warframe_market", "language", "str"),
@@ -293,6 +296,11 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
     wiki["retries"] = max(0, _as_int(wiki["retries"], "wiki.retries", 0))
     wiki["summary_chars"] = max(
         80, _as_int(wiki["summary_chars"], "wiki.summary_chars", 80))
+    wiki["proxy_mode"] = str(wiki.get("proxy_mode") or "auto").lower()
+    if wiki["proxy_mode"] not in ("auto", "custom", "direct", "system"):
+        raise ConfigError("wiki.proxy_mode 只能是 auto/custom/direct/system")
+    wiki["proxy_fallbacks"] = _as_str_list(
+        wiki.get("proxy_fallbacks"), "wiki.proxy_fallbacks")
 
     world = cfg["worldstate"]
     world["timeout_seconds"] = max(

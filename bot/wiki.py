@@ -25,6 +25,27 @@ BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 BWIKI_BASE = "https://wiki.biligame.com/warframe"
 
+
+def wiki_proxy_candidates(config: Dict[str, Any]) -> List[str]:
+    """只用于 Wiki 的代理顺序；不会影响市场/世界状态。"""
+    mode = str(config.get("proxy_mode") or "auto").strip().lower()
+    primary = str(config.get("proxy") or "").strip()
+    if mode in ("direct", "none", "off"):
+        return ["none"]
+    if mode == "system":
+        return [""]
+    candidates = [primary]
+    if mode == "auto":
+        fallbacks = config.get("proxy_fallbacks") or ["none"]
+        if isinstance(fallbacks, str):
+            fallbacks = [fallbacks]
+        candidates.extend(str(item).strip() for item in fallbacks)
+    result: List[str] = []
+    for item in candidates:
+        if item not in result:
+            result.append(item)
+    return result or [""]
+
 _TAG_RE = re.compile(r"<[^>]+>")
 _SPACE_RE = re.compile(r"[ \t\u00a0\u2000-\u200b\u202f\u205f\u3000]+")
 _NEWLINE_RE = re.compile(r"\n{3,}")
@@ -91,13 +112,19 @@ class WikiClient:
         self.cache = TTLCache(cache_cfg, prefix="wiki")
         self.cache_seconds = int(cache_cfg.get("wiki_seconds", 600))
         self.cookie = str(config.get("cookie") or "").strip()
-        self.http = http or HttpClient(
-            user_agent=config.get("user_agent", BROWSER_UA),
-            timeout=config.get("timeout_seconds", 15),
-            proxy=config.get("proxy", ""),
-            retries=config.get("retries", 2),
-            logger=self.log,
-        )
+        self._http_clients: List[HttpClient] = []
+        if http is not None:
+            self._http_clients = [http]
+        else:
+            for proxy in wiki_proxy_candidates(config):
+                self._http_clients.append(HttpClient(
+                    user_agent=config.get("user_agent", BROWSER_UA),
+                    timeout=config.get("timeout_seconds", 15),
+                    proxy=proxy,
+                    retries=config.get("retries", 2),
+                    logger=self.log,
+                ))
+        self.http = self._http_clients[0]
         self.bwiki = None
         if config.get("fallback_bwiki", True):
             self.bwiki = BWikiClient(config, logger=self.log)
@@ -107,13 +134,30 @@ class WikiClient:
         query = {"format": "json", "formatversion": "1"}
         query.update(params)
         url = self.api_url + ("&" if "?" in self.api_url else "?") + urllib.parse.urlencode(query)
-        headers = {"Accept": "application/json"}
+        headers = {
+            "Accept": "application/json",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+            "Referer": self.site_url,
+        }
         if self.cookie:
             headers["Cookie"] = self.cookie
-        try:
-            data = self.http.get_json(url, headers=headers)
-        except HttpError as exc:
-            raise WikiError("维基接口请求失败（%s）。" % exc)
+        data = None
+        last_error: Optional[HttpError] = None
+        clients = self._http_clients
+        if self.http is not clients[0]:
+            clients = [self.http]
+        for index, client in enumerate(clients):
+            try:
+                data = client.get_json(url, headers=headers)
+                break
+            except HttpError as exc:
+                last_error = exc
+                if index + 1 < len(clients):
+                    self.log.warning(
+                        "Wiki 代理线路 %d 失败（HTTP %s），切换下一条",
+                        index + 1, exc.status or "?")
+        if data is None:
+            raise WikiError("维基接口请求失败（%s）。" % last_error)
         if not isinstance(data, dict):
             raise WikiError("维基接口返回格式异常。")
         error = data.get("error")
@@ -333,22 +377,39 @@ class BWikiClient:
         self.summary_chars = int(config.get("summary_chars", 280))
         self.log = logger or LOGGER
         self.cookie = str(config.get("cookie") or "").strip()
-        self.http = HttpClient(
-            user_agent=config.get("user_agent", BROWSER_UA),
-            timeout=config.get("timeout_seconds", 15),
-            proxy=config.get("proxy", ""),
-            retries=config.get("retries", 1),
-            logger=self.log,
-        )
+        self._http_clients: List[HttpClient] = []
+        for proxy in wiki_proxy_candidates(config):
+            self._http_clients.append(HttpClient(
+                user_agent=config.get("user_agent", BROWSER_UA),
+                timeout=config.get("timeout_seconds", 15),
+                proxy=proxy,
+                retries=config.get("retries", 1),
+                logger=self.log,
+            ))
+        self.http = self._http_clients[0]
 
     def _get(self, url: str) -> str:
-        headers = {"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+            "Referer": self.base + "/",
+        }
         if self.cookie:
             headers["Cookie"] = self.cookie
-        try:
-            return self.http.get_text(url, headers=headers)
-        except HttpError as exc:
-            raise BWikiError("B 站 WIKI 请求失败（%s）" % exc)
+        last_error: Optional[HttpError] = None
+        clients = self._http_clients
+        if self.http is not clients[0]:
+            clients = [self.http]
+        for index, client in enumerate(clients):
+            try:
+                return client.get_text(url, headers=headers)
+            except HttpError as exc:
+                last_error = exc
+                if index + 1 < len(clients):
+                    self.log.warning(
+                        "BWIKI 代理线路 %d 失败（HTTP %s），切换下一条",
+                        index + 1, exc.status or "?")
+        raise BWikiError("B 站 WIKI 请求失败（%s）" % last_error)
 
     def page(self, title: str) -> Optional["WikiPage"]:
         url = self.base + "/" + urllib.parse.quote(title.replace(" ", "_"))
