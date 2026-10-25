@@ -100,6 +100,27 @@
       </article>
     </section>
 
+    <section class="panel groups-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">群策略</span>
+          <span class="panel-sub">黑名单永远拒绝；白名单非空时只服务白名单</span>
+        </div>
+        <button id="groupSave" class="btn btn-primary btn-sm" type="button">保存名单</button>
+      </div>
+      <div class="groups-grid">
+        <label class="field">
+          <span>白名单 <small>5–20 位群号，每行一个；留空表示不限制</small></span>
+          <textarea id="whitelistInput" class="textarea" rows="5" spellcheck="false" placeholder="123456789&#10;987654321"></textarea>
+        </label>
+        <label class="field">
+          <span>黑名单 <small>5–20 位群号，每行一个；优先级最高</small></span>
+          <textarea id="blacklistInput" class="textarea" rows="5" spellcheck="false" placeholder="111111111"></textarea>
+        </label>
+      </div>
+      <p id="groupMode" class="group-mode">当前：未加载群策略</p>
+    </section>
+
     <section class="panel logs-panel">
       <div class="panel-head">
         <div>

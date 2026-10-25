@@ -133,6 +133,12 @@ class AdminServer:
                     checker = getattr(server.app, "update_checker", None)
                     self._json({"ok": True, "update": checker.snapshot() if checker else {}})
                     return
+                if path == "/api/groups":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.group_policy_snapshot()})
+                    return
                 self._json({"ok": False, "message": "Not found"},
                            HTTPStatus.NOT_FOUND)
 
@@ -193,6 +199,18 @@ class AdminServer:
                         return
                     server.app.request_restart()
                     self._json({"ok": True, "message": "正在重启服务。"})
+                    return
+
+                if parsed.path == "/api/groups":
+                    try:
+                        result = server.app.update_group_policy(
+                            data.get("whitelist") or [],
+                            data.get("blacklist") or [])
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
                     return
 
                 self._json({"ok": False, "message": "Not found"},

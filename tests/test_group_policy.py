@@ -1,3 +1,6 @@
+import json
+import os
+import tempfile
 import unittest
 
 from bot.app import BotApp
@@ -98,6 +101,35 @@ class GroupPolicyTest(unittest.TestCase):
             "raw_message": "今天天气不错",
         })
         self.assertEqual(fake.sent, [])
+
+    def test_update_group_policy_persists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.json")
+            config = load_config("config.example.json")
+            config["auto_update"]["enabled"] = False
+            config["alerts"]["enabled"] = False
+            config["web"]["enabled"] = False
+            config["behavior"]["preload_items"] = False
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(config, handle, ensure_ascii=False)
+            app = BotApp(config, config_path=path)
+            result = app.update_group_policy(["100001", "200002"], ["200002"])
+            self.assertEqual(result["whitelist"], ["100001", "200002"])
+            self.assertEqual(result["blacklist"], ["200002"])
+            self.assertTrue(app._group_allowed("100001"))
+            self.assertFalse(app._group_allowed("200002"))
+            with open(path, encoding="utf-8") as handle:
+                saved = json.load(handle)
+            self.assertEqual(saved["behavior"]["whitelist_groups"],
+                             ["100001", "200002"])
+            self.assertEqual(saved["behavior"]["blacklist_groups"], ["200002"])
+
+    def test_invalid_group_id_rejected(self):
+        app = make_app()
+        with self.assertRaises(ValueError):
+            app.update_group_policy(["abc"], [])
+        with self.assertRaises(ValueError):
+            app.update_group_policy([], ["123"])
 
 
 if __name__ == "__main__":

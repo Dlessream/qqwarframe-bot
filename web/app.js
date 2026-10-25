@@ -8,6 +8,7 @@
     dismissedRemote: "",
     dismissedLocal: false,
     autoPrompted: false,
+    groupsDirty: false,
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -102,8 +103,9 @@
     setText("lastUpdate", status.updater && status.updater.last_run ? formatTime(status.updater.last_run) : "尚未运行");
     setText("alertCount", status.alerts == null ? "—" : status.alerts);
     const groups = status.groups || {};
-    setText("groupPolicy", "白 " + Number(groups.whitelist || 0) +
-      " / 黑 " + Number(groups.blacklist || 0));
+    setText("groupPolicy", "白 " + Number((groups.whitelist || []).length) +
+      " / 黑 " + Number((groups.blacklist || []).length));
+    renderGroups(groups);
     setText("imageState", status.image ? "可用" : "关闭");
     setText("ocrState", status.ocr ? "可用" : "未启用");
     setText("fontState", status.font ? "已加载" : "缺失");
@@ -294,11 +296,59 @@
     }
   }
 
+  function renderGroups(groups) {
+    const whitelist = Array.isArray(groups.whitelist) ? groups.whitelist : [];
+    const blacklist = Array.isArray(groups.blacklist) ? groups.blacklist : [];
+    if (!state.groupsDirty) {
+      $("whitelistInput").value = whitelist.join("\n");
+      $("blacklistInput").value = blacklist.join("\n");
+    }
+    const mode = whitelist.length
+      ? "白名单模式：仅 " + whitelist.length + " 个群可用；黑名单优先"
+      : "黑名单模式：除 " + blacklist.length + " 个黑名单群外，其他群都可用";
+    setText("groupMode", "当前：" + mode);
+  }
+
+  function parseGroupIds(value) {
+    return String(value || "")
+      .split(/[\s,，;；]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  async function saveGroups() {
+    const button = $("groupSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      const result = await api("/api/groups", {
+        method: "POST",
+        body: {
+          whitelist: parseGroupIds($("whitelistInput").value),
+          blacklist: parseGroupIds($("blacklistInput").value),
+        },
+      });
+      state.groupsDirty = false;
+      renderGroups(result);
+      toast("群策略已保存，立即生效");
+      refresh();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "保存名单";
+    }
+  }
+
   function bind() {
     $("refreshBtn").addEventListener("click", refresh);
     $("checkBtn").addEventListener("click", checkUpdate);
     $("restartBtn").addEventListener("click", () => openModal("restart"));
     $("logRefresh").addEventListener("click", refreshLogs);
+    $("groupSave").addEventListener("click", saveGroups);
+    ["whitelistInput", "blacklistInput"].forEach((id) => {
+      $(id).addEventListener("input", () => { state.groupsDirty = true; });
+    });
     $("bannerAction").addEventListener("click", () => {
       const kind = $("bannerAction").dataset.kind || "remote";
       openModal(kind);

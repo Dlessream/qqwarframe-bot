@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import base64
 import collections
+import json
 import logging
 import os
+import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -32,8 +35,10 @@ LOGGER = logging.getLogger("qqwarframe.app")
 
 
 class BotApp:
-    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None,
+                 config_path: Optional[str] = None):
         self.cfg = config
+        self.config_path = config_path
         self.log = logger or LOGGER
         self.behavior = config.get("behavior", {})
         self.allow_bare = not bool(self.behavior.get("require_prefix", False))
@@ -100,6 +105,7 @@ class BotApp:
         self._last_reply: Dict[str, float] = {}
         self._chat_bucket: Dict[str, Deque[float]] = {}
         self._lock = threading.Lock()
+        self._config_lock = threading.Lock()
         self._alert_thread: Optional[threading.Thread] = None
         self.started_at = time.time()
         self._restarting = False
@@ -187,7 +193,10 @@ class BotApp:
                 "results": self.updater.last_results if self.updater else {},
             },
             "alerts": alert_count,
-            "groups": {"whitelist": len(whitelist), "blacklist": len(blacklist)},
+            "groups": {
+                "whitelist": sorted(whitelist),
+                "blacklist": sorted(blacklist),
+            },
             "update": update,
             "web": {
                 "host": self.web_config.get("host", "127.0.0.1"),
@@ -333,6 +342,71 @@ class BotApp:
         if whitelist:
             return group_id in whitelist and group_id not in blacklist
         return group_id not in blacklist
+
+    def group_policy_snapshot(self) -> Dict[str, List[str]]:
+        return {
+            "whitelist": sorted({str(item).strip() for item in
+                                 (self.behavior.get("whitelist_groups") or [])
+                                 if str(item).strip()}),
+            "blacklist": sorted({str(item).strip() for item in
+                                 (self.behavior.get("blacklist_groups") or [])
+                                 if str(item).strip()}),
+        }
+
+    def _normalize_group_ids(self, values, label: str) -> List[str]:
+        if not isinstance(values, (list, tuple)):
+            raise ValueError("%s 必须是数组" % label)
+        if len(values) > 2000:
+            raise ValueError("%s 数量过多（最多 2000 个）" % label)
+        result: List[str] = []
+        for raw in values:
+            for item in re.split(r"[\s,，;；]+", str(raw or "").strip()):
+                if not item:
+                    continue
+                if not re.fullmatch(r"\d{5,20}", item):
+                    raise ValueError("%s 含非法群号：%s" % (label, item))
+                if item not in result:
+                    result.append(item)
+        return sorted(result)
+
+    def update_group_policy(self, whitelist, blacklist) -> Dict[str, Any]:
+        """更新群策略，并原子写回 config.json；无需重启立即生效。"""
+        whitelist_ids = self._normalize_group_ids(whitelist, "白名单")
+        blacklist_ids = self._normalize_group_ids(blacklist, "黑名单")
+        if not self.config_path:
+            raise ValueError("当前启动方式没有配置文件路径，无法保存名单。")
+        path = os.path.abspath(self.config_path)
+        if not os.path.isfile(path):
+            raise ValueError("找不到配置文件：%s" % path)
+        with self._config_lock:
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    data = json.load(handle)
+                if not isinstance(data, dict):
+                    raise ValueError("配置文件根节点不是 JSON 对象。")
+                behavior = data.setdefault("behavior", {})
+                behavior["whitelist_groups"] = whitelist_ids
+                behavior["blacklist_groups"] = blacklist_ids
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as handle:
+                    json.dump(data, handle, ensure_ascii=False, indent=2)
+                    handle.write("\n")
+                try:
+                    shutil.copymode(path, tmp)
+                except OSError:
+                    pass
+                os.replace(tmp, path)
+            except Exception as exc:
+                try:
+                    os.remove(path + ".tmp")
+                except OSError:
+                    pass
+                raise ValueError("保存配置失败：%s" % exc)
+            self.behavior["whitelist_groups"] = whitelist_ids
+            self.behavior["blacklist_groups"] = blacklist_ids
+        self.log.info("群策略已更新：白名单 %d，黑名单 %d",
+                      len(whitelist_ids), len(blacklist_ids))
+        return {"ok": True, **self.group_policy_snapshot()}
 
     def _extract_text(self, event: Dict[str, Any]) -> Tuple[str, bool]:
         segments = event.get("message")

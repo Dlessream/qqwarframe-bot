@@ -115,9 +115,10 @@ def main(argv=None) -> int:
         if not _proxy_listening(proxy):
             logger.warning("代理 %s 端口没有在监听：请启动 v2rayN，"
                            "或在 config.json 里修改 proxy（也可填 none 直连）", proxy)
-    logger.info("提示：在群里发送「%s帮助」查看指令", config["behavior"]["prefixes"][0])
+    logger.info("提示：在群里直接发送「帮助」查看指令，也可带 %s 前缀",
+                config["behavior"]["prefixes"][0])
 
-    app = BotApp(config, logger=logger)
+    app = BotApp(config, logger=logger, config_path=config_path)
     try:
         app.run()
     except KeyboardInterrupt:

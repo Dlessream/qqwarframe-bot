@@ -30,6 +30,7 @@ class FakeApp:
         self.update_checker = FakeUpdate()
         self.restarted = False
         self.applied = 0
+        self.groups = {"whitelist": ["100"], "blacklist": []}
 
     def status_snapshot(self):
         return {
@@ -40,8 +41,16 @@ class FakeApp:
             "riven": {"weapons": 1},
             "updater": {"last_run": 0},
             "alerts": 0,
+            "groups": self.groups,
             "update": self.update_checker.snapshot(),
         }
+
+    def update_group_policy(self, whitelist, blacklist):
+        self.groups = {"whitelist": list(whitelist), "blacklist": list(blacklist)}
+        return {"ok": True, **self.groups}
+
+    def group_policy_snapshot(self):
+        return dict(self.groups)
 
     def apply_update(self):
         self.applied += 1
@@ -116,6 +125,23 @@ class AdminServerTest(unittest.TestCase):
             headers={"X-Admin-Token": "secret"}, body={"confirm": True})
         self.assertEqual(status, 200)
         self.assertTrue(self.app.restarted)
+
+    def test_groups_get(self):
+        status, body = self.request(
+            "/api/groups", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["whitelist"], ["100"])
+
+    def test_groups_update(self):
+        status, body = self.request(
+            "/api/groups", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"whitelist": ["100", "200"], "blacklist": ["300"]})
+        self.assertEqual(status, 200)
+        saved = json.loads(body)
+        self.assertEqual(saved["whitelist"], ["100", "200"])
+        self.assertEqual(saved["blacklist"], ["300"])
+        self.assertEqual(self.app.groups["blacklist"], ["300"])
 
 
 if __name__ == "__main__":
