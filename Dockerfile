@@ -39,7 +39,9 @@ COPY . .
 RUN mkdir -p /app/config /app/data /app/logs \
     && cp /app/data/aliases.json /app/default-aliases.json \
     && chmod +x /app/deploy/docker-entrypoint.sh \
-    && if [ -n "$BUILD_COMMIT" ]; then echo "$BUILD_COMMIT" > /app/.build_commit; fi
+    && if [ -n "$BUILD_COMMIT" ]; then echo "$BUILD_COMMIT" > /app/.build_commit; \
+       elif [ -s /app/.build_commit ]; then echo "using packaged .build_commit"; \
+       else echo "unknown" > /app/.build_commit; fi
 
 EXPOSE 8080
 VOLUME ["/app/config", "/app/data", "/app/logs"]

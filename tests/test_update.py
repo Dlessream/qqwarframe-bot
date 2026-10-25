@@ -56,6 +56,24 @@ class RemoteCheckTest(unittest.TestCase):
         self.assertEqual(info["remote_short"], "b" * 7)
         self.assertEqual(info["state"], "available")
 
+    def test_local_missing_shows_remote(self):
+        checker = self.make_checker()
+        checker.local_commit = ""
+
+        def request(url, headers=None, method="GET", body=None):
+            return json.dumps({
+                "sha": "b" * 40,
+                "commit": {"message": "latest", "committer": {"date": ""}},
+            }).encode()
+
+        checker.http.request = request
+        info = checker.check_remote()
+        self.assertFalse(info["available"])
+        self.assertTrue(info["local_missing"])
+        self.assertEqual(info["remote_short"], "b" * 7)
+        self.assertEqual(info["state"], "local_unknown")
+        self.assertIn("BUILD_COMMIT", info["last_error"])
+
     def test_remote_behind_is_not_update(self):
         checker = self.make_checker()
 

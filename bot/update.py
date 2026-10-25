@@ -133,7 +133,9 @@ class UpdateChecker:
             logger=self.log)
         if not self.local_commit:
             self.state = "unknown"
-            self.last_error = "未找到本地提交信息（源码模式或 .build_commit）"
+            self.last_error = ("本地版本未知：缺少 .git 或 .build_commit。"
+                               "Docker 请带 BUILD_COMMIT 重建，"
+                               "或设置 QQWF_COMMIT 环境变量。")
 
     def start(self) -> None:
         if not self.repo:
@@ -185,6 +187,16 @@ class UpdateChecker:
             self.remote_message = str(commit.get("message") or "").splitlines()[0]
             self.remote_date = str((commit.get("committer") or {}).get("date") or "")
             self.remote_url = str(data.get("html_url") or "")
+            if not self.local_commit:
+                self.available = False
+                self.relation = ""
+                self.state = "local_unknown"
+                self.last_error = (
+                    "本地版本未知（缺少 .git/.build_commit）；"
+                    "远端最新 %s。Docker 请带 BUILD_COMMIT 重建，"
+                    "或设置 QQWF_COMMIT 环境变量。" % self.remote_commit[:7])
+                self.last_checked = time.time()
+                return self.snapshot()
             self.available = bool(
                 self.local_commit and self.remote_commit
                 and self.local_commit != self.remote_commit)
@@ -285,6 +297,7 @@ class UpdateChecker:
         return {
             "local_commit": self.local_commit,
             "local_short": self.local_commit[:7],
+            "local_missing": not bool(self.local_commit),
             "remote_commit": self.remote_commit,
             "remote_short": self.remote_commit[:7],
             "remote_message": self.remote_message,

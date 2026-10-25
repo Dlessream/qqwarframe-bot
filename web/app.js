@@ -288,7 +288,12 @@
       let message = "当前已是最新";
       if (update.available) message = "发现新版本";
       else if (update.local_changed) message = "检测到本地代码变化";
-      else if (update.state !== "up_to_date") message = update.last_error || "无法确认版本";
+      else if (update.local_missing && update.remote_short) {
+        message = "本地版本未知；远端最新 " + update.remote_short +
+          "（Docker 需带 BUILD_COMMIT 重建）";
+      } else if (update.state !== "up_to_date") {
+        message = update.last_error || "无法确认版本";
+      }
       toast(message);
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") toast("检查失败：" + exc.message);

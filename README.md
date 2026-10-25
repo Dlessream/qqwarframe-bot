@@ -416,12 +416,21 @@ wm 电男头
 - **不会自动更新**。点“立即更新”才执行 `git pull --ff-only`（源码目录），
   成功后自动重启；发布包/Docker 会显示手动更新命令。
 
-Docker 更新：
+Docker 更新（会写入当前 git commit）：
 
 ```bash
-docker compose -f docker-compose.full.yml build
+./deploy/update.sh
+```
+
+或手动：
+
+```bash
+BUILD_COMMIT=$(git rev-parse HEAD) \
+  docker compose -f docker-compose.full.yml build
 docker compose -f docker-compose.full.yml up -d
 ```
+
+`deploy/build.sh` 会自动取 `.git` 的 HEAD；没有 `.git` 时读取发布包里的 `.build_commit`。不传 `BUILD_COMMIT` 重建会显示“本地版本未知”。
 
 ### .env 配置
 
@@ -703,7 +712,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**295 个离线测试**，不联网、不连 QQ，覆盖：
+**296 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -715,7 +724,7 @@ python -m unittest discover -s tests -t . -v
 - 自动更新调度、手动触发冷却、数据源状态汇总
 - 群黑白名单、黑名单优先级、私聊不受影响
 - 无前缀命令解析、普通聊天不误触发
-- Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测
+- Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测、缺失本地提交时的远端提示
 - Web 群策略编辑、配置持久化
 - 别名表读写/批量 4 别名、战甲总图与头/机体/系统后缀、warframe.market 物品搜索与索引热重载
 - `#翻译` 中英双语对照、Web 翻译接口
@@ -774,7 +783,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 295 个测试 + fixtures
+├── tests/                 # 296 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -855,6 +864,9 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 **12. 更新提示一直不出现**
 
 - 源码运行需要 `.git` 或 `.build_commit` 才能识别本地版本；发布包在打包时会写入。
+- Docker 重建时必须带 `BUILD_COMMIT`（用 `./deploy/build.sh` 或
+  `BUILD_COMMIT=$(git rev-parse HEAD) docker compose ... build`），
+  否则会提示“本地版本未知”；设置 `QQWF_COMMIT` 环境变量也可以。
 - GitHub API 被墙时给 `web.update.proxy` 配代理（留空会复用市场代理）。
 - 只有**远端领先本地**才提示；本地未推送的提交会显示“本地未推送”，不会提示降级。
 - 本地改完 `bot/*.py` 后，控制台应在 5–10 秒内弹出“是否重启”。
@@ -878,6 +890,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 
