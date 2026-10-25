@@ -534,7 +534,7 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
                   font=_font(14), fill=DIM)
         y += 28
 
-    left = "数据 warframe.market · %s · %s" % (
+    left = "数据 warframe market · %s · %s" % (
         platform_label, time.strftime("%m-%d %H:%M"))
     y = _footer(draw, y + 6, left)
 

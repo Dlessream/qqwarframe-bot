@@ -682,7 +682,7 @@ class CommandRouter:
             en = item.name_en or item.name
             if re.search(r"[\u4e00-\u9fff]", zh):
                 return present.translation_reply(
-                    argument, zh, en, "warframe.market", item.url)
+                    argument, zh, en, "warframe market", item.url)
         try:
             page, _hits = self.wiki.lookup(argument, limit=1)
         except WikiError:
@@ -696,7 +696,7 @@ class CommandRouter:
             zh = item.name or item.name_en
             en = item.name_en or item.name
             return present.translation_reply(
-                argument, zh, en, "warframe.market", item.url)
+                argument, zh, en, "warframe market", item.url)
         return present.error_reply(
             "没有找到“%s”的可靠中英译名。\n"
             "可以先用 wm 查询物品，或换一个更完整的英文名。" % argument)

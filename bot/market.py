@@ -29,6 +29,28 @@ LOGGER = logging.getLogger("qqwarframe.market")
 
 SITE_ITEM_URL = "https://warframe.market/zh-hans/items/%s"
 
+COMPONENT_LABELS = {
+    "neuroptics": "头部", "chassis": "机体", "systems": "系统",
+    "blueprint": "蓝图", "barrel": "枪管", "receiver": "枪机",
+    "stock": "枪托", "blade": "刀刃", "handle": "握柄",
+    "hilt": "剑柄", "gauntlet": "护手", "link": "连接器",
+    "upper_limb": "上肢", "lower_limb": "下肢", "head": "头部",
+    "carapace": "甲壳", "cerebrum": "脑", "wings": "翼",
+    "harness": "挽具", "pouch": "袋", "claw": "爪",
+    "motor": "马达", "disc": "圆盘", "stars": "星标",
+    "ornament": "饰物", "string": "弓弦", "grip": "握把",
+    "scope": "瞄准镜", "magazine": "弹匣", "trigger": "扳机",
+    "accessory": "配件", "buckle": "扣具", "ring": "环",
+    "core": "核心", "shell": "外壳", "pod": "舱",
+}
+
+
+def component_label(slug: str) -> str:
+    for suffix, label in COMPONENT_LABELS.items():
+        if str(slug).endswith("_" + suffix):
+            return label
+    return ""
+
 # 分类 -> 判定函数
 CATEGORY_LABELS = {
     "warframe": "战甲",
@@ -358,6 +380,18 @@ class ItemIndex:
             prime_alias = alias_key + "p"
             if not alias_key.endswith("p") and prime_alias not in self.aliases:
                 self.aliases[prime_alias] = slug
+        # 武器/守护/Archwing 等套装 -> 按部件类型展开 枪管/枪机/枪托/蓝图 等。
+        for alias_key, slug in list(self.aliases.items()):
+            if not slug.endswith("_set"):
+                continue
+            base = slug[:-len("_set")]
+            for suffix, label in COMPONENT_LABELS.items():
+                part_slug = "%s_%s" % (base, suffix)
+                if part_slug not in self.by_slug:
+                    continue
+                generated = alias_key + label
+                if generated not in self.aliases:
+                    self.aliases[generated] = part_slug
         self._searchable: List[Tuple[Item, str, str, str]] = [
             (item,
              _normalize(item.name),

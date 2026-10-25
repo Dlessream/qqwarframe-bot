@@ -20,7 +20,7 @@ from .alerts import AlertStore
 from .aliases import AliasStore
 from .arbi import ArbiClient
 from .commands import CommandRouter, Context, strip_cq
-from .market import Item, MarketClient, MarketError
+from .market import COMPONENT_LABELS, Item, MarketClient, MarketError
 from .net import HttpClient, HttpError
 from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
@@ -62,6 +62,7 @@ class BotApp:
                                    cache_config=config.get("cache", {}))
         self.alias_store = AliasStore(self.market.alias_file)
         self.alias_store.ensure_frame_defaults()
+        self.alias_store.ensure_component_defaults()
         self.wiki = WikiClient(config.get("wiki", {}), logger=self.log,
                                cache_config=config.get("cache", {}))
         self.riven = RivenClient(
@@ -415,10 +416,11 @@ class BotApp:
     def _market_source(self, index=None) -> Dict[str, Any]:
         count = len(index) if index is not None else self.market.item_count()
         return {
-            "name": "warframe.market",
+            "name": "warframe market",
             "base_url": str(self.market.cfg.get("base_url") or ""),
             "language": str(self.market.cfg.get("language") or ""),
             "items": count,
+            "tradable": count,
             "last_refresh_seconds": round(self.market.cache_age(), 1),
             "alias_file": self.market.alias_file,
             "aliases": len(self.alias_store.load()),
@@ -468,25 +470,39 @@ class BotApp:
         if index is not None:
             for group in groups.values():
                 slug = group["slug"]
-                if not slug.endswith("_prime_blueprint"):
-                    continue
-                stem = slug[:-len("_blueprint")]
                 parts = []
-                for label, part in (("头部", "neuroptics"),
-                                    ("机体", "chassis"),
-                                    ("系统", "systems")):
-                    component = "%s_%s_blueprint" % (stem, part)
-                    if component not in index.by_slug:
-                        continue
-                    aliases = sorted(alias for alias, target in index.aliases.items()
-                                     if target == component)
-                    item = index.get(component)
-                    parts.append({
-                        "label": label,
-                        "slug": component,
-                        "name": item.name if item else "",
-                        "aliases": aliases,
-                    })
+                if slug.endswith("_prime_blueprint"):
+                    stem = slug[:-len("_blueprint")]
+                    for label, part in (("头部", "neuroptics"),
+                                        ("机体", "chassis"),
+                                        ("系统", "systems")):
+                        component = "%s_%s_blueprint" % (stem, part)
+                        if component not in index.by_slug:
+                            continue
+                        aliases = sorted(alias for alias, target in index.aliases.items()
+                                         if target == component)
+                        item = index.get(component)
+                        parts.append({
+                            "label": label,
+                            "slug": component,
+                            "name": item.name if item else "",
+                            "aliases": aliases,
+                        })
+                elif slug.endswith("_set"):
+                    base = slug[:-len("_set")]
+                    for suffix, label in COMPONENT_LABELS.items():
+                        component = "%s_%s" % (base, suffix)
+                        if component not in index.by_slug:
+                            continue
+                        aliases = sorted(alias for alias, target in index.aliases.items()
+                                         if target == component)
+                        item = index.get(component)
+                        parts.append({
+                            "label": label,
+                            "slug": component,
+                            "name": item.name if item else "",
+                            "aliases": aliases,
+                        })
                 group["parts"] = parts
         source = self._market_source(index)
         if error:
@@ -536,7 +552,7 @@ class BotApp:
             en = item.name_en or item.name
             if re.search(r"[\u4e00-\u9fff]", zh):
                 return {"query": query, "zh": zh, "en": en,
-                        "source": "warframe.market", "url": item.url}
+                        "source": "warframe market", "url": item.url}
         try:
             page, _hits = self.wiki.lookup(query, limit=1)
         except WikiError:
@@ -549,7 +565,7 @@ class BotApp:
             zh = item.name or item.name_en
             en = item.name_en or item.name
             return {"query": query, "zh": zh, "en": en,
-                    "source": "warframe.market", "url": item.url}
+                    "source": "warframe market", "url": item.url}
         raise ValueError("没有找到“%s”的可靠中英译名。" % query)
 
     def _resolve_alias_target(self, target: str) -> str:

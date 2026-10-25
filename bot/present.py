@@ -97,7 +97,7 @@ def set_reply(item: Item, quotes: Sequence[PartQuote], set_sell: Optional[int],
         image=lambda: imagecard.build_table(
             "%s · 拆件比价" % item.name, subtitle,
             ["部件", "最低在售", "最高收购"], rows,
-            "数据 warframe.market · %s" % label,
+            "数据 warframe market · %s" % label,
             accent=imagecard.GOLD, chip="拆件", note=note,
             highlights=[[None, imagecard.GOLD, imagecard.CYAN]] * len(rows),
             bold_last_row=True, ratios=[2.4, 1, 1],
@@ -139,7 +139,7 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
         image=lambda: imagecard.build_table(
             "%s · 紫卡行情" % weapon.name, subtitle,
             ["价格", "词条", "卖家", "等级"], rows,
-            "数据 warframe.market · %s" % label,
+            "数据 warframe market · %s" % label,
             accent=imagecard.PURPLE, chip="紫卡",
             note=note if not auctions else "",
             highlights=[[imagecard.PURPLE, None, None, None]] * len(rows),
@@ -871,7 +871,7 @@ def translation_reply(query: str, zh: str, en: str,
             "中英对照", query,
             ["语言", "名称"],
             [["中文", zh], ["英文", en]],
-            source or "warframe.market", accent=imagecard.CYAN,
+            source or "warframe market", accent=imagecard.CYAN,
             chip="翻译", ratios=[0.9, 4.0]))
 
 
@@ -1008,7 +1008,7 @@ def alerts_list_reply(alerts: Sequence[Alert]) -> Reply:
         image=lambda: imagecard.build_table(
             "我的降价提醒", "共 %d 条" % len(alerts),
             ["编号", "物品", "目标", "当前", "平台"], rows,
-            "数据 warframe.market · 每 5 分钟检查",
+            "数据 warframe market · 每 5 分钟检查",
             accent=imagecard.GOLD, chip="提醒",
             ratios=[0.8, 2.4, 1, 1, 1], aligns=["left", "left", "right", "right", "left"]))
 
@@ -1023,7 +1023,7 @@ def alert_fired_reply(item: Item, order: Order, alert: Alert) -> Reply:
         text=text,
         image=lambda: imagecard.build_table(
             title, subtitle, ["卖家", "数量", "状态"], rows,
-            "数据 warframe.market · %s" % platform_label(alert.platform),
+            "数据 warframe market · %s" % platform_label(alert.platform),
             accent=imagecard.GREEN, chip="已达成",
             note="提醒已自动关闭，需要的话可以重新添加。",
             ratios=[2, 1, 1]))

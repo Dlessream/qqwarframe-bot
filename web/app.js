@@ -359,8 +359,8 @@
     const source = data.source || {};
     const groups = data.groups || [];
     const parts = [];
-    parts.push("warframe.market");
-    parts.push("<b>" + Number(source.items || 0) + "</b> 物品");
+    parts.push(source.name || "warframe market");
+    parts.push("<b>" + Number(source.items || 0) + "</b> 可交易物品");
     parts.push("上次刷新 " + formatAge(source.last_refresh_seconds));
     if (source.error) parts.push("物品源：" + source.error);
     $("sourceInfo").innerHTML = parts.join(" · ");

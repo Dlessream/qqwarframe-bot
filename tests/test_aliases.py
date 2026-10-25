@@ -44,6 +44,18 @@ class AliasStoreTest(unittest.TestCase):
             self.assertEqual(store.load()["电男"], "volt_prime_blueprint")
             self.assertEqual(store.ensure_frame_defaults(), 0)
 
+    def test_component_defaults_migrate_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "aliases.json")
+            with open(os.path.join(tmp, "component_aliases.json"), "w",
+                      encoding="utf-8") as handle:
+                json.dump({"牛甲头": "rhino_prime_neuroptics_blueprint"}, handle)
+            store = AliasStore(path)
+            self.assertEqual(store.ensure_component_defaults(), 1)
+            self.assertEqual(store.load()["牛甲头"],
+                             "rhino_prime_neuroptics_blueprint")
+            self.assertEqual(store.ensure_component_defaults(), 0)
+
     def test_replace_group_keeps_builtin(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = AliasStore(os.path.join(tmp, "aliases.json"))
@@ -84,6 +96,23 @@ class AliasStoreTest(unittest.TestCase):
         }
         for query, slug in expected.items():
             self.assertEqual(index.search(query)[0].item.slug, slug, query)
+
+
+    def test_weapon_set_parts(self):
+        items = [
+            Item(slug="rubico_prime_set", name="绝路 Prime 一套"),
+            Item(slug="rubico_prime_barrel", name="绝路 Prime 枪管"),
+            Item(slug="rubico_prime_receiver", name="绝路 Prime 枪机"),
+            Item(slug="rubico_prime_stock", name="绝路 Prime 枪托"),
+            Item(slug="rubico_prime_blueprint", name="绝路 Prime 蓝图"),
+        ]
+        index = ItemIndex(items, {"绝路": "rubico_prime_set"})
+        self.assertEqual(index.search("绝路枪管")[0].item.slug,
+                         "rubico_prime_barrel")
+        self.assertEqual(index.search("绝路枪机")[0].item.slug,
+                         "rubico_prime_receiver")
+        self.assertEqual(index.search("绝路蓝图")[0].item.slug,
+                         "rubico_prime_blueprint")
 
 
 if __name__ == "__main__":
