@@ -9,6 +9,7 @@
     dismissedLocal: false,
     autoPrompted: false,
     groupsDirty: false,
+    aliasesLoaded: false,
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -106,6 +107,7 @@
     setText("groupPolicy", "白 " + Number((groups.whitelist || []).length) +
       " / 黑 " + Number((groups.blacklist || []).length));
     renderGroups(groups);
+    if (!state.aliasesLoaded) loadAliases();
     setText("imageState", status.image ? "可用" : "关闭");
     setText("ocrState", status.ocr ? "可用" : "未启用");
     setText("fontState", status.font ? "已加载" : "缺失");
@@ -340,12 +342,169 @@
     }
   }
 
+  function formatAge(seconds) {
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 0) return "尚未加载";
+    if (value < 90) return Math.round(value) + " 秒前";
+    if (value < 5400) return Math.round(value / 60) + " 分钟前";
+    return (value / 3600).toFixed(1) + " 小时前";
+  }
+
+  function renderAliases(data) {
+    const source = data.source || {};
+    const aliases = data.aliases || [];
+    const parts = [];
+    parts.push("warframe.market");
+    parts.push("<b>" + Number(source.items || 0) + "</b> 物品");
+    parts.push("上次刷新 " + formatAge(source.last_refresh_seconds));
+    if (source.error) parts.push("物品源：" + source.error);
+    $("sourceInfo").innerHTML = parts.join(" · ");
+    setText("aliasCount", aliases.length + " 个别名");
+
+    const list = $("aliasList");
+    list.innerHTML = "";
+    if (!aliases.length) {
+      list.innerHTML = '<div class="alias-empty">还没有别名。</div>';
+      return;
+    }
+    aliases.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "alias-row";
+      const key = document.createElement("span");
+      key.className = "alias-key";
+      key.textContent = entry.alias + (entry.builtin ? " · 内置" : "");
+      const name = document.createElement("span");
+      name.className = "alias-name";
+      name.textContent = entry.name || (entry.missing ? "目标不存在" : entry.slug);
+      name.title = entry.name || entry.slug;
+      const slug = document.createElement("span");
+      slug.className = "alias-slug";
+      slug.textContent = entry.slug;
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "alias-delete";
+      action.textContent = entry.builtin ? "内置" : "删除";
+      action.disabled = Boolean(entry.builtin);
+      if (!entry.builtin) {
+        action.addEventListener("click", () => deleteAlias(entry.alias));
+      }
+      row.append(key, name, slug, action);
+      list.appendChild(row);
+    });
+  }
+
+  async function loadAliases() {
+    try {
+      const data = await api("/api/aliases");
+      state.aliasesLoaded = true;
+      renderAliases(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("sourceInfo", "读取数据源失败：" + exc.message);
+      }
+    }
+  }
+
+  async function searchItems() {
+    const query = $("aliasTarget").value.trim();
+    if (!query) {
+      toast("先输入要搜索的物品名");
+      return;
+    }
+    const box = $("aliasResults");
+    box.hidden = false;
+    box.innerHTML = '<span class="alias-empty">搜索中…</span>';
+    try {
+      const data = await api("/api/items?q=" + encodeURIComponent(query));
+      const items = data.items || [];
+      box.innerHTML = "";
+      if (!items.length) {
+        box.innerHTML = '<span class="alias-empty">没有找到物品，试试英文名或 slug。</span>';
+        return;
+      }
+      items.forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "alias-candidate";
+        button.textContent = item.name || item.slug;
+        const small = document.createElement("small");
+        small.textContent = item.slug;
+        button.appendChild(small);
+        button.addEventListener("click", () => {
+          $("aliasTarget").value = item.slug;
+          box.hidden = true;
+        });
+        box.appendChild(button);
+      });
+    } catch (exc) {
+      box.innerHTML = '<span class="alias-empty">搜索失败：' + exc.message + "</span>";
+    }
+  }
+
+  async function saveAlias() {
+    const alias = $("aliasName").value.trim();
+    const target = $("aliasTarget").value.trim();
+    if (!alias || !target) {
+      toast("别名和目标都要填");
+      return;
+    }
+    const button = $("aliasSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      await api("/api/aliases", { method: "POST", body: { alias, target } });
+      $("aliasName").value = "";
+      $("aliasTarget").value = "";
+      $("aliasResults").hidden = true;
+      toast("别名已保存，wm 立即生效");
+      await loadAliases();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "保存别名";
+    }
+  }
+
+  async function deleteAlias(alias) {
+    if (!window.confirm("删除别名「" + alias + "」？")) return;
+    try {
+      await api("/api/aliases/delete", { method: "POST", body: { alias } });
+      toast("别名已删除");
+      await loadAliases();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("删除失败：" + exc.message);
+    }
+  }
+
+  async function refreshData() {
+    const button = $("dataRefresh");
+    button.disabled = true;
+    button.textContent = "刷新中…";
+    try {
+      const data = await api("/api/data/refresh", { method: "POST", body: {} });
+      toast("数据源已刷新：" + Number((data.source || {}).items || 0) + " 条物品");
+      await loadAliases();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("刷新失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "刷新数据源";
+    }
+  }
+
   function bind() {
     $("refreshBtn").addEventListener("click", refresh);
     $("checkBtn").addEventListener("click", checkUpdate);
     $("restartBtn").addEventListener("click", () => openModal("restart"));
     $("logRefresh").addEventListener("click", refreshLogs);
     $("groupSave").addEventListener("click", saveGroups);
+    $("aliasSearch").addEventListener("click", searchItems);
+    $("aliasSave").addEventListener("click", saveAlias);
+    $("dataRefresh").addEventListener("click", refreshData);
+    $("aliasTarget").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") searchItems();
+    });
     ["whitelistInput", "blacklistInput"].forEach((id) => {
       $(id).addEventListener("input", () => { state.groupsDirty = true; });
     });

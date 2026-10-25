@@ -121,6 +121,28 @@
       <p id="groupMode" class="group-mode">当前：未加载群策略</p>
     </section>
 
+    <section class="panel aliases-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">数据源 / 别名</span>
+          <span class="panel-sub">电男头 → Volt Prime 头部神经光元 蓝图</span>
+        </div>
+        <button id="dataRefresh" class="btn btn-ghost btn-sm" type="button">刷新数据源</button>
+      </div>
+      <div class="source-strip">
+        <span id="sourceInfo">正在读取 warframe.market 数据源…</span>
+        <span id="aliasCount" class="source-count"></span>
+      </div>
+      <div class="alias-form">
+        <input id="aliasName" class="input" type="text" maxlength="40" placeholder="别名，例如 电男头">
+        <input id="aliasTarget" class="input" type="text" placeholder="目标名称或 slug，例如 volt_prime_neuroptics_blueprint">
+        <button id="aliasSearch" class="btn btn-ghost btn-sm" type="button">搜索物品</button>
+        <button id="aliasSave" class="btn btn-primary btn-sm" type="button">保存别名</button>
+      </div>
+      <div id="aliasResults" class="alias-results" hidden></div>
+      <div id="aliasList" class="alias-list"></div>
+    </section>
+
     <section class="panel logs-panel">
       <div class="panel-head">
         <div>

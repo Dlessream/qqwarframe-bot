@@ -1,0 +1,98 @@
+"""别名表：内置常用部件别名 + 可编辑的 data/aliases.json。"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import threading
+from typing import Dict, List, Optional
+
+# 这些别名即使运行中的 data/aliases.json 没有，也会生效。
+DEFAULT_ALIASES = {
+    "电男头": "volt_prime_neuroptics_blueprint",
+    "电男机体": "volt_prime_chassis_blueprint",
+    "电男系统": "volt_prime_systems_blueprint",
+}
+
+_ALIAS_RE = re.compile(r"^[^\s_].{0,39}$")
+
+
+class AliasStore:
+    def __init__(self, path: str):
+        self.path = os.path.abspath(path)
+        self._lock = threading.Lock()
+
+    def _read_raw(self) -> Dict[str, str]:
+        if not os.path.isfile(self.path):
+            return {}
+        try:
+            with open(self.path, encoding="utf-8") as handle:
+                raw = json.load(handle)
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(key): str(value) for key, value in raw.items()}
+
+    def load(self) -> Dict[str, str]:
+        result = dict(DEFAULT_ALIASES)
+        for key, value in self._read_raw().items():
+            if not key.startswith("_") and value:
+                result[key] = value
+        return result
+
+    def entries(self) -> List[Dict[str, str]]:
+        result = []
+        for key, value in self.load().items():
+            result.append({
+                "alias": key,
+                "slug": value,
+                "builtin": key in DEFAULT_ALIASES,
+            })
+        result.sort(key=lambda item: item["alias"])
+        return result
+
+    def save(self, alias: str, slug: str) -> None:
+        alias = str(alias or "").strip()
+        slug = str(slug or "").strip()
+        if not _ALIAS_RE.match(alias):
+            raise ValueError("别名不能为空、不能以下划线开头，最长 40 个字符。")
+        if not re.fullmatch(r"[a-z0-9_]{2,120}", slug):
+            raise ValueError("目标 slug 格式不正确。")
+        with self._lock:
+            raw = self._read_raw()
+            raw[alias] = slug
+            self._write(raw)
+
+    def delete(self, alias: str) -> bool:
+        alias = str(alias or "").strip()
+        if alias in DEFAULT_ALIASES:
+            raise ValueError("这是内置别名，不能删除；可以改成别的目标覆盖它。")
+        with self._lock:
+            raw = self._read_raw()
+            if alias not in raw:
+                return False
+            raw.pop(alias)
+            self._write(raw)
+            return True
+
+    def _write(self, raw: Dict[str, str]) -> None:
+        parent = os.path.dirname(self.path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        payload = {}
+        if "_说明" not in raw:
+            payload["_说明"] = ("键=玩家常说的叫法，值=warframe.market 物品 slug。"
+                               "可自行增删；匹配时忽略大小写和空格。")
+        payload.update(raw)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        try:
+            if os.path.isfile(self.path):
+                shutil.copymode(self.path, tmp)
+        except OSError:
+            pass
+        os.replace(tmp, self.path)

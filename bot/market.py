@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from .aliases import DEFAULT_ALIASES
 from .cache import TTLCache
 from .net import HttpClient, HttpError
 
@@ -558,17 +559,25 @@ class MarketClient:
                           len(self._index), localized)
 
     def _load_aliases(self) -> Dict[str, str]:
+        aliases = dict(DEFAULT_ALIASES)
         if not self.alias_file or not os.path.isfile(self.alias_file):
-            return {}
+            return aliases
         try:
             with open(self.alias_file, "r", encoding="utf-8") as handle:
                 raw = json.load(handle)
             if isinstance(raw, dict):
-                return {str(k): str(v) for k, v in raw.items()
-                        if not str(k).startswith("_")}
+                aliases.update({str(k): str(v) for k, v in raw.items()
+                                if not str(k).startswith("_")})
         except (OSError, ValueError) as exc:
             self.log.warning("读取别名文件失败（%s）：%s", self.alias_file, exc)
-        return {}
+        return aliases
+
+    def reload_aliases(self) -> int:
+        """只重载别名，不重新请求物品索引；返回别名数量。"""
+        with self._lock:
+            if self._index is not None:
+                self._index = ItemIndex(self._index.items, self._load_aliases())
+            return len(self._load_aliases())
 
     def _read_cache(self) -> Optional[Dict[str, Any]]:
         if not self.cache_file or not os.path.isfile(self.cache_file):

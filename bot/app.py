@@ -17,6 +17,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from . import __version__, imagecard, ocr, present
 from .alerts import AlertStore
+from .aliases import AliasStore
 from .arbi import ArbiClient
 from .commands import CommandRouter, Context, strip_cq
 from .market import Item, MarketClient, MarketError
@@ -59,6 +60,7 @@ class BotApp:
 
         self.market = MarketClient(config.get("warframe_market", {}), logger=self.log,
                                    cache_config=config.get("cache", {}))
+        self.alias_store = AliasStore(self.market.alias_file)
         self.wiki = WikiClient(config.get("wiki", {}), logger=self.log,
                                cache_config=config.get("cache", {}))
         self.riven = RivenClient(
@@ -407,6 +409,91 @@ class BotApp:
         self.log.info("群策略已更新：白名单 %d，黑名单 %d",
                       len(whitelist_ids), len(blacklist_ids))
         return {"ok": True, **self.group_policy_snapshot()}
+
+    # ------------------------------------------------------------------ 别名/数据源
+    def _market_source(self, index=None) -> Dict[str, Any]:
+        count = len(index) if index is not None else self.market.item_count()
+        return {
+            "name": "warframe.market",
+            "base_url": str(self.market.cfg.get("base_url") or ""),
+            "language": str(self.market.cfg.get("language") or ""),
+            "items": count,
+            "last_refresh_seconds": round(self.market.cache_age(), 1),
+            "alias_file": self.market.alias_file,
+            "aliases": len(self.alias_store.load()),
+        }
+
+    def alias_snapshot(self) -> Dict[str, Any]:
+        index = None
+        error = ""
+        try:
+            index = self.market.index
+        except MarketError as exc:
+            error = str(exc)
+        entries = []
+        for entry in self.alias_store.entries():
+            item = index.get(entry["slug"]) if index is not None else None
+            entry["name"] = item.name if item else ""
+            entry["name_en"] = item.name_en if item else ""
+            entry["missing"] = item is None
+            entries.append(entry)
+        source = self._market_source(index)
+        if error:
+            source["error"] = error
+        return {"source": source, "aliases": entries}
+
+    def search_market_items(self, query: str) -> List[Dict[str, str]]:
+        query = str(query or "").strip()
+        if not query:
+            return []
+        hits = self.market.lookup(query, limit=8)
+        return [{"slug": hit.item.slug, "name": hit.item.name,
+                 "name_en": hit.item.name_en} for hit in hits]
+
+    def _resolve_alias_target(self, target: str) -> str:
+        target = str(target or "").strip()
+        if not target:
+            raise ValueError("请填写目标物品名称或 slug。")
+        index = self.market.index
+        if target in index.by_slug:
+            return target
+        hits = self.market.lookup(target, limit=8)
+        if not hits:
+            raise ValueError("找不到目标物品：%s" % target)
+        compact = re.sub(r"[\s_\-]+", "", target.lower())
+        exact = [hit.item for hit in hits
+                 if compact in (
+                     re.sub(r"[\s_\-]+", "", (hit.item.name or "").lower()),
+                     re.sub(r"[\s_\-]+", "", (hit.item.name_en or "").lower()),
+                     hit.item.slug)]
+        if len(exact) == 1:
+            return exact[0].slug
+        if len(hits) == 1:
+            return hits[0].item.slug
+        examples = "、".join("%s(%s)" % (hit.item.name, hit.item.slug)
+                             for hit in hits[:5])
+        raise ValueError("目标不唯一，请改用更精确的名称或 slug：%s" % examples)
+
+    def save_alias(self, alias: str, target: str) -> Dict[str, Any]:
+        slug = self._resolve_alias_target(target)
+        self.alias_store.save(alias, slug)
+        self.market.reload_aliases()
+        entry = next((item for item in self.alias_store.entries()
+                      if item["alias"] == str(alias).strip()), None)
+        self.log.info("别名已保存：%s -> %s", alias, slug)
+        return {"ok": True, "alias": entry or {"alias": alias, "slug": slug}}
+
+    def delete_alias(self, alias: str) -> Dict[str, Any]:
+        removed = self.alias_store.delete(alias)
+        self.market.reload_aliases()
+        self.log.info("别名已删除：%s（%s）", alias, removed)
+        return {"ok": True, "removed": removed, "alias": alias}
+
+    def refresh_market_data(self) -> Dict[str, Any]:
+        count = self.market.refresh()
+        self.market.reload_aliases()
+        self.log.info("warframe.market 物品索引已刷新：%d 条", count)
+        return {"ok": True, "source": self._market_source()}
 
     def _extract_text(self, event: Dict[str, Any]) -> Tuple[str, bool]:
         segments = event.get("message")

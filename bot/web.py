@@ -139,6 +139,25 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.group_policy_snapshot()})
                     return
+                if path == "/api/aliases":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.alias_snapshot()})
+                    return
+                if path == "/api/items":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    query = parse_qs(parsed.query).get("q", [""])[0]
+                    try:
+                        items = server.app.search_market_items(query)
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, "items": items})
+                    return
                 self._json({"ok": False, "message": "Not found"},
                            HTTPStatus.NOT_FOUND)
 
@@ -209,6 +228,43 @@ class AdminServer:
                     except ValueError as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/aliases":
+                    try:
+                        result = server.app.save_alias(
+                            str(data.get("alias") or ""),
+                            str(data.get("target") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/aliases/delete":
+                    try:
+                        result = server.app.delete_alias(
+                            str(data.get("alias") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/data/refresh":
+                    try:
+                        result = server.app.refresh_market_data()
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
                         return
                     self._json(result)
                     return

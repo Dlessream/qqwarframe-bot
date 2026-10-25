@@ -365,6 +365,34 @@ http://127.0.0.1:8080
 - 点“保存名单”会原子写回 `config.json`，**无需重启立即生效**；
 - 机器人仍留在黑名单群里，只是不回复、不处理图片、不推送提醒。
 
+### 数据源 / 别名
+
+页面下方的“数据源 / 别名”面板：
+
+- 显示 warframe.market 地址、物品数、上次刷新时间、别名数量；
+- 别名输入框填玩家叫法（如 `电男头`），目标搜索框填物品名，点“搜索物品”后从结果里选 slug；
+- 保存后写入 `data/aliases.json`，并立即重载物品索引，**不用重启**；
+- 删除普通别名即时生效；内置别名不能删除，但可以保存同名的不同目标来覆盖；
+- “刷新数据源”会重新拉取 warframe.market 物品索引。
+
+内置部件别名：
+
+```text
+电男头   → volt_prime_neuroptics_blueprint
+电男机体 → volt_prime_chassis_blueprint
+电男系统 → volt_prime_systems_blueprint
+```
+
+所以：
+
+```text
+wm 电男头
+```
+
+会直接返回 `Volt Prime 头部神经光元 蓝图`，而不是再按模糊词搜索。
+
+`#wm` 的订单/行情仍按短缓存实时更新（订单 60 秒）；别名修改只影响搜索映射，不会清空行情缓存。
+
 ### 更新提示
 
 机器人启动后会做两件事：
@@ -664,7 +692,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**276 个离线测试**，不联网、不连 QQ，覆盖：
+**284 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -678,6 +706,7 @@ python -m unittest discover -s tests -t . -v
 - 无前缀命令解析、普通聊天不误触发
 - Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测
 - Web 群策略编辑、配置持久化
+- 别名表读写/内置部件别名、warframe.market 物品搜索与索引热重载
 - 短 TTL 缓存的命中/过期、各数据源缓存包装
 - 图片卡片的 PNG 尺寸与长文本换行
 - **端到端**：mock OneBot 服务端 + mock 市场/Wiki，验证收事件、发图片、@ 回复
@@ -733,7 +762,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 276 个测试 + fixtures
+├── tests/                 # 284 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -836,6 +865,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 
