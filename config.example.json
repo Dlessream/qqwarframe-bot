@@ -85,6 +85,23 @@
     "manual_cooldown_seconds": 600,
     "arbi": true
   },
+  "web": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "token": "",
+    "public_url": "",
+    "log_lines": 200,
+    "update": {
+      "repo": "z13207091735-source/qqwarframe-bot",
+      "branch": "main",
+      "check_seconds": 600,
+      "proxy": "",
+      "notify_group": "",
+      "notify_user": "",
+      "manual_command": "docker compose -f docker-compose.full.yml up -d --build"
+    }
+  },
   "cache": {
     "enabled": true,
     "item_seconds": 3600,

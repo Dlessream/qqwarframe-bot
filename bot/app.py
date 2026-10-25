@@ -6,11 +6,13 @@ import base64
 import collections
 import logging
 import os
+import subprocess
+import sys
 import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
-from . import imagecard, present
+from . import __version__, imagecard, ocr, present
 from .alerts import AlertStore
 from .arbi import ArbiClient
 from .commands import CommandRouter, Context, strip_cq
@@ -20,7 +22,9 @@ from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
 from .render import chunk_text
 from .riven import RivenClient
+from .update import UpdateChecker
 from .updater import DataUpdater
+from .web import AdminServer
 from .wiki import WikiClient
 from .worldstate import WorldStateClient, WorldStateError
 
@@ -96,9 +100,24 @@ class BotApp:
         self._chat_bucket: Dict[str, Deque[float]] = {}
         self._lock = threading.Lock()
         self._alert_thread: Optional[threading.Thread] = None
+        self.started_at = time.time()
+        self._restarting = False
+        self.web_config = dict(config.get("web", {}))
+        update_cfg = dict(self.web_config.get("update", {}))
+        self.update_checker = UpdateChecker(
+            update_cfg,
+            proxy=(update_cfg.get("proxy")
+                   or config.get("warframe_market", {}).get("proxy", "")),
+            logger=self.log,
+            on_notify=self._notify_update)
+        self.web_server = AdminServer(
+            self, self.web_config, logger=self.log)
 
     # ------------------------------------------------------------------ 启动
     def start(self) -> None:
+        self.started_at = time.time()
+        self.update_checker.start()
+        self.web_server.start()
         if self.behavior.get("preload_items", True):
             thread = threading.Thread(target=self._prewarm, name="prewarm", daemon=True)
             thread.start()
@@ -118,6 +137,8 @@ class BotApp:
 
     def stop(self) -> None:
         self._stop.set()
+        self.web_server.stop()
+        self.update_checker.stop()
         if self.updater is not None:
             self.updater.stop()
         self.onebot.close()
@@ -130,6 +151,108 @@ class BotApp:
             self.log.info("物品索引预热完成：%d 条，用时 %.1f 秒", len(index), time.time() - started)
         except Exception as exc:
             self.log.warning("物品索引预热失败（首次查询时会重试）：%s", exc)
+
+    # ------------------------------------------------------------------ Web/更新
+    def status_snapshot(self) -> Dict[str, Any]:
+        try:
+            alert_count = len(self.alerts.active()) if self.alerts is not None else 0
+        except Exception:
+            alert_count = 0
+        update = self.update_checker.snapshot() if self.update_checker else {}
+        return {
+            "version": __version__,
+            "uptime": max(0.0, time.time() - self.started_at),
+            "onebot": {
+                "connected": self.onebot.connected,
+                "url": getattr(self.onebot, "url", ""),
+            },
+            "image": self.image_enabled,
+            "font": imagecard.available(),
+            "ocr": ocr.available(),
+            "market": {
+                "items": self.market.item_count(),
+                "cache_age": self.market.cache_age(),
+            },
+            "riven": {
+                "weapons": self.riven.weapon_count() if self.riven is not None else 0,
+            },
+            "updater": {
+                "last_run": self.updater.last_run if self.updater else 0,
+                "last_duration": self.updater.last_duration if self.updater else 0,
+                "results": self.updater.last_results if self.updater else {},
+            },
+            "alerts": alert_count,
+            "update": update,
+            "web": {
+                "host": self.web_config.get("host", "127.0.0.1"),
+                "port": self.web_server.actual_port,
+            },
+        }
+
+    def apply_update(self) -> Dict[str, Any]:
+        if self.update_checker is None:
+            return {"ok": False, "message": "更新检查未启用。"}
+        result = self.update_checker.apply_update()
+        if result.get("ok") and result.get("restart"):
+            self._schedule_restart()
+        return result
+
+    def request_restart(self) -> None:
+        self._schedule_restart()
+
+    def _schedule_restart(self) -> None:
+        if self._restarting:
+            return
+        self._restarting = True
+        timer = threading.Timer(0.6, self._restart_process)
+        timer.daemon = True
+        timer.start()
+
+    def _restart_process(self) -> None:
+        self.log.info("收到重启请求，正在重新启动进程…")
+        try:
+            args = [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:]
+            if os.name == "nt":
+                subprocess.Popen(args, cwd=os.getcwd(), close_fds=True)
+                os._exit(0)
+            os.execv(sys.executable, args)
+        except Exception:
+            self.log.exception("重启失败，进程退出")
+            os._exit(1)
+
+    def _web_url(self) -> str:
+        public = str(self.web_config.get("public_url") or "").strip()
+        if public:
+            return public.rstrip("/")
+        host = str(self.web_config.get("host") or "127.0.0.1")
+        if host in ("0.0.0.0", "::"):
+            host = "127.0.0.1"
+        return "http://%s:%s" % (host, self.web_server.actual_port)
+
+    def _notify_update(self, info: Dict[str, Any], kind: str) -> None:
+        update_cfg = self.web_config.get("update", {})
+        target_group = str(update_cfg.get("notify_group") or "").strip()
+        target_user = str(update_cfg.get("notify_user") or "").strip()
+        if not target_group and not target_user:
+            return
+        if kind == "local":
+            text = (
+                "【后端文件更新】检测到机器人代码文件发生变化。\n"
+                "是否重启加载？打开 %s 确认。" % self._web_url())
+        else:
+            text = (
+                "【后端新版本】本地 %s → 远端 %s\n%s\n是否更新？打开 %s 确认。"
+                % (str(info.get("local_short") or "?"),
+                   str(info.get("remote_short") or "?"),
+                   str(info.get("remote_message") or ""),
+                   self._web_url()))
+        try:
+            if target_group:
+                self.onebot.send_group_text(target_group, text)
+            elif target_user:
+                self.onebot.send_private_text(target_user, text)
+        except Exception as exc:
+            self.log.warning("发送更新提示失败：%s", exc)
 
     # ------------------------------------------------------------------ 事件
     def on_event(self, event: Dict[str, Any]) -> None:

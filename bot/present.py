@@ -312,6 +312,7 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
     name = node.display_name if node is not None else (arbitration.node or "—")
     mission = node.mission if node is not None else (arbitration.mission or "—")
     enemy = node.faction if node is not None else (arbitration.enemy or "—")
+    enemy = terms.localize_faction(str(enemy))
     system = node.system if node is not None else "—"
     level = node.level_text if node is not None else "—"
     rows = [[name, system, mission, enemy, level, rating or "—"]]
@@ -561,7 +562,7 @@ def news_reply(raw) -> Reply:
     rows = []
     text_lines = []
     for item in _as_list(raw)[:10]:
-        message = str(item.get("message") or "—")
+        message = terms.localize_phrase(str(item.get("message") or "—"))
         rows.append([message[:36], str(item.get("date") or "")[:10]])
         text_lines.append(message)
     return _world_reply(
@@ -575,8 +576,10 @@ def events_reply(raw) -> Reply:
     for event in _as_list(raw)[:10]:
         score = "%s / %s" % (event.get("currentScore", 0), event.get("maximumScore", 0))
         rows.append([
-            str(event.get("description") or event.get("tooltip") or "—")[:32],
-            terms.localize_node(str(event.get("node") or "—")),
+            terms.localize_phrase(
+                str(event.get("description") or event.get("tooltip") or "—"))[:32],
+            terms.localize_text(terms.localize_node(
+                str(event.get("node") or "—"))),
             score,
             countdown(parse_timestamp(event.get("expiry"))),
         ])
@@ -717,7 +720,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
 BOUNTY_LOCATIONS = {
     "Ostrons": "希图斯",
     "Solaris United": "福尔图娜",
-    "Entrati": "英择谛",
+    "Entrati": "火卫二",
     "Cavia": "解剖圣所",
     "The Hex": "霍瓦尼亚",
     "The Holdfasts": "扎里曼",
@@ -762,7 +765,7 @@ def bounties_reply(raw) -> Reply:
             rewards = []
             for drop in drops[:2]:
                 if isinstance(drop, dict) and drop.get("item"):
-                    rewards.append(terms.localize_text(str(drop["item"])))
+                    rewards.append(terms.localize_reward(str(drop["item"])))
             if not rewards:
                 rewards = [str(value) for value in _as_list(job.get("rewardPool"))[:2]]
             rows.append([

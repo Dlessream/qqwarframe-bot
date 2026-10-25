@@ -32,6 +32,10 @@ sudo ./deploy/oneclick.sh
   把 Token 填到 `.env` 的 `NAPCAT_WS_TOKEN=`，再
   `docker compose -f docker-compose.full.yml up -d bot`。
 - 看日志：`docker compose -f docker-compose.full.yml logs -f bot`。
+- 打开 Web 控制台 `http://127.0.0.1:8080`，令牌在 `.env` 的
+  `WEB_ADMIN_TOKEN`；远程服务器用 `ssh -L 8080:127.0.0.1:8080 root@服务器IP`。
+- 控制台检测到 GitHub 新提交或本地 `bot/*.py` 变化时，会弹窗询问
+  “是否更新/重启”，不会自动执行。
 - 群里发 `#帮助`。
 
 节点配置在 `xray/config.json`（权限 600），机器人通过 `http://xray:10809`
@@ -97,6 +101,13 @@ cd qqwarframe-bot
 mkdir -p config data logs
 docker compose up -d --build
 docker compose logs -f
+```
+
+更新版本：
+
+```bash
+docker compose -f docker-compose.full.yml build
+docker compose -f docker-compose.full.yml up -d
 ```
 
 首次启动会生成 `config/config.json`，在宿主机编辑后：
@@ -182,10 +193,11 @@ docker run -d --name napcat --restart unless-stopped \
 
 ```bash
 ./check.sh                              # 联网自检
-python3 -m unittest discover -s tests -t .   # 251 个离线测试
+python3 -m unittest discover -s tests -t .   # 261 个离线测试
 ```
 
 自检里维基可能显示 `WARN`（Cloudflare/WAF 拦截），不影响市场、图片、提醒等功能。
+
 
 
 

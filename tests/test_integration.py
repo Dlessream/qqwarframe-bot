@@ -142,6 +142,7 @@ def build_app_config(http_base, ws_url):
         "image": {"enabled": True, "font": "", "font_bold": ""},
         "worldstate": {"enabled": False, "base_url": http_base},
         "auto_update": {"enabled": False},
+        "web": {"enabled": False},
         "alerts": {"enabled": False, "file": os.path.join(BASE, "data", "test_alerts.json")},
         "log": {"level": "CRITICAL", "file": ""},
     }

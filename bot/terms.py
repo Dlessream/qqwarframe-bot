@@ -11,6 +11,7 @@ PLANETS = {
     "Europa": "欧罗巴", "Phobos": "火卫一", "Deimos": "火卫二", "Lua": "月球",
     "Void": "虚空", "Kuva Fortress": "赤毒要塞", "Earth Proxima": "地球比邻星",
     "Venus Proxima": "金星比邻星", "Neptune Proxima": "海王星比邻星",
+    "Zariman": "扎里曼", "Veil": "虚空之纱", "Höllvania": "霍瓦尼亚",
 }
 
 RELICS = {
@@ -79,12 +80,60 @@ RESOURCES = {
     "Gallium": "镓", "Morphics": "非晶态合金", "Polymer Bundle": "聚合纤维",
     "Circuits": "电路", "Alloy Plate": "合金板", "Ferrite": "铁氧体",
     "Rubedo": "红化结晶", "Plastids": "生物质", "Nano Spores": "纳米孢子",
+    "Cache": "缓存", "Necramech": "死灵机甲",
 }
 
 RELIC_TIERS = {
     "Lith": "古纪", "Meso": "前纪", "Neo": "中纪",
     "Axi": "后纪", "Requiem": "安魂", "Omnia": "全能",
 }
+
+NEWS_PHRASES = {
+    "Join the official Warframe Discord server": "加入 Warframe 官方 Discord 服务器",
+    "Check out the official Warframe Wiki": "查看 Warframe 官方 Wiki",
+    "Visit the official Warframe Forums!": "访问 Warframe 官方论坛！",
+}
+
+EVENT_PHRASES = {
+    "Hallowed Nightmares Tactical Alert": "万圣节梦魇战术警报",
+    "Nights of Naberus": "纳贝鲁斯之夜",
+    "Road To Tau Event Name": "通往 Tau 之路",
+}
+
+REWARD_TERMS = {
+    "Pressure Point": "压迫点", "Energy Inversion": "能量反转",
+    "Vigilante Armaments": "警戒者军备", "Vazarin Lens": "瓦扎林棱镜",
+    "Vigilante Vigor": "警戒者活力", "Zenurik Lens": "泽努里棱镜",
+    "Breath Of The Eidolon": "夜灵之息", "Boreal's Anguish": "玻瑞尔之痛",
+    "Isoplast": "等渗聚合物", "Thermal Sludge": "热淤泥",
+    "Unairu Lens": "乌奈鲁棱镜", "Ayatan Amber Star": "阿耶檀琥珀星",
+    "Residual Boils": "残留沸泡",
+    "Necramech Redirection": "死灵机甲偏转",
+    "Necramech Blitz": "死灵机甲闪击",
+    "Necramech Fury": "死灵机甲狂怒",
+    "1,500 Credits Cache": "1,500 星币缓存",
+}
+
+
+def localize_reward(text: str) -> str:
+    if not text:
+        return ""
+    text = localize_text(text)
+    for english, chinese in sorted(REWARD_TERMS.items(),
+                                   key=lambda item: -len(item[0])):
+        text = re.sub(re.escape(english), chinese, text, flags=re.I)
+    return text
+
+
+def localize_phrase(text: str) -> str:
+    if not text:
+        return ""
+    text = localize_text(text)
+    for english, chinese in sorted(
+            list(NEWS_PHRASES.items()) + list(EVENT_PHRASES.items()),
+            key=lambda item: -len(item[0])):
+        text = re.sub(re.escape(english), chinese, text, flags=re.I)
+    return text
 
 BOUNTY_PHRASES = {
     "Capture the Grineer Commander": "捕获克隆尼指挥官",
@@ -103,7 +152,9 @@ BOUNTY_PHRASES = {
     "Trash Their Traps": "破坏陷阱",
     "Financial Liberation": "财务解放",
     "Tax Taxmen": "税务官",
+    "Tax the Taxmen": "向税务官征税",
     "Crush Cult": "粉碎教团",
+    "Crush the Cult": "粉碎教团",
     "Brute Force": "暴力破解",
     "Strip Mining (Endless)": "露天开采（无尽）",
     "Isolation Vault Chamber": "隔离宝库",

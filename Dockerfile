@@ -30,6 +30,7 @@ RUN if [ -n "$APT_MIRROR" ]; then \
 WORKDIR /app
 
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG BUILD_COMMIT=""
 COPY requirements.txt ./
 RUN pip install -i "$PIP_INDEX_URL" -r requirements.txt
 
@@ -37,8 +38,10 @@ COPY . .
 
 RUN mkdir -p /app/config /app/data /app/logs \
     && cp /app/data/aliases.json /app/default-aliases.json \
-    && chmod +x /app/deploy/docker-entrypoint.sh
+    && chmod +x /app/deploy/docker-entrypoint.sh \
+    && if [ -n "$BUILD_COMMIT" ]; then echo "$BUILD_COMMIT" > /app/.build_commit; fi
 
+EXPOSE 8080
 VOLUME ["/app/config", "/app/data", "/app/logs"]
 
 ENTRYPOINT ["/app/deploy/docker-entrypoint.sh"]

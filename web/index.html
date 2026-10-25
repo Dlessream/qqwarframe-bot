@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Warframe Ops · 控制台</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark">W</span>
+      <span class="brand-text">WARFRAME <em>OPS</em></span>
+    </a>
+    <div class="topbar-right">
+      <span id="connPill" class="pill pill-muted"><i class="dot"></i>连接中</span>
+      <button id="refreshBtn" class="btn btn-ghost" type="button">刷新</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">CONTROL CENTER / 01</p>
+        <h1>机器人控制台</h1>
+        <p class="hero-sub">实时状态、数据缓存与后端更新。所有操作都需要你的确认。</p>
+      </div>
+      <div class="hero-actions">
+        <button id="checkBtn" class="btn btn-primary" type="button">检查更新</button>
+        <button id="restartBtn" class="btn btn-ghost" type="button">重启服务</button>
+      </div>
+    </section>
+
+    <section id="updateBanner" class="banner" hidden>
+      <div class="banner-copy">
+        <span class="banner-kicker">UPDATE</span>
+        <strong id="bannerTitle">发现新版本</strong>
+        <p id="bannerText"></p>
+      </div>
+      <div class="banner-actions">
+        <button id="bannerAction" class="btn btn-primary btn-sm" type="button">查看</button>
+        <button id="bannerDismiss" class="btn btn-ghost btn-sm" type="button">稍后</button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card card-status">
+        <div class="card-head">
+          <span class="card-label">运行状态</span>
+          <span id="statusChip" class="chip">—</span>
+        </div>
+        <div class="card-main">
+          <div class="metric"><span id="uptime">—</span><small>运行时长</small></div>
+          <div class="metric"><span id="version">—</span><small>版本</small></div>
+        </div>
+        <div class="kv"><span>OneBot</span><b id="wsState">—</b></div>
+        <div class="kv"><span>服务地址</span><b id="wsUrl" class="mono">—</b></div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <span class="card-label">数据缓存</span>
+          <span class="chip chip-blue">DATA</span>
+        </div>
+        <div class="card-main">
+          <div class="metric"><span id="itemCount">—</span><small>市场物品</small></div>
+          <div class="metric"><span id="rivenCount">—</span><small>紫卡武器</small></div>
+        </div>
+        <div class="kv"><span>上次刷新</span><b id="lastUpdate">—</b></div>
+        <div class="kv"><span>活跃提醒</span><b id="alertCount">—</b></div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <span class="card-label">媒体能力</span>
+          <span class="chip chip-purple">MEDIA</span>
+        </div>
+        <div class="card-main">
+          <div class="metric"><span id="imageState">—</span><small>图片卡片</small></div>
+          <div class="metric"><span id="ocrState">—</span><small>截图 OCR</small></div>
+        </div>
+        <div class="kv"><span>字体</span><b id="fontState">—</b></div>
+        <div class="kv"><span>OCR 引擎</span><b id="ocrEngine">—</b></div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <span class="card-label">后端版本</span>
+          <span id="updateChip" class="chip chip-gold">CHECK</span>
+        </div>
+        <div class="card-main">
+          <div class="metric"><span id="localCommit" class="mono">—</span><small>本地提交</small></div>
+          <div class="metric"><span id="remoteCommit" class="mono">—</span><small>远端提交</small></div>
+        </div>
+        <div class="kv"><span>上次检查</span><b id="lastChecked">—</b></div>
+        <div class="kv"><span>状态</span><b id="updateState">—</b></div>
+      </article>
+    </section>
+
+    <section class="panel logs-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">运行日志</span>
+          <span class="panel-sub">最后 120 行 · 每 5 秒刷新</span>
+        </div>
+        <button id="logRefresh" class="btn btn-ghost btn-sm" type="button">刷新日志</button>
+      </div>
+      <pre id="logs" class="logs">正在读取日志…</pre>
+    </section>
+
+    <footer class="footer">
+      <span>QQ WARFRAME BOT · <span id="footerVersion">—</span></span>
+      <span>本地控制台 · 不会自动更新，必须确认</span>
+    </footer>
+  </main>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <p class="eyebrow">CONFIRM / UPDATE</p>
+      <h2 id="modalTitle">发现新版本</h2>
+      <p id="modalText" class="modal-text"></p>
+      <pre id="modalCommand" class="command" hidden></pre>
+      <div class="modal-actions">
+        <button id="modalCancel" class="btn btn-ghost" type="button">取消</button>
+        <button id="modalConfirm" class="btn btn-primary" type="button">确认更新</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="login" class="modal" hidden>
+    <div class="modal-card login-card" role="dialog" aria-modal="true">
+      <p class="eyebrow">AUTH / ADMIN</p>
+      <h2>需要访问令牌</h2>
+      <p class="modal-text">输入 config.json 里 web.token 的值。</p>
+      <input id="tokenInput" class="input" type="password" autocomplete="current-password" placeholder="Admin token">
+      <div class="modal-actions">
+        <button id="tokenSave" class="btn btn-primary" type="button">进入控制台</button>
+      </div>
+      <p id="loginError" class="form-error" hidden>令牌不正确。</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

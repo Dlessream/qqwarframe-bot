@@ -63,12 +63,19 @@ if [ ! -f .env ]; then
     echo "[2/5] 生成 .env（WebUI 密码等）"
     if command -v openssl >/dev/null 2>&1; then
         WEBUI_TOKEN="$(openssl rand -hex 12)"
+        WEB_ADMIN_TOKEN="$(openssl rand -hex 12)"
     else
         WEBUI_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+        WEB_ADMIN_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
     fi
+    BUILD_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
     cat > .env <<EOF
 NAPCAT_WEBUI_TOKEN=$WEBUI_TOKEN
 NAPCAT_WS_TOKEN=
+WEB_ADMIN_TOKEN=${WEB_ADMIN_TOKEN:-}
+WEB_ADMIN_BIND=${WEB_ADMIN_BIND:-127.0.0.1}
+WEB_ADMIN_PORT=${WEB_ADMIN_PORT:-8080}
+BUILD_COMMIT=${BUILD_COMMIT:-}
 WEBUI_BIND=${WEBUI_BIND:-127.0.0.1}
 PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
 DOCKER_MIRRORS=${DOCKER_MIRRORS:-https://docker.m.daocloud.io,https://docker.1ms.run}

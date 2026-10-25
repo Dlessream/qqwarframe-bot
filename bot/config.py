@@ -109,6 +109,23 @@ DEFAULTS: Dict[str, Any] = {
         "arbi": True,
         "manual_cooldown_seconds": 600,
     },
+    "web": {
+        "enabled": True,
+        "host": "127.0.0.1",
+        "port": 8080,
+        "token": "",
+        "public_url": "",
+        "log_lines": 200,
+        "update": {
+            "repo": "z13207091735-source/qqwarframe-bot",
+            "branch": "main",
+            "check_seconds": 600,
+            "proxy": "",
+            "notify_group": "",
+            "notify_user": "",
+            "manual_command": "docker compose -f docker-compose.full.yml up -d --build",
+        },
+    },
     "cache": {
         "enabled": True,
         "item_seconds": 3600,
@@ -148,6 +165,10 @@ _ENV_OVERRIDES = {
     "QQWF_ARBI_PROXY": ("arbi", "proxy", "str"),
     "QQWF_FONT": ("image", "font", "str"),
     "QQWF_FONT_BOLD": ("image", "font_bold", "str"),
+    "QQWF_WEB": ("web", "enabled", "bool"),
+    "QQWF_WEB_HOST": ("web", "host", "str"),
+    "QQWF_WEB_PORT": ("web", "port", "str"),
+    "QQWF_WEB_TOKEN": ("web", "token", "str"),
 }
 
 

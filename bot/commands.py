@@ -539,7 +539,7 @@ class CommandRouter:
                         )
                         node = site_node
                         rating = self.arbi.rating(site_node.key)
-                        note = "warframe API 暂无有效数据，按 arbi.wf.wiki 轮换推算"
+                        note = "Warframe 官方 API 暂无有效数据，按 arbi.wf.wiki 轮换推算"
                 else:
                     node = self.arbi.node(arbitration.node_key)
                     rating = self.arbi.rating(arbitration.node_key)

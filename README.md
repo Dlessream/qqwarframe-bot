@@ -31,6 +31,10 @@
 | --- | --- |
 | ![帮助](docs/help.png) | ![世界状态](docs/worldstate.png) |
 
+| Web 控制台 |
+| --- |
+| ![控制台](docs/dashboard.png) |
+
 ---
 
 ## 功能
@@ -49,6 +53,8 @@
 | 多平台 | `pc / ps / xbox / switch / mobile` 价格 |
 | 降价提醒 | 设定目标价，后台每 5 分钟检查并推送图片 |
 | 自动更新 | 后台每 6 小时刷新市场索引、紫卡武器表、仲裁评级 |
+| Web 控制台 | `http://127.0.0.1:8080`：运行状态、缓存、日志、更新检查；更新前必须确认 |
+| 更新提示 | 轮询 GitHub 新提交 + 监听本地 `bot/*.py` 变化，弹窗询问“是否更新/重启” |
 | 短缓存 | 订单 60 秒、行情 15 分钟、世界状态 60 秒、维基 10 分钟，重复查询秒回 |
 | 中文维基 | 词条摘要图片 + 直达链接 |
 | 稳定性 | 12h 物品缓存、3 请求/秒限流、429 重试、断线重连 |
@@ -194,10 +200,11 @@ sudo ./deploy/oneclick.sh
 | --- | --- |
 | `napcat` | QQ 协议端，WebUI `127.0.0.1:6099`，WS `3001`（仅容器网络） |
 | `xray` | 你的 VLESS Reality 节点 → 本地 HTTP 代理 `10809`（仅容器网络） |
-| `bot` | 机器人，连 `ws://napcat:3001`，走 `http://xray:10809` |
+| `bot` | 机器人，连 `ws://napcat:3001`，走 `http://xray:10809`，Web 控制台 `8080` |
 
 完成后按脚本提示：打开 WebUI 扫码登录 QQ → 确认 WS 服务器 3001 →
-`docker compose -f docker-compose.full.yml logs -f bot` → 群里发 `#帮助`。
+`docker compose -f docker-compose.full.yml logs -f bot` → 打开
+`http://127.0.0.1:8080` → 群里发 `#帮助`。
 
 ### 国内加速
 
@@ -322,6 +329,85 @@ docker run -d --name napcat --restart unless-stopped \
 - Clash 常见 `http://127.0.0.1:7890`；只给市场挂代理时其余填 `"none"`。
 - Docker 用 host 网络时照常写 `127.0.0.1`；bridge 网络要写宿主机地址。
 - 代理端口没监听时，`run.py` 启动会打印警告。
+
+---
+
+## Web 控制台
+
+启动机器人后打开：
+
+```text
+http://127.0.0.1:8080
+```
+
+默认只绑定本机；Docker 映射为 `127.0.0.1:8080`。界面包含：
+
+- 运行状态、OneBot 连接、版本、运行时长
+- 市场物品数、紫卡武器数、上次数据刷新、活跃提醒
+- 图片/OCR/字体状态
+- 实时日志（最后 120 行）
+- 本地/远端提交、检查更新、更新确认弹窗
+
+### 更新提示
+
+机器人启动后会做两件事：
+
+1. 每 10 分钟查一次 GitHub `commits/main`，**只有远端领先本地**时才提示更新；
+2. 每 5 秒检查 `bot/*.py` 和 `run.py` 的修改时间，发现本地后端文件变化时提示重启。
+
+检测到更新后：
+
+- Web 顶部出现提示条，并弹出“是否更新/重启”确认框；
+- 如果配置了 `web.update.notify_group` 或 `notify_user`，同时发 QQ 文字提示；
+- **不会自动更新**。点“立即更新”才执行 `git pull --ff-only`（源码目录），
+  成功后自动重启；发布包/Docker 会显示手动更新命令。
+
+Docker 更新：
+
+```bash
+docker compose -f docker-compose.full.yml build
+docker compose -f docker-compose.full.yml up -d
+```
+
+### .env 配置
+
+一键部署会自动生成：
+
+```dotenv
+WEB_ADMIN_TOKEN=<随机令牌>
+WEB_ADMIN_BIND=127.0.0.1
+WEB_ADMIN_PORT=8080
+BUILD_COMMIT=<部署时的 git commit>
+```
+
+- 远程访问时改 `WEB_ADMIN_BIND=0.0.0.0`，**必须同时设置强 token**；
+- 浏览器首次打开会要求输入 `WEB_ADMIN_TOKEN`，保存在本机 localStorage；
+- 不设置 token 时只建议 `127.0.0.1` 本机使用。
+
+### config.json
+
+```json
+"web": {
+  "enabled": true,
+  "host": "127.0.0.1",
+  "port": 8080,
+  "token": "",
+  "public_url": "",
+  "log_lines": 200,
+  "update": {
+    "repo": "z13207091735-source/qqwarframe-bot",
+    "branch": "main",
+    "check_seconds": 600,
+    "proxy": "",
+    "notify_group": "",
+    "notify_user": "",
+    "manual_command": "docker compose -f docker-compose.full.yml up -d --build"
+  }
+}
+```
+
+`public_url` 用于 QQ 更新提示里的控制台链接；不填则用 `host:port`。
+`notify_group` / `notify_user` 留空时只在 Web 弹窗提示，不发 QQ。
 
 ---
 
@@ -468,6 +554,26 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 
 实时数据每次查询会先走短缓存（见下节），过期后才重新请求；`#更新` 会同时清空短缓存。
 
+### web
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | true | Web 控制台总开关 |
+| `host` | `127.0.0.1` | 监听地址；Docker 内由环境变量改成 `0.0.0.0` |
+| `port` | 8080 | 控制台端口 |
+| `token` | `""` | 访问令牌；非空时 API 必须带 `X-Admin-Token` |
+| `public_url` | `""` | QQ 更新提示中显示的地址 |
+| `log_lines` | 200 | 日志接口最多返回行数 |
+| `update.repo` | `z13207091735-source/qqwarframe-bot` | GitHub 仓库 |
+| `update.branch` | `main` | 分支 |
+| `update.check_seconds` | 600 | 远程检查间隔（最小 60 秒） |
+| `update.proxy` | `""` | 留空使用市场代理 |
+| `update.notify_group` | `""` | 更新提示发到哪个群 |
+| `update.notify_user` | `""` | 更新提示发到哪个 QQ |
+| `update.manual_command` | Docker build 命令 | 发布包模式下提示的手动更新命令 |
+
+环境变量：`QQWF_WEB`、`QQWF_WEB_HOST`、`QQWF_WEB_PORT`、`QQWF_WEB_TOKEN`。
+
 ### cache
 
 | 字段 | 默认 | 说明 |
@@ -517,7 +623,7 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 python -m unittest discover -s tests -t . -v
 ```
 
-**251 个离线测试**，不联网、不连 QQ，覆盖：
+**261 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -527,6 +633,7 @@ python -m unittest discover -s tests -t . -v
 - 维基摘要与 HTML 回退、世界状态时间解析
 - 提醒存储的增删改查与持久化
 - 自动更新调度、手动触发冷却、数据源状态汇总
+- Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测
 - 短 TTL 缓存的命中/过期、各数据源缓存包装
 - 图片卡片的 PNG 尺寸与长文本换行
 - **端到端**：mock OneBot 服务端 + mock 市场/Wiki，验证收事件、发图片、@ 回复
@@ -578,8 +685,11 @@ qqwarframe-bot/
 │   ├── render.py          # 文字排版
 │   ├── replies.py         # Reply 数据结构
 │   ├── commands.py        # 命令解析与路由
+│   ├── update.py          # GitHub/本地代码更新检查
+│   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
-├── tests/                 # 251 个测试 + fixtures
+├── web/                   # 控制台 HTML / CSS / JS
+├── tests/                 # 261 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -648,6 +758,21 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 - 截图尽量只保留紫卡词条区域，避免把整个屏幕截进去。
 - 查不到武器时先用 `#紫卡 <武器>` 确认市场有该紫卡。
 
+**11. Web 控制台打不开 / 一直 401**
+
+- 默认只绑 `127.0.0.1:8080`；远程服务器用 SSH 隧道，或改
+  `WEB_ADMIN_BIND=0.0.0.0` 并设置强 `WEB_ADMIN_TOKEN`。
+- 401 表示令牌不对：在页面里重新输入 `.env` 的 `WEB_ADMIN_TOKEN`。
+- Docker 端口被占用时改 `.env` 的 `WEB_ADMIN_PORT`，然后
+  `docker compose -f docker-compose.full.yml up -d`。
+
+**12. 更新提示一直不出现**
+
+- 源码运行需要 `.git` 或 `.build_commit` 才能识别本地版本；发布包在打包时会写入。
+- GitHub API 被墙时给 `web.update.proxy` 配代理（留空会复用市场代理）。
+- 只有**远端领先本地**才提示；本地未推送的提交会显示“本地未推送”，不会提示降级。
+- 本地改完 `bot/*.py` 后，控制台应在 5–10 秒内弹出“是否重启”。
+
 ---
 
 ## 数据来源与合规
@@ -667,6 +792,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 

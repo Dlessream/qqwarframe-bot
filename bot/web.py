@@ -1,0 +1,241 @@
+"""轻量 Web 控制台：状态、日志、更新检查与重启确认。"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import threading
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, Dict, Optional
+from urllib.parse import parse_qs, urlparse
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WEB_DIR = os.path.join(ROOT, "web")
+
+
+class AdminServer:
+    def __init__(self, app, config: Dict[str, Any],
+                 logger: Optional[logging.Logger] = None):
+        self.app = app
+        self.config = dict(config or {})
+        self.log = logger or logging.getLogger(__name__)
+        self.host = str(self.config.get("host") or "127.0.0.1")
+        port_value = self.config.get("port", 8080)
+        self.port = 8080 if port_value in (None, "") else int(port_value)
+        self.token = str(self.config.get("token") or "")
+        self.log_file = str(self.config.get("log_file") or "logs/bot.log")
+        self.max_log_lines = max(20, min(500, int(
+            self.config.get("log_lines") or 200)))
+        self._httpd: Optional[ThreadingHTTPServer] = None
+        self._thread: Optional[threading.Thread] = None
+        self.actual_port = self.port
+
+    def start(self) -> None:
+        if not self.config.get("enabled", True):
+            self.log.info("Web 控制台已关闭")
+            return
+        if not self.token and self.host not in ("127.0.0.1", "localhost", "::1"):
+            self.log.warning(
+                "Web 控制台绑定 %s 且未设置 web.token，存在未授权访问风险；"
+                "建议设置 WEB_ADMIN_TOKEN 或改回 127.0.0.1", self.host)
+
+        server = self
+
+        class Handler(BaseHTTPRequestHandler):
+            server_version = "QQWarframeAdmin/1.0"
+
+            def log_message(self, fmt, *args):
+                server.log.debug("web: " + fmt, *args)
+
+            def _authorized(self) -> bool:
+                if not server.token:
+                    return True
+                supplied = self.headers.get("X-Admin-Token", "")
+                if not supplied:
+                    query = parse_qs(urlparse(self.path).query)
+                    supplied = (query.get("token") or [""])[0]
+                return supplied == server.token
+
+            def _json(self, payload: Dict[str, Any],
+                      status: int = HTTPStatus.OK) -> None:
+                body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def _unauthorized(self) -> None:
+                self._json({"ok": False, "message": "需要控制台令牌。"},
+                           HTTPStatus.UNAUTHORIZED)
+
+            def _file(self, path: str, content_type: str) -> None:
+                try:
+                    with open(path, "rb") as handle:
+                        body = handle.read()
+                except OSError:
+                    self._json({"ok": False, "message": "文件不存在。"},
+                               HTTPStatus.NOT_FOUND)
+                    return
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                parsed = urlparse(self.path)
+                path = parsed.path
+                if path in ("/", "/index.html"):
+                    self._file(os.path.join(WEB_DIR, "index.html"),
+                               "text/html; charset=utf-8")
+                    return
+                if path == "/static/style.css":
+                    self._file(os.path.join(WEB_DIR, "style.css"),
+                               "text/css; charset=utf-8")
+                    return
+                if path == "/static/app.js":
+                    self._file(os.path.join(WEB_DIR, "app.js"),
+                               "application/javascript; charset=utf-8")
+                    return
+                if path == "/favicon.ico":
+                    self.send_response(HTTPStatus.NO_CONTENT)
+                    self.end_headers()
+                    return
+                if path == "/api/status":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.status_snapshot()})
+                    return
+                if path == "/api/logs":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    query = parse_qs(parsed.query)
+                    try:
+                        lines = int((query.get("lines") or ["120"])[0])
+                    except ValueError:
+                        lines = 120
+                    lines = max(20, min(server.max_log_lines, lines))
+                    self._json({"ok": True, "lines": server.read_logs(lines)})
+                    return
+                if path == "/api/update/status":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    checker = getattr(server.app, "update_checker", None)
+                    self._json({"ok": True, "update": checker.snapshot() if checker else {}})
+                    return
+                self._json({"ok": False, "message": "Not found"},
+                           HTTPStatus.NOT_FOUND)
+
+            def do_POST(self):
+                if not self._authorized():
+                    self._unauthorized()
+                    return
+                parsed = urlparse(self.path)
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = 0
+                if length > 65536:
+                    self._json({"ok": False, "message": "请求体过大。"},
+                               HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+                    return
+                body = self.rfile.read(length) if length else b"{}"
+                try:
+                    data = json.loads(body.decode("utf-8")) if body else {}
+                except Exception:
+                    self._json({"ok": False, "message": "JSON 格式错误。"},
+                               HTTPStatus.BAD_REQUEST)
+                    return
+
+                if parsed.path == "/api/update/check":
+                    checker = getattr(server.app, "update_checker", None)
+                    if checker is None:
+                        self._json({"ok": False, "message": "更新检查未启用。"})
+                        return
+                    update = checker.check_now()
+                    self._json({"ok": True, "update": update})
+                    return
+
+                if parsed.path == "/api/update/apply":
+                    if not data.get("confirm"):
+                        self._json({"ok": False, "message": "缺少确认参数。"},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    result = server.app.apply_update()
+                    self._json({"ok": bool(result.get("ok")), **result})
+                    return
+
+                if parsed.path == "/api/update/dismiss":
+                    kind = str(data.get("kind") or "")
+                    checker = getattr(server.app, "update_checker", None)
+                    if checker is not None:
+                        if kind == "local":
+                            checker.acknowledge_local()
+                        elif kind == "remote":
+                            checker.dismiss_remote()
+                    self._json({"ok": True})
+                    return
+
+                if parsed.path == "/api/restart":
+                    if not data.get("confirm"):
+                        self._json({"ok": False, "message": "缺少确认参数。"},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    server.app.request_restart()
+                    self._json({"ok": True, "message": "正在重启服务。"})
+                    return
+
+                self._json({"ok": False, "message": "Not found"},
+                           HTTPStatus.NOT_FOUND)
+
+        try:
+            self._httpd = ThreadingHTTPServer((self.host, self.port), Handler)
+            self._httpd.daemon_threads = True
+            self.actual_port = self._httpd.server_address[1]
+        except OSError as exc:
+            self.log.warning("Web 控制台启动失败（%s:%s）：%s",
+                             self.host, self.port, exc)
+            self._httpd = None
+            return
+        self._thread = threading.Thread(
+            target=self._httpd.serve_forever, name="web-admin", daemon=True)
+        self._thread.start()
+        self.log.info("Web 控制台：http://%s:%s", self.host, self.actual_port)
+
+    def stop(self) -> None:
+        httpd = self._httpd
+        self._httpd = None
+        if httpd is not None:
+            try:
+                httpd.shutdown()
+            except Exception:
+                pass
+            try:
+                httpd.server_close()
+            except Exception:
+                pass
+
+    def read_logs(self, lines: int = 120) -> str:
+        path = self.log_file
+        if not os.path.isabs(path):
+            path = os.path.join(ROOT, path)
+        try:
+            with open(path, "rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - 128 * 1024))
+                raw = handle.read()
+        except OSError:
+            return ""
+        text = raw.decode("utf-8", "replace")
+        return "\n".join(text.splitlines()[-lines:])
