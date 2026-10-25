@@ -20,9 +20,10 @@ fi
 
 # shellcheck disable=SC1091
 . .venv/bin/activate
-python -m pip install --upgrade pip >/dev/null
+PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+python -m pip install --upgrade pip -i "$PIP_INDEX_URL" >/dev/null
 echo "安装 Pillow ..."
-pip install -r requirements.txt
+pip install -i "$PIP_INDEX_URL" -r requirements.txt
 
 if [ ! -f "config.json" ]; then
     cp config.example.json config.json

@@ -99,7 +99,7 @@
 ### 1. 环境
 
 - Python 3.8+（你机器上已有 3.8.6）
-- Pillow（已安装；若换机器：`pip install Pillow`）
+- Pillow（已安装；若换机器：`pip install -i https://pypi.tuna.tsinghua.edu.cn/simple Pillow`）
 - QQ 小号 + [NapCatQQ](https://github.com/NapNeko/NapCatQQ)（或 LLOneBot / Lagrange.OneBot）
 - **代理**：默认使用 v2rayN 的 HTTP 代理 `http://127.0.0.1:10809`
 
@@ -175,8 +175,8 @@ deploy/docker-entrypoint.sh
 sudo ./deploy/oneclick.sh
 ```
 
-脚本会安装/启动 Docker、生成 `.env`、用 `deploy/vless.txt` 生成
-`xray/config.json`，然后启动三个容器：
+脚本会安装/启动 Docker、配置 **Docker 国内镜像加速**、生成 `.env`、
+用 `deploy/vless.txt` 生成 `xray/config.json`，然后启动三个容器：
 
 | 容器 | 作用 |
 | --- | --- |
@@ -186,6 +186,38 @@ sudo ./deploy/oneclick.sh
 
 完成后按脚本提示：打开 WebUI 扫码登录 QQ → 确认 WS 服务器 3001 →
 `docker compose -f docker-compose.full.yml logs -f bot` → 群里发 `#帮助`。
+
+### 国内加速
+
+一键脚本会自动处理这些下载源：
+
+| 项目 | 默认源 |
+| --- | --- |
+| Docker 镜像 | `docker.m.daocloud.io`、`docker.1ms.run`（写入 `/etc/docker/daemon.json`） |
+| pip | `https://pypi.tuna.tsinghua.edu.cn/simple` |
+| Docker 构建 apt | `mirrors.tuna.tsinghua.edu.cn` |
+| Python 基础镜像 | 走 Docker 镜像加速，仍用 `python:3.11-slim` |
+
+对应的 `.env` 变量：
+
+```text
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
+DOCKER_MIRRORS=https://docker.m.daocloud.io,https://docker.1ms.run
+```
+
+想换回官方源，把对应变量改成：
+
+```text
+PIP_INDEX_URL=https://pypi.org/simple
+APT_MIRROR=deb.debian.org
+DOCKER_MIRRORS=
+```
+
+改完 `docker compose -f docker-compose.full.yml build --no-cache bot` 重建。
+如果 `git clone github.com` 很慢，可临时用第三方加速前缀
+`https://ghproxy.net/https://github.com/...`，但要注意第三方代理的代码完整性；
+最稳妥仍是直连或先下载 Release 压缩包。
 
 - WebUI 默认只绑 `127.0.0.1`，远程服务器用
   `ssh -L 6099:127.0.0.1:6099 root@服务器IP` 转发。
@@ -559,7 +591,7 @@ v2rayN 没开，或端口不是 10809。启动 v2rayN，或在 `config.json` 里
 **2. 图片变成文字了**
 
 说明 Pillow 或中文字体不可用。运行 `python -c "import PIL"` 检查；
-没有就 `pip install Pillow`。Windows 自带微软雅黑，一般不会缺字体。
+没有就 `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple Pillow`。Windows 自带微软雅黑，一般不会缺字体。
 
 **3. 奸商/突击 403 或被 Cloudflare 拦截**
 

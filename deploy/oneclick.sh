@@ -71,6 +71,8 @@ NAPCAT_WEBUI_TOKEN=$WEBUI_TOKEN
 NAPCAT_WS_TOKEN=
 WEBUI_BIND=${WEBUI_BIND:-127.0.0.1}
 PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+DOCKER_MIRRORS=${DOCKER_MIRRORS:-https://docker.m.daocloud.io,https://docker.1ms.run}
+APT_MIRROR=${APT_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
 EOF
     chmod 600 .env
 else
@@ -81,6 +83,49 @@ fi
 . ./.env
 
 : "${NAPCAT_WEBUI_TOKEN:? .env 缺少 NAPCAT_WEBUI_TOKEN，请删除 .env 后重新运行}"
+
+# ------------------------------------------------------------------ Docker 国内镜像
+configure_docker_mirror() {
+    local mirrors="${DOCKER_MIRRORS:-}"
+    [ -n "$mirrors" ] || return 0
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "未找到 python3，跳过 Docker 镜像加速配置" >&2
+        return 0
+    fi
+    mkdir -p /etc/docker
+    python3 - "$mirrors" <<'PY' || return 1
+import json
+import os
+import sys
+
+path = "/etc/docker/daemon.json"
+data = {}
+if os.path.exists(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception as exc:
+        print("daemon.json 不是合法 JSON，跳过镜像配置：%s" % exc, file=sys.stderr)
+        raise SystemExit(1)
+mirrors = [item.strip() for item in sys.argv[1].split(",") if item.strip()]
+current = data.get("registry-mirrors") or []
+for item in mirrors:
+    if item not in current:
+        current.append(item)
+data["registry-mirrors"] = current
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+os.replace(tmp, path)
+print("Docker registry-mirrors: %s" % ", ".join(current))
+PY
+    systemctl restart docker >/dev/null 2>&1 || true
+    sleep 2
+}
+
+echo "[2.5/5] 配置 Docker 国内镜像加速"
+configure_docker_mirror || echo "Docker 镜像加速配置失败，将继续使用默认源" >&2
 
 # ------------------------------------------------------------------ Xray
 if [ ! -f xray/config.json ]; then

@@ -1,4 +1,4 @@
-﻿# Linux 部署速查
+# Linux 部署速查
 
 四种方式任选一种。完整说明（配置项、指令、常见问题）见 [README.md](README.md)。
 
@@ -18,9 +18,10 @@ sudo ./deploy/oneclick.sh
 
 1. 安装/启动 Docker（已装则跳过）
 2. 生成 `.env`（NapCat WebUI 随机密码）
-3. 用 `deploy/vless.txt` 里的 VLESS 节点生成 `xray/config.json`
-4. 构建并启动 **napcat + xray + bot** 三个容器
-5. 打印 WebUI 地址、密码和后续步骤
+3. 配置 Docker 国内镜像加速（daocloud / 1ms）
+4. 用 `deploy/vless.txt` 里的 VLESS 节点生成 `xray/config.json`
+5. 构建并启动 **napcat + xray + bot** 三个容器
+6. 打印 WebUI 地址、密码和后续步骤
 
 完成后：
 
@@ -36,6 +37,17 @@ sudo ./deploy/oneclick.sh
 节点配置在 `xray/config.json`（权限 600），机器人通过 `http://xray:10809`
 访问市场/维基/世界状态。**这个文件和 `deploy/vless.txt` 含节点凭据，
 不要把整个目录或压缩包分享给别人。**
+
+国内加速变量在 `.env`：
+
+```text
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
+DOCKER_MIRRORS=https://docker.m.daocloud.io,https://docker.1ms.run
+```
+
+想恢复官方源，分别改成 `https://pypi.org/simple`、`deb.debian.org`，并把
+`DOCKER_MIRRORS` 留空后重建 `bot` 镜像。
 
 换节点：
 
@@ -70,7 +82,7 @@ nano config.json        # 填 onebot.ws_url / access_token，确认 proxy
 没有虚拟环境时也可以直接：
 
 ```bash
-python3 -m pip install Pillow
+python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple Pillow
 python3 run.py
 ```
 

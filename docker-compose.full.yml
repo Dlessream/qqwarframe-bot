@@ -26,7 +26,9 @@ services:
     build:
       context: .
       args:
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        APT_MIRROR: ${APT_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.11-slim}
     container_name: qqwarframe-bot
     restart: unless-stopped
     depends_on:
