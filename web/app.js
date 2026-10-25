@@ -399,6 +399,24 @@
       const slug = document.createElement("small");
       slug.textContent = group.slug;
       target.append(name, slug);
+      if ((group.parts || []).length) {
+        const parts = document.createElement("div");
+        parts.className = "alias-parts";
+        group.parts.forEach((part) => {
+          const line = document.createElement("div");
+          const label = document.createElement("span");
+          label.textContent = part.label + "：";
+          const values = document.createElement("code");
+          const aliases = part.aliases || [];
+          values.textContent = aliases.length
+            ? aliases.slice(0, 5).join(" · ") + (aliases.length > 5 ? " …" : "")
+            : "（未生成）";
+          values.title = aliases.join("、");
+          line.append(label, values);
+          parts.appendChild(line);
+        });
+        target.appendChild(parts);
+      }
 
       const save = document.createElement("button");
       save.type = "button";

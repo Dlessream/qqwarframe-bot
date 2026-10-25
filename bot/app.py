@@ -465,6 +465,29 @@ class BotApp:
             group["aliases"].append(entry["alias"])
             if entry.get("builtin"):
                 group["builtin"].append(entry["alias"])
+        if index is not None:
+            for group in groups.values():
+                slug = group["slug"]
+                if not slug.endswith("_prime_blueprint"):
+                    continue
+                stem = slug[:-len("_blueprint")]
+                parts = []
+                for label, part in (("头部", "neuroptics"),
+                                    ("机体", "chassis"),
+                                    ("系统", "systems")):
+                    component = "%s_%s_blueprint" % (stem, part)
+                    if component not in index.by_slug:
+                        continue
+                    aliases = sorted(alias for alias, target in index.aliases.items()
+                                     if target == component)
+                    item = index.get(component)
+                    parts.append({
+                        "label": label,
+                        "slug": component,
+                        "name": item.name if item else "",
+                        "aliases": aliases,
+                    })
+                group["parts"] = parts
         source = self._market_source(index)
         if error:
             source["error"] = error

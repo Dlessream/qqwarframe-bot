@@ -336,6 +336,16 @@ class ItemIndex:
         for alias_key, slug in list(self.aliases.items()):
             if not slug.endswith("_blueprint"):
                 continue
+            # 已经是部件蓝图时不要再展开“头/机体/系统”，避免 电男头p 之类。
+            if any(slug.endswith(suffix) for suffix in (
+                    "_neuroptics_blueprint", "_chassis_blueprint",
+                    "_systems_blueprint", "_barrel_blueprint",
+                    "_receiver_blueprint", "_stock_blueprint",
+                    "_blade_blueprint", "_handle_blueprint",
+                    "_gauntlet_blueprint", "_upper_limb_blueprint",
+                    "_lower_limb_blueprint", "_hilt_blueprint",
+                    "_ornament_blueprint", "_string_blueprint")):
+                continue
             stem = slug[:-len("_blueprint")]
             for suffix, part in part_suffixes.items():
                 component = (stem + "_blueprint" if not part
