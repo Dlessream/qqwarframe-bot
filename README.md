@@ -266,7 +266,8 @@ docker compose logs -f
 - 也可以用环境变量覆盖（优先级高于 json）：
   `QQWF_WS_URL`、`QQWF_ACCESS_TOKEN`、`QQWF_PROXY`、`QQWF_PLATFORM`、
   `QQWF_IMAGE`、`QQWF_ALERTS`、`QQWF_WORLDSTATE`、`QQWF_AUTO_UPDATE`、
-  `QQWF_CACHE`、`QQWF_RIVEN_DISPOSITION`、`QQWF_ARBI_PROXY`、`QQWF_LOG_LEVEL`。
+  `QQWF_CACHE`、`QQWF_RIVEN_DISPOSITION`、`QQWF_ARBI_PROXY`、`QQWF_FONT`、
+`QQWF_FONT_BOLD`、`QQWF_LOG_LEVEL`。
 - 镜像内置 `fonts-noto-cjk`，不需要在宿主机装字体。
 - 如果 NapCat 是同一 compose 里的另一个容器：删掉 `network_mode`，
   按 `docker-compose.yml` 注释启用 bridge 网络，`ws_url` 改成 `ws://napcat:3001`。
@@ -441,7 +442,7 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `enabled` | true | 关闭后全部发文字 |
-| `font` / `font_bold` | `""` | 自定义字体路径；留空自动找微软雅黑 |
+| `font` / `font_bold` | `""` | 自定义字体路径；留空自动找雅黑/Noto/文泉驿 |
 
 ### alerts
 
@@ -483,7 +484,8 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 ## 图片卡片
 
 - 用 Pillow 现画，不依赖浏览器或外部服务；宽度固定 860px，高度自适应。
-- 中文字体自动查找：微软雅黑（`msyh.ttc`）→ 黑体（`simhei.ttf`）→ Noto/文泉驿。
+- 中文字体自动查找：微软雅黑（`msyh.ttc`）→ 黑体（`simhei.ttf`）→ Noto/文泉驿；
+  Linux 还会走 `fc-match` 和 `/usr/share/fonts` 全目录扫描。
   找不到字体或 Pillow 时会自动**退回文字**，不会导致机器人崩溃。
 - 图片以 `base64://` 形式通过 OneBot 发送，NapCat 在 Docker 里也能收到。
 - 想换字体：把 ttc/ttf 路径填到 `image.font` / `image.font_bold`。
@@ -591,7 +593,7 @@ v2rayN 没开，或端口不是 10809。启动 v2rayN，或在 `config.json` 里
 **2. 图片变成文字了**
 
 说明 Pillow 或中文字体不可用。运行 `python -c "import PIL"` 检查；
-没有就 `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple Pillow`。Windows 自带微软雅黑，一般不会缺字体。
+没有就 `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple Pillow`。Windows 自带微软雅黑；Linux 装 `fonts-noto-cjk`，或 `QQWF_FONT=/path/to/font.ttc` 指定。
 
 **3. 奸商/突击 403 或被 Cloudflare 拦截**
 

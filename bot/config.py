@@ -146,6 +146,8 @@ _ENV_OVERRIDES = {
     "QQWF_CACHE": ("cache", "enabled", "bool"),
     "QQWF_RIVEN_DISPOSITION": ("riven", "disposition_override", "str"),
     "QQWF_ARBI_PROXY": ("arbi", "proxy", "str"),
+    "QQWF_FONT": ("image", "font", "str"),
+    "QQWF_FONT_BOLD": ("image", "font_bold", "str"),
 }
 
 

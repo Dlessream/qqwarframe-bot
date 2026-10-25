@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import io
 import os
 import subprocess
@@ -66,7 +67,8 @@ def _fc_match(family: str) -> str:
     return ""
 
 
-def _scan_font_dirs(names: Sequence[str], limit: int = 8) -> List[str]:
+def _scan_font_dirs(names: Sequence[str], patterns: Sequence[str] = (),
+                    limit: int = 12) -> List[str]:
     roots = [
         "/usr/share/fonts",
         "/usr/local/share/fonts",
@@ -78,11 +80,17 @@ def _scan_font_dirs(names: Sequence[str], limit: int = 8) -> List[str]:
         if not os.path.isdir(root):
             continue
         for dirpath, _dirnames, filenames in os.walk(root):
-            for name in names:
-                if name in filenames:
-                    found.append(os.path.join(dirpath, name))
-                    if len(found) >= limit:
-                        return found
+            for filename in filenames:
+                lowered = filename.lower()
+                matched = filename in names or any(
+                    fnmatch.fnmatch(lowered, pattern.lower()) for pattern in patterns)
+                if not matched:
+                    continue
+                path = os.path.join(dirpath, filename)
+                if path not in found:
+                    found.append(path)
+                if len(found) >= limit:
+                    return found
     return found
 
 
@@ -96,8 +104,9 @@ def _candidate_fonts() -> List[Tuple[str, str]]:
 
     # Linux：先问 fontconfig，再扫常见目录
     if os.name != "nt":
-        for family in ("Noto Sans CJK SC", "Source Han Sans SC",
-                       "WenQuanYi Micro Hei", "Microsoft YaHei"):
+        for family in ("Noto Sans CJK SC", "Noto Sans CJK", "Noto Sans SC",
+                       "Source Han Sans SC", "WenQuanYi Micro Hei",
+                       "WenQuanYi Zen Hei", "Microsoft YaHei"):
             path = _fc_match(family)
             if path:
                 bold = path.replace("Regular", "Bold").replace("-Regular", "-Bold")
@@ -105,11 +114,14 @@ def _candidate_fonts() -> List[Tuple[str, str]]:
 
         names = [
             "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc",
-            "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
+            "NotoSansCJK-VF.otf.ttc", "NotoSansCJKsc-Regular.otf",
+            "NotoSansCJKsc-Bold.otf", "NotoSansSC-Regular.otf",
             "SourceHanSansSC-Regular.otf", "SourceHanSansSC-Bold.otf",
             "wqy-microhei.ttc", "wqy-zenhei.ttc", "DroidSansFallbackFull.ttf",
         ]
-        scanned = _scan_font_dirs(names)
+        patterns = ["notosanscjk*", "notosanssc*", "sourcehansans*",
+                    "wqy-*", "droidsansfallback*", "msyh*", "simhei*"]
+        scanned = _scan_font_dirs(names, patterns)
         regulars = [path for path in scanned if "bold" not in path.lower()]
         bolds = [path for path in scanned if "bold" in path.lower()]
         for path in regulars:
@@ -119,6 +131,16 @@ def _candidate_fonts() -> List[Tuple[str, str]]:
     candidates.extend([
         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
          "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-VF.otf.ttc",
+         "/usr/share/fonts/opentype/noto/NotoSansCJK-VF.otf.ttc"),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+         "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf"),
+        ("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc"),
+        ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc"),
+        ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc"),
         ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
          "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
         ("/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/PingFang.ttc"),

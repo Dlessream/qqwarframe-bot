@@ -18,8 +18,10 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         fonts-noto-cjk \
+        fontconfig \
         ca-certificates \
         tzdata \
+    && (fc-cache -f >/dev/null 2>&1 || true) \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -84,7 +84,8 @@ def run_selftest(config_path: str = "config.json") -> int:
                         str(image_cfg.get("font_bold", "")))
     image_ok = imagecard.available()
     report.add("图片渲染", image_ok,
-               "Pillow + 中文字体可用" if image_ok else "缺少 Pillow 或中文字体，将退回文字")
+               "Pillow + 中文字体可用" if image_ok else
+               "缺少 Pillow 或中文字体；Linux 安装 fonts-noto-cjk，或设置 image.font")
 
     # ---------------------------------------------------------------- 物品索引
     started = time.time()

@@ -44,6 +44,8 @@ services:
       QQWF_ARBI_PROXY: http://xray:10809
       QQWF_IMAGE: "1"
       QQWF_ALERTS: "1"
+      QQWF_FONT: ${QQWF_FONT:-}
+      QQWF_FONT_BOLD: ${QQWF_FONT_BOLD:-}
     volumes:
       - ./config:/app/config
       - ./data:/app/data

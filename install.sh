@@ -25,6 +25,14 @@ python -m pip install --upgrade pip -i "$PIP_INDEX_URL" >/dev/null
 echo "安装 Pillow ..."
 pip install -i "$PIP_INDEX_URL" -r requirements.txt
 
+if command -v fc-list >/dev/null 2>&1; then
+    if ! fc-list :lang=zh 2>/dev/null | grep -q .; then
+        echo "提示：未检测到中文字体，图片会退回文字。"
+        echo "      Debian/Ubuntu: sudo apt install -y fonts-noto-cjk"
+        echo "      Fedora:        sudo dnf install -y google-noto-sans-cjk-fonts"
+    fi
+fi
+
 if [ ! -f "config.json" ]; then
     cp config.example.json config.json
     echo "已生成 config.json，请先填写 OneBot 的 ws_url / access_token。"

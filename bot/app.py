@@ -40,7 +40,9 @@ class BotApp:
                                 str(image_cfg.get("font_bold", "")))
             if not imagecard.available():
                 self.image_enabled = False
-                self.log.warning("Pillow 或中文字体不可用，图片将回退为文字")
+                self.log.warning(
+                    "Pillow 或中文字体不可用，图片将回退为文字。"
+                    "Linux 可安装 fonts-noto-cjk，或在 image.font / QQWF_FONT 指定字体路径")
 
         self.market = MarketClient(config.get("warframe_market", {}), logger=self.log,
                                    cache_config=config.get("cache", {}))
