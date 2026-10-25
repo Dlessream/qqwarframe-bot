@@ -386,6 +386,11 @@ class CommandRouter:
         if not hits:
             return present.not_found_reply(argument)
         item = self._detail(hits[0].item)
+        if not item.set_parts and item.slug.endswith("_blueprint"):
+            # 战甲别名现在指向总图；拆件时自动换成同套装的 _set。
+            set_item = self.market.index.get(item.slug[:-len("_blueprint")] + "_set")
+            if set_item is not None:
+                item = self._detail(set_item)
         if not item.set_parts:
             return present.error_reply(
                 "「%s」不是套装，或没有部件数据。试试完整套装名，例如 “Mesa Prime 一套”。"

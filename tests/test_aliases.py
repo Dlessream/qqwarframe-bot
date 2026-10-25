@@ -31,18 +31,47 @@ class AliasStoreTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.delete("电男头")
 
+    def test_frame_defaults_migrate_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "aliases.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump({"_说明": "x"}, handle)
+            with open(os.path.join(tmp, "frame_aliases.json"), "w",
+                      encoding="utf-8") as handle:
+                json.dump({"电男": "volt_prime_blueprint"}, handle)
+            store = AliasStore(path)
+            self.assertEqual(store.ensure_frame_defaults(), 1)
+            self.assertEqual(store.load()["电男"], "volt_prime_blueprint")
+            self.assertEqual(store.ensure_frame_defaults(), 0)
+
     def test_alias_resolves_to_component(self):
         items = [
             Item(slug="volt_prime_set", name="Volt Prime 一套",
                  name_en="Volt Prime Set"),
+            Item(slug="volt_prime_blueprint", name="Volt Prime 蓝图",
+                 name_en="Volt Prime Blueprint"),
             Item(slug="volt_prime_neuroptics_blueprint",
                  name="Volt Prime 头部神经光元 蓝图",
                  name_en="Volt Prime Neuroptics Blueprint"),
+            Item(slug="volt_prime_chassis_blueprint",
+                 name="Volt Prime 机体 蓝图",
+                 name_en="Volt Prime Chassis Blueprint"),
+            Item(slug="volt_prime_systems_blueprint",
+                 name="Volt Prime 系统 蓝图",
+                 name_en="Volt Prime Systems Blueprint"),
         ]
-        index = ItemIndex(items, DEFAULT_ALIASES)
-        hits = index.search("电男头")
-        self.assertEqual(hits[0].item.slug,
-                         "volt_prime_neuroptics_blueprint")
+        aliases = {"电男": "volt_prime_blueprint"}
+        index = ItemIndex(items, aliases)
+        expected = {
+            "电男": "volt_prime_blueprint",
+            "电男p": "volt_prime_blueprint",
+            "电男头": "volt_prime_neuroptics_blueprint",
+            "电男头部": "volt_prime_neuroptics_blueprint",
+            "电男机体": "volt_prime_chassis_blueprint",
+            "电男系统": "volt_prime_systems_blueprint",
+        }
+        for query, slug in expected.items():
+            self.assertEqual(index.search(query)[0].item.slug, slug, query)
 
 
 if __name__ == "__main__":

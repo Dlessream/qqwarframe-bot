@@ -53,6 +53,36 @@ class AliasStore:
         result.sort(key=lambda item: item["alias"])
         return result
 
+    def ensure_frame_defaults(self) -> int:
+        """把随包附带的战甲别名补进现有 data/aliases.json（只补一次）。"""
+        defaults_path = os.path.join(os.path.dirname(self.path), "frame_aliases.json")
+        if not os.path.isfile(defaults_path):
+            return 0
+        try:
+            with open(defaults_path, encoding="utf-8") as handle:
+                defaults = json.load(handle)
+        except (OSError, ValueError):
+            return 0
+        if not isinstance(defaults, dict):
+            return 0
+        with self._lock:
+            raw = self._read_raw()
+            if str(raw.get("_frame_aliases_v1") or "") == "1":
+                return 0
+            added = 0
+            for key, value in defaults.items():
+                if str(key).startswith("_") or not value:
+                    continue
+                if str(key) not in raw:
+                    raw[str(key)] = str(value)
+                    added += 1
+            raw["_frame_aliases_v1"] = "1"
+            try:
+                self._write(raw)
+            except OSError:
+                return 0
+            return added
+
     def save(self, alias: str, slug: str) -> None:
         alias = str(alias or "").strip()
         slug = str(slug or "").strip()

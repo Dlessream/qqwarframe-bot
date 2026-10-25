@@ -32,7 +32,11 @@ def build_index():
     })
     raw = load_fixture("items.json")
     items = [client._parse_short(row) for row in raw["data"]]
-    return ItemIndex([item for item in items if item], client._load_aliases())
+    aliases = client._load_aliases()
+    # 测试夹具没有 Rhino Prime 总图蓝图。
+    aliases["牛甲"] = "rhino_prime_set"
+    aliases["女枪"] = "mesa_prime_set"
+    return ItemIndex([item for item in items if item], aliases)
 
 
 class FakeMarket:
@@ -273,6 +277,11 @@ class HandleTest(unittest.TestCase):
 
     def test_set_breakdown(self):
         replies = self.router.handle("#拆件 mesa", self.ctx)
+        self.assertIn("拆件比价", replies[0].text)
+        self.assertTrue(replies[0].has_image)
+
+    def test_set_breakdown_frame_alias(self):
+        replies = self.router.handle("#拆件 女枪", self.ctx)
         self.assertIn("拆件比价", replies[0].text)
         self.assertTrue(replies[0].has_image)
 

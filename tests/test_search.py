@@ -26,7 +26,10 @@ class SearchTest(unittest.TestCase):
             "alias_file": os.path.join(BASE, "data", "aliases.json"),
         })
         items = [client._parse_short(row) for row in raw["data"]]
-        cls.index = ItemIndex([item for item in items if item], client._load_aliases())
+        aliases = client._load_aliases()
+        # 测试夹具没有 Rhino Prime 总图蓝图，用套装保留别名匹配用例。
+        aliases["牛甲"] = "rhino_prime_set"
+        cls.index = ItemIndex([item for item in items if item], aliases)
 
     def test_item_count(self):
         self.assertEqual(len(self.index), 12)

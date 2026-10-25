@@ -326,6 +326,28 @@ class ItemIndex:
             normalized = _normalize(key).replace(" ", "")
             if normalized and slug in self.by_slug:
                 self.aliases[normalized] = slug
+        # 战甲别名 -> 总图蓝图；再自动展开 头/头部/机体/系统，避免逐个人工维护。
+        part_suffixes = {
+            "头": "neuroptics", "头部": "neuroptics",
+            "头部神经光元": "neuroptics",
+            "机体": "chassis", "系统": "systems",
+            "总图": "", "蓝图": "",
+        }
+        for alias_key, slug in list(self.aliases.items()):
+            if not slug.endswith("_blueprint"):
+                continue
+            stem = slug[:-len("_blueprint")]
+            for suffix, part in part_suffixes.items():
+                component = (stem + "_blueprint" if not part
+                             else "%s_%s_blueprint" % (stem, part))
+                if component not in self.by_slug:
+                    continue
+                generated = alias_key + suffix
+                if generated not in self.aliases:
+                    self.aliases[generated] = component
+            prime_alias = alias_key + "p"
+            if not alias_key.endswith("p") and prime_alias not in self.aliases:
+                self.aliases[prime_alias] = slug
         self._searchable: List[Tuple[Item, str, str, str]] = [
             (item,
              _normalize(item.name),

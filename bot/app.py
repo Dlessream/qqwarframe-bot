@@ -61,6 +61,7 @@ class BotApp:
         self.market = MarketClient(config.get("warframe_market", {}), logger=self.log,
                                    cache_config=config.get("cache", {}))
         self.alias_store = AliasStore(self.market.alias_file)
+        self.alias_store.ensure_frame_defaults()
         self.wiki = WikiClient(config.get("wiki", {}), logger=self.log,
                                cache_config=config.get("cache", {}))
         self.riven = RivenClient(

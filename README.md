@@ -375,13 +375,19 @@ http://127.0.0.1:8080
 - 删除普通别名即时生效；内置别名不能删除，但可以保存同名的不同目标来覆盖；
 - “刷新数据源”会重新拉取 warframe.market 物品索引。
 
-内置部件别名：
+战甲别名与部件后缀：
 
 ```text
-电男头   → volt_prime_neuroptics_blueprint
-电男机体 → volt_prime_chassis_blueprint
-电男系统 → volt_prime_systems_blueprint
+wm 电男 / 电男p        → Volt Prime 蓝图
+wm 电男头 / 电男头部   → Volt Prime 头部神经光元 蓝图
+wm 电男机体            → Volt Prime 机体 蓝图
+wm 电男系统            → Volt Prime 系统 蓝图
 ```
+
+- 参考表里的战甲中文别名已批量写入 `data/aliases.json`（牛甲、音妈、火鸡、咖喱、摸尸等）；
+- 每个战甲别名都指向该 Prime 战甲的**总图蓝图**；
+- 系统会根据总图自动展开 `头` / `头部` / `头部神经光元` / `机体` / `系统` 部件别名；
+- 附加 `p`（如 `电男p`）同样指向总图蓝图。
 
 所以：
 
@@ -694,7 +700,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**287 个离线测试**，不联网、不连 QQ，覆盖：
+**289 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -708,7 +714,7 @@ python -m unittest discover -s tests -t . -v
 - 无前缀命令解析、普通聊天不误触发
 - Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测
 - Web 群策略编辑、配置持久化
-- 别名表读写/内置部件别名、warframe.market 物品搜索与索引热重载
+- 别名表读写/战甲总图与头/机体/系统后缀、warframe.market 物品搜索与索引热重载
 - 短 TTL 缓存的命中/过期、各数据源缓存包装
 - 图片卡片的 PNG 尺寸与长文本换行
 - **端到端**：mock OneBot 服务端 + mock 市场/Wiki，验证收事件、发图片、@ 回复
@@ -764,7 +770,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 287 个测试 + fixtures
+├── tests/                 # 289 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -868,6 +874,8 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
+
 
 
 
