@@ -101,6 +101,9 @@
     setText("rivenCount", Number(status.riven && status.riven.weapons || 0).toLocaleString("zh-CN"));
     setText("lastUpdate", status.updater && status.updater.last_run ? formatTime(status.updater.last_run) : "尚未运行");
     setText("alertCount", status.alerts == null ? "—" : status.alerts);
+    const groups = status.groups || {};
+    setText("groupPolicy", "白 " + Number(groups.whitelist || 0) +
+      " / 黑 " + Number(groups.blacklist || 0));
     setText("imageState", status.image ? "可用" : "关闭");
     setText("ocrState", status.ocr ? "可用" : "未启用");
     setText("fontState", status.font ? "已加载" : "缺失");

@@ -159,6 +159,10 @@ class BotApp:
         except Exception:
             alert_count = 0
         update = self.update_checker.snapshot() if self.update_checker else {}
+        whitelist = {str(item).strip() for item in
+                     (self.behavior.get("whitelist_groups") or [])}
+        blacklist = {str(item).strip() for item in
+                     (self.behavior.get("blacklist_groups") or [])}
         return {
             "version": __version__,
             "uptime": max(0.0, time.time() - self.started_at),
@@ -182,6 +186,7 @@ class BotApp:
                 "results": self.updater.last_results if self.updater else {},
             },
             "alerts": alert_count,
+            "groups": {"whitelist": len(whitelist), "blacklist": len(blacklist)},
             "update": update,
             "web": {
                 "host": self.web_config.get("host", "127.0.0.1"),
@@ -248,6 +253,9 @@ class BotApp:
                    self._web_url()))
         try:
             if target_group:
+                if not self._group_allowed(target_group):
+                    self.log.info("更新提示目标群 %s 被群策略拒绝，跳过", target_group)
+                    return
                 self.onebot.send_group_text(target_group, text)
             elif target_user:
                 self.onebot.send_private_text(target_user, text)
@@ -315,11 +323,14 @@ class BotApp:
             self._reply(replies, is_group, group_id, user_id)
 
     def _group_allowed(self, group_id: str) -> bool:
-        whitelist = self.behavior.get("whitelist_groups") or []
-        blacklist = self.behavior.get("blacklist_groups") or []
-        if whitelist and group_id not in {str(item) for item in whitelist}:
-            return False
-        return group_id not in {str(item) for item in blacklist}
+        group_id = str(group_id or "").strip()
+        whitelist = {str(item).strip() for item in
+                     (self.behavior.get("whitelist_groups") or [])}
+        blacklist = {str(item).strip() for item in
+                     (self.behavior.get("blacklist_groups") or [])}
+        if whitelist:
+            return group_id in whitelist and group_id not in blacklist
+        return group_id not in blacklist
 
     def _extract_text(self, event: Dict[str, Any]) -> Tuple[str, bool]:
         segments = event.get("message")
@@ -513,6 +524,9 @@ class BotApp:
                 item = None
             item = item or Item(slug=alert.slug, name=alert.name)
             reply = present.alert_fired_reply(item, sell[0], alert)
+            if alert.chat_type == "group" and not self._group_allowed(alert.chat_id):
+                # 群被拉黑或不在白名单时保持提醒数据，但不发送。
+                continue
             chat_id = alert.chat_id
             self._deliver(alert.chat_type == "group", chat_id, reply)
             alert.active = False

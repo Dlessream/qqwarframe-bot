@@ -450,11 +450,27 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | `allow_private` | `true` | 是否响应私聊 |
 | `respond_to_at` | `true` | @机器人 可免前缀 |
 | `at_sender` | `true` | 回复时 @ 提问者 |
-| `whitelist_groups` / `blacklist_groups` | `[]` | 群白/黑名单 |
+| `whitelist_groups` | `[]` | 群白名单；**非空时只服务名单内的群** |
+| `blacklist_groups` | `[]` | 群黑名单；**永远不服务，优先级高于白名单** |
 | `cooldown_seconds` | 3 | 每用户冷却 |
 | `max_replies_per_minute` | 20 | 每会话每分钟上限 |
 | `max_reply_chars` | 1200 | 文字兜底分片长度 |
 | `preload_items` | true | 启动预热物品索引 |
+
+群策略示例：
+
+```json
+"behavior": {
+  "whitelist_groups": ["123456789", "987654321"],
+  "blacklist_groups": ["111111111"]
+}
+```
+
+- 白名单非空：机器人只回应名单里的群，其他群完全静默；
+- 黑名单：机器人仍留在群里，但不回复任何命令、@、图片，也不会推送降价提醒；
+- 黑名单优先：同一个群同时在两个名单里也会被拒绝；
+- 私聊不受这两个列表影响，由 `allow_private` 控制；
+- 群号写成字符串或数字都可以，保存后重启机器人生效。
 
 ### warframe_market
 
@@ -623,7 +639,7 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 python -m unittest discover -s tests -t . -v
 ```
 
-**261 个离线测试**，不联网、不连 QQ，覆盖：
+**266 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -633,6 +649,7 @@ python -m unittest discover -s tests -t . -v
 - 维基摘要与 HTML 回退、世界状态时间解析
 - 提醒存储的增删改查与持久化
 - 自动更新调度、手动触发冷却、数据源状态汇总
+- 群黑白名单、黑名单优先级、私聊不受影响
 - Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测
 - 短 TTL 缓存的命中/过期、各数据源缓存包装
 - 图片卡片的 PNG 尺寸与长文本换行
@@ -689,7 +706,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 261 个测试 + fixtures
+├── tests/                 # 266 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -792,6 +809,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 
