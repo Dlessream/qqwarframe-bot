@@ -44,6 +44,18 @@ class AliasStoreTest(unittest.TestCase):
             self.assertEqual(store.load()["电男"], "volt_prime_blueprint")
             self.assertEqual(store.ensure_frame_defaults(), 0)
 
+    def test_replace_group_keeps_builtin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = AliasStore(os.path.join(tmp, "aliases.json"))
+            store.replace_for_slug("volt_prime_blueprint",
+                                   ["电男", "伏特", "阿米尔"])
+            self.assertEqual(store.load()["电男"], "volt_prime_blueprint")
+            store.replace_for_slug("volt_prime_blueprint", ["电男"])
+            self.assertEqual(store.load()["电男"], "volt_prime_blueprint")
+            self.assertNotIn("伏特", store.load())
+            store.replace_for_slug("volt_prime_neuroptics_blueprint", [])
+            self.assertIn("电男头", store.load())
+
     def test_alias_resolves_to_component(self):
         items = [
             Item(slug="volt_prime_set", name="Volt Prime 一套",

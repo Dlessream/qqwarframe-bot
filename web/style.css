@@ -211,7 +211,17 @@ a { color: inherit; text-decoration: none; }
 .source-strip b { color: var(--text); font-weight: 500; }
 .source-count { margin-left: auto; color: var(--gold); }
 .alias-names { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 15px 22px 0; }
-.alias-target-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; padding: 10px 22px 8px; }
+.alias-groups { max-height: 520px; overflow: auto; padding: 8px 22px 10px; }
+.alias-group { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 1.7fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.alias-group:last-child { border-bottom: 0; }
+.alias-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.alias-slots .input { min-height: 34px; padding: 0 9px; font-size: 11px; }
+.alias-target { min-width: 0; }
+.alias-target b { display: block; color: var(--text); font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alias-target small { display: block; color: var(--muted); font-family: "Cascadia Code", Consolas, monospace; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alias-new { border-top: 1px solid var(--line); }
+.alias-new summary { padding: 12px 22px; color: var(--gold); font-size: 11px; cursor: pointer; }
+.alias-new[open] summary { border-bottom: 1px solid var(--line); }
 .alias-translation { padding: 4px 22px 8px; color: var(--text); font-size: 12px; line-height: 1.8; }
 .alias-translation[hidden] { display: none; }
 .alias-translation b { color: var(--gold); font-weight: 500; }
@@ -300,6 +310,8 @@ a { color: inherit; text-decoration: none; }
   .alias-form { grid-template-columns: 1fr; }
   .alias-names { grid-template-columns: 1fr; }
   .alias-target-row { grid-template-columns: 1fr; }
+  .alias-group { grid-template-columns: 1fr auto; }
+  .alias-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .alias-row { grid-template-columns: 1fr 1.6fr auto; }
   .alias-slug { display: none; }
   .card-main { gap: 20px; }

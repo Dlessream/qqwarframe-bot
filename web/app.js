@@ -350,54 +350,90 @@
     return (value / 3600).toFixed(1) + " 小时前";
   }
 
-  function renderAliases(data) {
+  function renderAliasGroups(data) {
     const source = data.source || {};
-    const aliases = data.aliases || [];
+    const groups = data.groups || [];
     const parts = [];
     parts.push("warframe.market");
     parts.push("<b>" + Number(source.items || 0) + "</b> 物品");
     parts.push("上次刷新 " + formatAge(source.last_refresh_seconds));
     if (source.error) parts.push("物品源：" + source.error);
     $("sourceInfo").innerHTML = parts.join(" · ");
-    setText("aliasCount", aliases.length + " 个别名");
+    const total = groups.reduce((sum, group) => sum + (group.aliases || []).length, 0);
+    setText("aliasCount", groups.length + " 个目标 / " + total + " 个别名");
 
-    const list = $("aliasList");
+    const list = $("aliasGroups");
     list.innerHTML = "";
-    if (!aliases.length) {
+    if (!groups.length) {
       list.innerHTML = '<div class="alias-empty">还没有别名。</div>';
       return;
     }
-    aliases.forEach((entry) => {
+    groups.forEach((group) => {
       const row = document.createElement("div");
-      row.className = "alias-row";
-      const key = document.createElement("span");
-      key.className = "alias-key";
-      key.textContent = entry.alias + (entry.builtin ? " · 内置" : "");
-      const name = document.createElement("span");
-      name.className = "alias-name";
-      name.textContent = entry.name || (entry.missing ? "目标不存在" : entry.slug);
-      name.title = entry.name || entry.slug;
-      const slug = document.createElement("span");
-      slug.className = "alias-slug";
-      slug.textContent = entry.slug;
-      const action = document.createElement("button");
-      action.type = "button";
-      action.className = "alias-delete";
-      action.textContent = entry.builtin ? "内置" : "删除";
-      action.disabled = Boolean(entry.builtin);
-      if (!entry.builtin) {
-        action.addEventListener("click", () => deleteAlias(entry.alias));
+      row.className = "alias-group";
+
+      const slots = document.createElement("div");
+      slots.className = "alias-slots";
+      const builtin = new Set(group.builtin || []);
+      const values = group.aliases || [];
+      const count = Math.max(4, values.length);
+      for (let index = 0; index < count; index += 1) {
+        const input = document.createElement("input");
+        input.className = "input";
+        input.type = "text";
+        input.maxLength = 40;
+        input.placeholder = "别名 " + (index + 1);
+        input.value = values[index] || "";
+        if (builtin.has(input.value)) {
+          input.disabled = true;
+          input.title = "内置别名不可删除";
+        }
+        slots.appendChild(input);
       }
-      row.append(key, name, slug, action);
+
+      const target = document.createElement("div");
+      target.className = "alias-target";
+      const name = document.createElement("b");
+      name.textContent = group.name || (group.missing ? "目标不存在" : group.slug);
+      name.title = name.textContent;
+      const slug = document.createElement("small");
+      slug.textContent = group.slug;
+      target.append(name, slug);
+
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "btn btn-ghost btn-sm";
+      save.textContent = "保存";
+      save.addEventListener("click", async () => {
+        const aliases = Array.from(slots.querySelectorAll("input"))
+          .filter((input) => !input.disabled)
+          .map((input) => input.value.trim())
+          .filter(Boolean);
+        save.disabled = true;
+        save.textContent = "保存中…";
+        try {
+          await api("/api/alias-groups", {
+            method: "POST", body: { slug: group.slug, aliases },
+          });
+          toast("已更新 " + (group.name || group.slug));
+          await loadAliases();
+        } catch (exc) {
+          if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+        } finally {
+          save.disabled = false;
+          save.textContent = "保存";
+        }
+      });
+      row.append(slots, target, save);
       list.appendChild(row);
     });
   }
 
   async function loadAliases() {
     try {
-      const data = await api("/api/aliases");
+      const data = await api("/api/alias-groups");
       state.aliasesLoaded = true;
-      renderAliases(data);
+      renderAliasGroups(data);
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") {
         setText("sourceInfo", "读取数据源失败：" + exc.message);

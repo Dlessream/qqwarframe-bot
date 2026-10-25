@@ -145,6 +145,12 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_snapshot()})
                     return
+                if path == "/api/alias-groups":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.alias_groups()})
+                    return
                 if path == "/api/items":
                     if not self._authorized():
                         self._unauthorized()
@@ -277,6 +283,22 @@ class AdminServer:
                     except ValueError as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/alias-groups":
+                    try:
+                        result = server.app.save_alias_group(
+                            str(data.get("slug") or ""),
+                            data.get("aliases") or [])
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
                         return
                     self._json(result)
                     return

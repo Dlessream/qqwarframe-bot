@@ -83,6 +83,31 @@ class AliasStore:
                 return 0
             return added
 
+    def replace_for_slug(self, slug: str, aliases: List[str]) -> None:
+        """替换某个目标下的可编辑别名；内置别名保留。"""
+        slug = str(slug or "").strip()
+        if not re.fullmatch(r"[a-z0-9_]{2,120}", slug):
+            raise ValueError("目标 slug 格式不正确。")
+        names = []
+        for alias in aliases:
+            alias = str(alias or "").strip()
+            if not alias:
+                continue
+            if not _ALIAS_RE.match(alias):
+                raise ValueError("别名不能为空、不能以下划线开头，最长 40 个字符。")
+            if alias not in names:
+                names.append(alias)
+        with self._lock:
+            raw = self._read_raw()
+            for key in list(raw):
+                if key.startswith("_"):
+                    continue
+                if raw[key] == slug and key not in DEFAULT_ALIASES:
+                    del raw[key]
+            for alias in names:
+                raw[alias] = slug
+            self._write(raw)
+
     def save(self, alias: str, slug: str) -> None:
         alias = str(alias or "").strip()
         slug = str(slug or "").strip()

@@ -64,6 +64,20 @@ class FakeApp:
                         for key, value in self.aliases.items()],
         }
 
+    def alias_groups(self):
+        return {
+            "source": {"items": 3, "last_refresh_seconds": 2},
+            "groups": [{"slug": "volt_prime_blueprint",
+                        "name": "Volt Prime 蓝图",
+                        "name_en": "Volt Prime Blueprint",
+                        "missing": False,
+                        "aliases": ["电男", "伏特", "阿米尔"],
+                        "builtin": []}],
+        }
+
+    def save_alias_group(self, slug, aliases):
+        return {"ok": True, "group": {"slug": slug, "aliases": list(aliases)}}
+
     def search_market_items(self, query):
         return [{"slug": "volt_prime_neuroptics_blueprint",
                  "name": "Volt Prime 头部神经光元 蓝图", "name_en": "Volt"}]
@@ -188,6 +202,24 @@ class AdminServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         data = json.loads(body)
         self.assertEqual(data["aliases"][0]["alias"], "电男头")
+
+    def test_alias_groups_get(self):
+        status, body = self.request(
+            "/api/alias-groups", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["groups"][0]["slug"], "volt_prime_blueprint")
+        self.assertEqual(data["groups"][0]["aliases"],
+                         ["电男", "伏特", "阿米尔"])
+
+    def test_alias_group_update(self):
+        status, body = self.request(
+            "/api/alias-groups", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"slug": "volt_prime_blueprint",
+                  "aliases": ["电男", "伏特"]})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["group"]["aliases"], ["电男", "伏特"])
 
     def test_aliases_save(self):
         status, body = self.request(

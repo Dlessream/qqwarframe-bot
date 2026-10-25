@@ -443,6 +443,52 @@ class BotApp:
             source["error"] = error
         return {"source": source, "aliases": entries}
 
+    def alias_groups(self) -> Dict[str, Any]:
+        index = None
+        error = ""
+        try:
+            index = self.market.index
+        except MarketError as exc:
+            error = str(exc)
+        groups: Dict[str, Dict[str, Any]] = {}
+        for entry in self.alias_store.entries():
+            slug = entry["slug"]
+            item = index.get(slug) if index is not None else None
+            group = groups.setdefault(slug, {
+                "slug": slug,
+                "name": item.name if item else "",
+                "name_en": item.name_en if item else "",
+                "missing": item is None,
+                "aliases": [],
+                "builtin": [],
+            })
+            group["aliases"].append(entry["alias"])
+            if entry.get("builtin"):
+                group["builtin"].append(entry["alias"])
+        source = self._market_source(index)
+        if error:
+            source["error"] = error
+        values = sorted(groups.values(),
+                        key=lambda item: (item["missing"], item["name"] or item["slug"]))
+        return {"source": source, "groups": values}
+
+    def save_alias_group(self, slug: str, aliases) -> Dict[str, Any]:
+        slug = str(slug or "").strip()
+        if not slug:
+            raise ValueError("缺少目标 slug。")
+        if isinstance(aliases, str):
+            aliases = [aliases]
+        aliases = [str(alias or "").strip() for alias in (aliases or [])
+                   if str(alias or "").strip()]
+        if slug not in self.market.index.by_slug:
+            raise ValueError("目标站内不存在：%s" % slug)
+        self.alias_store.replace_for_slug(slug, aliases)
+        self.market.reload_aliases()
+        group = next((item for item in self.alias_groups()["groups"]
+                      if item["slug"] == slug), None)
+        self.log.info("别名组已保存：%s -> %s", "、".join(aliases), slug)
+        return {"ok": True, "group": group}
+
     def search_market_items(self, query: str) -> List[Dict[str, str]]:
         query = str(query or "").strip()
         if not query:
