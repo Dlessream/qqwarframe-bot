@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import io
 import logging
 import os
 import re
 import shutil
 import subprocess
+import sys
+import tarfile
+import tempfile
 import threading
 import time
 from typing import Any, Dict, Optional
@@ -16,6 +20,11 @@ from .net import HttpClient
 
 LOGGER = logging.getLogger(__name__)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+SELF_UPDATE_CODE_DIRS = ("bot", "web")
+SELF_UPDATE_CODE_FILES = ("run.py", "requirements.txt")
+SELF_UPDATE_DATA_FILES = ("component_aliases.json", "frame_aliases.json",
+                          "sol_nodes.json")
 
 
 def _read_git_head(root: str) -> str:
@@ -107,6 +116,7 @@ class UpdateChecker:
         self.branch = str(cfg.get("branch") or "main").strip()
         self.interval = max(60, int(cfg.get("check_seconds") or 600))
         self.manual_command = str(cfg.get("manual_command") or "").strip()
+        self.self_update = bool(cfg.get("self_update", True))
         self.log = logger or LOGGER
         self.on_notify = on_notify
         self.local_commit = read_local_commit()
@@ -254,19 +264,30 @@ class UpdateChecker:
         self._notified_remote = self.remote_commit
 
     def apply_update(self) -> Dict[str, Any]:
+        if not self._lock.acquire(blocking=False):
+            return {"ok": False, "manual": False,
+                    "message": "已有更新任务在执行，请稍候。"}
+        try:
+            return self._apply_update_locked()
+        finally:
+            self._lock.release()
+
+    def _apply_update_locked(self) -> Dict[str, Any]:
         git = shutil.which("git")
         if not git:
             bundled = os.path.join(ROOT, "tools", "mingit", "cmd", "git.exe")
             if os.path.isfile(bundled):
                 git = bundled
         git_dir = os.path.join(ROOT, ".git")
-        if not git or not os.path.exists(git_dir):
-            return {
-                "ok": False,
-                "manual": True,
-                "command": self.manual_command,
-                "message": "当前是发布包/容器环境，请在部署机执行更新命令。",
-            }
+        if git and os.path.exists(git_dir):
+            return self._git_update(git)
+        if not self.self_update:
+            return {"ok": False, "manual": True,
+                    "command": self.manual_command,
+                    "message": "当前环境已关闭自更新，请在部署机执行更新命令。"}
+        return self._archive_update()
+
+    def _git_update(self, git: str) -> Dict[str, Any]:
         try:
             result = subprocess.run(
                 [git, "-C", ROOT, "pull", "--ff-only"],
@@ -284,6 +305,153 @@ class UpdateChecker:
         return {"ok": True, "manual": False, "restart": True,
                 "output": output[-2000:],
                 "message": "代码已更新，正在重启服务。"}
+
+    def _archive_update(self) -> Dict[str, Any]:
+        if not self.repo:
+            return {"ok": False, "manual": True,
+                    "command": self.manual_command,
+                    "message": "未配置更新仓库，无法自更新。"}
+        url = "https://github.com/%s/archive/refs/heads/%s.tar.gz" % (
+            self.repo, self.branch)
+        try:
+            raw = self.http.request(url, headers={
+                "Accept": "application/octet-stream",
+                "User-Agent": "QQWarframeBot-Update",
+            })
+        except Exception as exc:
+            return {"ok": False, "manual": True,
+                    "command": self.manual_command,
+                    "message": "下载最新源码失败：%s" % exc}
+        if not raw or len(raw) > 30 * 1024 * 1024:
+            return {"ok": False, "manual": True,
+                    "command": self.manual_command,
+                    "message": "源码包大小异常，已取消更新。"}
+        staging = tempfile.mkdtemp(prefix="qqwf-update-")
+        backup = None
+        try:
+            source = self._extract_archive(raw, staging)
+            if source is None:
+                return {"ok": False, "manual": True,
+                        "command": self.manual_command,
+                        "message": "源码包结构异常，已取消更新。"}
+            backup = os.path.join(ROOT, "logs", "update-backup-%d" % int(time.time()))
+            os.makedirs(backup, exist_ok=True)
+            for name in SELF_UPDATE_CODE_DIRS + SELF_UPDATE_CODE_FILES:
+                current = os.path.join(ROOT, name)
+                if os.path.exists(current):
+                    shutil.copy2(current, backup) if os.path.isfile(current) else \
+                        shutil.copytree(current, os.path.join(backup, name))
+            self._install_archive(source, backup)
+            commit = self.remote_commit or ""
+            if commit:
+                with open(os.path.join(ROOT, ".build_commit"), "w",
+                          encoding="utf-8") as handle:
+                    handle.write(commit + "\n")
+                self.local_commit = commit
+            self.available = False
+            self.state = "up_to_date"
+            self.last_error = ""
+            self._cleanup_backups()
+            return {"ok": True, "manual": False, "restart": True,
+                    "message": "源码已更新到 %s，正在重启服务。" % (commit[:7] or "最新版")}
+        except Exception as exc:
+            self.log.exception("自更新失败")
+            if backup:
+                try:
+                    self._restore_backup(backup)
+                except Exception:
+                    self.log.exception("回滚失败")
+            return {"ok": False, "manual": True,
+                    "command": self.manual_command,
+                    "message": "自更新失败：%s" % exc}
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def _extract_archive(self, raw: bytes, staging: str):
+        try:
+            with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
+                members = tar.getmembers()
+                if not members:
+                    return None
+                root_name = members[0].name.split("/")[0]
+                for member in members:
+                    if member.issym() or member.islnk():
+                        continue
+                    parts = member.name.split("/")
+                    if not parts or parts[0] != root_name or len(parts) < 2:
+                        continue
+                    relative = parts[1:]
+                    if any(part in ("", ".", "..") for part in relative):
+                        continue
+                    dest = os.path.join(staging, *relative)
+                    if member.isdir():
+                        os.makedirs(dest, exist_ok=True)
+                        continue
+                    if not member.isfile():
+                        continue
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    source = tar.extractfile(member)
+                    if source is None:
+                        continue
+                    with open(dest, "wb") as handle:
+                        shutil.copyfileobj(source, handle)
+            if not os.path.isfile(os.path.join(staging, "bot", "app.py")):
+                return None
+            if not os.path.isfile(os.path.join(staging, "run.py")):
+                return None
+            return staging
+        except (tarfile.TarError, OSError, ValueError) as exc:
+            self.log.warning("源码包解压失败：%s", exc)
+            return None
+
+    def _install_archive(self, source: str, backup: str) -> None:
+        for name in SELF_UPDATE_CODE_DIRS:
+            new_path = os.path.join(source, name)
+            if not os.path.isdir(new_path):
+                continue
+            target = os.path.join(ROOT, name)
+            if os.path.isdir(target):
+                shutil.rmtree(target)
+            shutil.copytree(new_path, target)
+        for name in SELF_UPDATE_CODE_FILES:
+            new_path = os.path.join(source, name)
+            if os.path.isfile(new_path):
+                shutil.copy2(new_path, os.path.join(ROOT, name))
+        data_source = os.path.join(source, "data")
+        data_target = os.path.join(ROOT, "data")
+        os.makedirs(data_target, exist_ok=True)
+        for name in SELF_UPDATE_DATA_FILES:
+            source_file = os.path.join(data_source, name)
+            if os.path.isfile(source_file):
+                shutil.copy2(source_file, os.path.join(data_target, name))
+        for name in ("default-aliases.json",):
+            source_file = os.path.join(source, name)
+            if os.path.isfile(source_file):
+                shutil.copy2(source_file, os.path.join(ROOT, name))
+
+    def _restore_backup(self, backup: str) -> None:
+        for name in SELF_UPDATE_CODE_DIRS:
+            saved = os.path.join(backup, name)
+            target = os.path.join(ROOT, name)
+            if os.path.isdir(saved):
+                if os.path.isdir(target):
+                    shutil.rmtree(target)
+                shutil.copytree(saved, target)
+        for name in SELF_UPDATE_CODE_FILES:
+            saved = os.path.join(backup, name)
+            if os.path.isfile(saved):
+                shutil.copy2(saved, os.path.join(ROOT, name))
+
+    def _cleanup_backups(self) -> None:
+        logs = os.path.join(ROOT, "logs")
+        try:
+            backups = sorted(
+                (os.path.join(logs, name) for name in os.listdir(logs)
+                 if name.startswith("update-backup-")), reverse=True)
+        except OSError:
+            return
+        for path in backups[3:]:
+            shutil.rmtree(path, ignore_errors=True)
 
     def _notify(self, kind: str) -> None:
         if not self.on_notify:

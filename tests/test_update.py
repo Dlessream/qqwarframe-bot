@@ -1,9 +1,12 @@
+import io
 import json
 import os
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
 
+from bot import update as update_module
 from bot.update import UpdateChecker, read_local_commit
 
 
@@ -105,6 +108,67 @@ class RemoteCheckTest(unittest.TestCase):
         info = checker.check_remote()
         self.assertFalse(info["available"])
         self.assertEqual(info["state"], "local_only")
+
+
+class ArchiveUpdateTest(unittest.TestCase):
+    def test_archive_update_replaces_code_and_keeps_data(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, "bot"))
+            os.makedirs(os.path.join(root, "web"))
+            os.makedirs(os.path.join(root, "data"))
+            os.makedirs(os.path.join(root, "logs"))
+            with open(os.path.join(root, "bot", "app.py"), "w",
+                      encoding="utf-8") as handle:
+                handle.write("old\n")
+            with open(os.path.join(root, "run.py"), "w", encoding="utf-8") as handle:
+                handle.write("old-run\n")
+            with open(os.path.join(root, "data", "aliases.json"), "w",
+                      encoding="utf-8") as handle:
+                handle.write('{"mine": "volt_prime_blueprint"}\n')
+
+            buffer = io.BytesIO()
+            files = {
+                "bot/app.py": "new\n",
+                "web/index.html": "<html>new</html>\n",
+                "run.py": "new-run\n",
+                "requirements.txt": "requests\n",
+                "data/component_aliases.json": '{"牛甲头": "x"}\n',
+                "data/frame_aliases.json": '{"牛甲": "x"}\n',
+                "data/sol_nodes.json": '{}\n',
+            }
+            with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+                for name, text in files.items():
+                    data = text.encode("utf-8")
+                    info = tarfile.TarInfo("repo-main/" + name)
+                    info.size = len(data)
+                    tar.addfile(info, io.BytesIO(data))
+            archive = buffer.getvalue()
+
+            class FakeHttp:
+                def request(self, url, headers=None, method="GET", body=None):
+                    return archive
+
+            with mock.patch.object(update_module, "ROOT", root):
+                checker = UpdateChecker({
+                    "repo": "example/repo",
+                    "branch": "main",
+                }, proxy="none")
+                checker.http = FakeHttp()
+                checker.remote_commit = "c" * 40
+                result = checker.apply_update()
+
+            self.assertTrue(result["ok"])
+            self.assertTrue(result["restart"])
+            with open(os.path.join(root, "bot", "app.py"), encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "new\n")
+            with open(os.path.join(root, "run.py"), encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "new-run\n")
+            with open(os.path.join(root, "data", "aliases.json"),
+                      encoding="utf-8") as handle:
+                self.assertIn("mine", handle.read())
+            with open(os.path.join(root, ".build_commit"),
+                      encoding="utf-8") as handle:
+                self.assertEqual(handle.read().strip(), "c" * 40)
 
 
 if __name__ == "__main__":

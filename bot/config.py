@@ -130,6 +130,7 @@ DEFAULTS: Dict[str, Any] = {
             "proxy": "",
             "notify_group": "",
             "notify_user": "",
+            "self_update": True,
             "manual_command": "docker compose -f docker-compose.full.yml up -d --build",
         },
     },

@@ -428,8 +428,11 @@ wm 电男头
 
 - Web 顶部出现提示条，并弹出“是否更新/重启”确认框；
 - 如果配置了 `web.update.notify_group` 或 `notify_user`，同时发 QQ 文字提示；
-- **不会自动更新**。点“立即更新”才执行 `git pull --ff-only`（源码目录），
-  成功后自动重启；发布包/Docker 会显示手动更新命令。
+- 点“立即更新”后：
+  - 源码目录（有 `.git`）执行 `git pull --ff-only`；
+  - Docker/发布包（无 `.git`）自动下载 GitHub 最新源码包，备份旧 `bot/web`，
+    替换代码但**保留 `config.json`、`data/aliases.json`、缓存、日志**，然后自动重启进程；
+- 自更新失败会自动回滚并给出手动命令，不会把服务卡死。
 
 Docker 更新（会写入当前 git commit）：
 
@@ -479,6 +482,7 @@ BUILD_COMMIT=<部署时的 git commit>
     "proxy": "",
     "notify_group": "",
     "notify_user": "",
+    "self_update": true,
     "manual_command": "docker compose -f docker-compose.full.yml up -d --build"
   }
 }
@@ -680,7 +684,8 @@ OCR 依赖：
 | `update.proxy` | `""` | 留空使用市场代理 |
 | `update.notify_group` | `""` | 更新提示发到哪个群 |
 | `update.notify_user` | `""` | 更新提示发到哪个 QQ |
-| `update.manual_command` | Docker build 命令 | 发布包模式下提示的手动更新命令 |
+| `update.self_update` | true | 无 `.git` 环境允许后端下载源码并自动重启；`false` 只提示手动命令 |
+| `update.manual_command` | Docker build 命令 | 自更新失败时显示的手动更新命令 |
 
 环境变量：`QQWF_WEB`、`QQWF_WEB_HOST`、`QQWF_WEB_PORT`、`QQWF_WEB_TOKEN`。
 
@@ -733,7 +738,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**302 个离线测试**，不联网、不连 QQ，覆盖：
+**303 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -745,7 +750,7 @@ python -m unittest discover -s tests -t . -v
 - 自动更新调度、手动触发冷却、数据源状态汇总
 - 群黑白名单、黑名单优先级、私聊不受影响
 - 无前缀命令解析、普通聊天不误触发
-- Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测、缺失本地提交时的远端提示
+- Web 控制台鉴权/状态/更新 API、GitHub 提交方向比较、本地代码变化检测、缺失本地提交时的远端提示、无 `.git` 源码包自更新与数据保留
 - Web 群策略编辑、配置持久化
 - 别名表读写/批量 4 别名、分类分组、所有战甲与武器套装部件后缀、warframe market 可交易物品搜索与索引热重载
 - `#wm` 实时报价强制刷新、分类判定
@@ -805,7 +810,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 302 个测试 + fixtures
+├── tests/                 # 303 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -917,6 +922,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 
