@@ -7,10 +7,12 @@
 from __future__ import annotations
 
 import calendar
+import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from . import terms
@@ -21,6 +23,22 @@ LOGGER = logging.getLogger("qqwarframe.worldstate")
 
 BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+OFFICIAL_MISSIONS = {
+    "MT_EXTERMINATION": "Extermination", "MT_DEFENSE": "Defense",
+    "MT_SURVIVAL": "Survival", "MT_RESCUE": "Rescue",
+    "MT_TERRITORY": "Interception", "MT_ARTIFACT": "Excavation",
+    "MT_SABOTAGE": "Sabotage", "MT_CAPTURE": "Capture",
+    "MT_SPY": "Spy", "MT_MOBILE_DEFENSE": "Mobile Defense",
+    "MT_ASSASSINATION": "Assassination", "MT_EXCAVATE": "Excavation",
+    "MT_HIJACK": "Hijack", "MT_INTEL": "Spy",
+    "MT_ALCHEMY": "Alchemy", "MT_VOID_CASCADE": "Void Cascade",
+}
+
+VOID_TIERS = {
+    "VoidT1": "Lith", "VoidT2": "Meso", "VoidT3": "Neo",
+    "VoidT4": "Axi", "VoidT5": "Requiem", "VoidT6": "Omnia",
+}
 
 
 class WorldStateError(Exception):
@@ -124,6 +142,20 @@ class WorldStateClient:
             retries=config.get("retries", 1),
             logger=LOGGER,
         )
+        self.official_url = str(
+            config.get("official_url") or
+            "https://api.warframe.com/cdn/worldState.php")
+        self.official_proxy = str(config.get("official_proxy") or "none")
+        self.prefer_official_fissures = bool(
+            config.get("prefer_official_fissures", True))
+        self.official_http = HttpClient(
+            user_agent=config.get("user_agent", BROWSER_UA),
+            timeout=config.get("timeout_seconds", 12),
+            proxy=self.official_proxy,
+            retries=0,
+            logger=LOGGER,
+        )
+        self._nodes: Optional[Dict[str, Dict[str, str]]] = None
 
     def _get(self, path: str) -> Any:
         key = ("ws", path)
@@ -155,6 +187,77 @@ class WorldStateClient:
     def fetch(self, path: str) -> Any:
         """读取任意 warframestat 子路径（带短缓存）。"""
         return self._get(path)
+
+    def _load_nodes(self) -> Dict[str, Dict[str, str]]:
+        if self._nodes is not None:
+            return self._nodes
+        path = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "data", "sol_nodes.json")
+        try:
+            with open(path, encoding="utf-8") as handle:
+                raw = json.load(handle)
+            self._nodes = raw if isinstance(raw, dict) else {}
+        except (OSError, ValueError) as exc:
+            LOGGER.warning("读取节点表失败：%s", exc)
+            self._nodes = {}
+        return self._nodes
+
+    @staticmethod
+    def _official_expiry(row: Dict[str, Any]) -> float:
+        value = ((row.get("Expiry") or {}).get("$date") or {}).get("$numberLong")
+        try:
+            return float(value) / 1000.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    def official_fissures(self) -> List[Dict[str, Any]]:
+        data = self.official_http.get_json(self.official_url)
+        rows = data.get("ActiveMissions") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            return []
+        nodes = self._load_nodes()
+        result = []
+        now = time.time()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            end = self._official_expiry(row)
+            if end <= now:
+                continue
+            node_id = str(row.get("Node") or "")
+            node = nodes.get(node_id) or {}
+            node_name = terms.localize_node(str(node.get("name") or node_id))
+            mission_key = str(row.get("MissionType") or "")
+            mission = OFFICIAL_MISSIONS.get(mission_key, mission_key.replace("MT_", "").title())
+            tier = VOID_TIERS.get(str(row.get("Modifier") or ""), "—")
+            result.append({
+                "id": node_id,
+                "node": node_name,
+                "nodeKey": node_name,
+                "missionType": mission,
+                "enemy": terms.localize_faction(str(node.get("enemy") or "")),
+                "tier": tier,
+                "expiry": datetime.fromtimestamp(
+                    end, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                "isHard": bool(row.get("Hard")),
+                "isStorm": False,
+                "source": "official",
+            })
+        result.sort(key=lambda item: (item["isHard"], item["expiry"]))
+        return result
+
+    def fissures(self) -> List[Dict[str, Any]]:
+        """优先官方 ActiveMissions；失败/为空时回退 warframestat。"""
+        if self.prefer_official_fissures:
+            try:
+                data = self.cache.get_or_set(
+                    "official_fissures", self.official_fissures, 30)
+                if data:
+                    return data
+            except Exception as exc:
+                LOGGER.warning("官方裂缝源失败，回退 warframestat：%s", exc)
+        data = self.fetch("fissures")
+        return data if isinstance(data, list) else []
 
     # ------------------------------------------------------------------ 奸商
     def void_trader(self) -> VoidTrader:

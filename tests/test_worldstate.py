@@ -115,5 +115,28 @@ class ErrorTest(unittest.TestCase):
         self.assertIn("Cloudflare", str(ctx.exception))
 
 
+class OfficialFissureTest(unittest.TestCase):
+    def test_official_active_missions(self):
+        expiry = int((time.time() + 600) * 1000)
+        client = WorldStateClient({
+            "base_url": "http://example.invalid",
+            "language": "zh",
+            "official_proxy": "none",
+        })
+        client.official_http = FakeHttp({"ActiveMissions": [{
+            "Node": "SolNode128",
+            "MissionType": "MT_EXTERMINATION",
+            "Modifier": "VoidT1",
+            "Hard": True,
+            "Expiry": {"$date": {"$numberLong": str(expiry)}},
+        }]})
+        rows = client.official_fissures()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["node"], "E Gate（金星）")
+        self.assertEqual(rows[0]["missionType"], "Extermination")
+        self.assertEqual(rows[0]["tier"], "Lith")
+        self.assertTrue(rows[0]["isHard"])
+
+
 if __name__ == "__main__":
     unittest.main()

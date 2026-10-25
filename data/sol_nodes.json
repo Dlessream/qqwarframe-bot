@@ -1,0 +1,2262 @@
+{
+ "SolNode0": {
+  "name": "SolNode0",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "SolNode1": {
+  "name": "Galatea (Neptune)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SolNode2": {
+  "name": "Aphrodite (Venus)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SolNode3": {
+  "name": "Cordelia (Uranus)",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "SolNode4": {
+  "name": "Acheron (Pluto)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode5": {
+  "name": "Perdita (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode6": {
+  "name": "Despina (Neptune)",
+  "enemy": "Corpus",
+  "type": "Excavation"
+ },
+ "SolNode7": {
+  "name": "Epimetheus (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode8": {
+  "name": "Nix (Pluto)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode9": {
+  "name": "Rosalind (Uranus)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode10": {
+  "name": "Thebe (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode11": {
+  "name": "Tharsis (Mars)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SolNode12": {
+  "name": "Elion (Mercury)",
+  "enemy": "Grineer",
+  "type": "Capture"
+ },
+ "SolNode13": {
+  "name": "Bianca (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode14": {
+  "name": "Ultor (Mars)",
+  "enemy": "Crossfire",
+  "type": "Extermination"
+ },
+ "SolNode15": {
+  "name": "Pacific (Earth)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode16": {
+  "name": "Augustus (Mars)",
+  "enemy": "Grineer",
+  "type": "Excavation"
+ },
+ "SolNode17": {
+  "name": "Proteus (Neptune)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "SolNode18": {
+  "name": "Rhea (Saturn)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode19": {
+  "name": "Enceladus (Saturn)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode20": {
+  "name": "Telesto (Saturn)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode21": {
+  "name": "Narcissus (Pluto)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode22": {
+  "name": "Tessera (Venus)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "SolNode23": {
+  "name": "Cytherean (Venus)",
+  "enemy": "Corpus",
+  "type": "Interception"
+ },
+ "SolNode24": {
+  "name": "Oro (Earth)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode25": {
+  "name": "Callisto (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Interception"
+ },
+ "SolNode26": {
+  "name": "Lith (Earth)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode27": {
+  "name": "E Prime (Earth)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode28": {
+  "name": "Terminus (Mercury)",
+  "enemy": "Crossfire",
+  "type": "Sabotage"
+ },
+ "SolNode29": {
+  "name": "Oberon (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode30": {
+  "name": "Olympus (Mars)",
+  "enemy": "Grineer",
+  "type": "Disruption"
+ },
+ "SolNode31": {
+  "name": "Anthe (Saturn)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode32": {
+  "name": "Tethys (Saturn)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode33": {
+  "name": "Ariel (Uranus)",
+  "enemy": "Grineer",
+  "type": "Capture"
+ },
+ "SolNode34": {
+  "name": "Sycorax (Uranus)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode35": {
+  "name": "Arcadia (Mars)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode36": {
+  "name": "Martialis (Mars)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode37": {
+  "name": "Pallene (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode38": {
+  "name": "Minthe (Pluto)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SolNode39": {
+  "name": "Everest (Earth)",
+  "enemy": "Grineer",
+  "type": "Excavation"
+ },
+ "SolNode40": {
+  "name": "Prospero (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode41": {
+  "name": "Arval (Mars)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode42": {
+  "name": "Helene (Saturn)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode43": {
+  "name": "Cerberus (Pluto)",
+  "enemy": "Corpus",
+  "type": "Interception"
+ },
+ "SolNode44": {
+  "name": "Mimas (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode45": {
+  "name": "Ara (Mars)",
+  "enemy": "Grineer",
+  "type": "Capture"
+ },
+ "SolNode46": {
+  "name": "Spear (Mars)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode47": {
+  "name": "Janus (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode48": {
+  "name": "Regna (Pluto)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SolNode49": {
+  "name": "Larissa (Neptune)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SolNode50": {
+  "name": "Numa (Saturn)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode51": {
+  "name": "Hades (Pluto)",
+  "enemy": "Corpus",
+  "type": "Assassination"
+ },
+ "SolNode52": {
+  "name": "Portia (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode53": {
+  "name": "Themisto (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Assassination"
+ },
+ "SolNode54": {
+  "name": "Silvanus (Mars)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode55": {
+  "name": "Methone (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode56": {
+  "name": "Cypress (Pluto)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode57": {
+  "name": "Sao (Neptune)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode58": {
+  "name": "Hellas (Mars)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode59": {
+  "name": "Eurasia (Earth)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode60": {
+  "name": "Caliban (Uranus)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode61": {
+  "name": "Ishtar (Venus)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode62": {
+  "name": "Neso (Neptune)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode63": {
+  "name": "Mantle (Earth)",
+  "enemy": "Grineer",
+  "type": "Capture"
+ },
+ "SolNode64": {
+  "name": "Umbriel (Uranus)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode65": {
+  "name": "Gradivus (Mars)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode66": {
+  "name": "Unda (Venus)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SolNode67": {
+  "name": "Dione (Saturn)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode68": {
+  "name": "Vallis (Mars)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode69": {
+  "name": "Ophelia (Uranus)",
+  "enemy": "Grineer",
+  "type": "Survival"
+ },
+ "SolNode70": {
+  "name": "Cassini (Saturn)",
+  "enemy": "Grineer",
+  "type": "Capture"
+ },
+ "SolNode71": {
+  "name": "Vesper (Venus)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SolNode72": {
+  "name": "Outer Terminus (Pluto)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "SolNode73": {
+  "name": "Ananke (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SolNode74": {
+  "name": "Carme (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SolNode75": {
+  "name": "Cervantes (Earth)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode76": {
+  "name": "Hydra (Pluto)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SolNode77": {
+  "name": "Cupid (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode78": {
+  "name": "Triton (Neptune)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SolNode79": {
+  "name": "Cambria (Earth)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode80": {
+  "name": "Phoebe (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode81": {
+  "name": "Palus (Pluto)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "SolNode82": {
+  "name": "Calypso (Saturn)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode83": {
+  "name": "Cressida (Uranus)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode84": {
+  "name": "Nereid (Neptune)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SolNode85": {
+  "name": "Gaia (Earth)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode86": {
+  "name": "Aegaeon (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode87": {
+  "name": "Ganymede (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "SolNode88": {
+  "name": "Adrastea (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode89": {
+  "name": "Mariana (Earth)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode90": {
+  "name": "Miranda",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "SolNode91": {
+  "name": "Iapetus (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode92": {
+  "name": "Charon (Pluto)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode93": {
+  "name": "Keeler (Saturn)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode94": {
+  "name": "Apollodorus (Mercury)",
+  "enemy": "Infested",
+  "type": "Survival"
+ },
+ "SolNode95": {
+  "name": "Thalassa (Neptune)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode96": {
+  "name": "Titan (Saturn)",
+  "enemy": "Grineer",
+  "type": "Survival"
+ },
+ "SolNode97": {
+  "name": "Amalthea (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SolNode98": {
+  "name": "Desdemona (Uranus)",
+  "enemy": "Grineer",
+  "type": "Sabotage (Archwing)"
+ },
+ "SolNode99": {
+  "name": "War (Mars)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode100": {
+  "name": "Elara (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "SolNode101": {
+  "name": "Kiliken (Venus)",
+  "enemy": "Corpus",
+  "type": "Excavation"
+ },
+ "SolNode102": {
+  "name": "Oceanum (Pluto)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SolNode103": {
+  "name": "M Prime (Mercury)",
+  "enemy": "Crossfire",
+  "type": "Extermination"
+ },
+ "SolNode104": {
+  "name": "Fossa (Venus)",
+  "enemy": "Corpus",
+  "type": "Assassination"
+ },
+ "SolNode105": {
+  "name": "Titania (Uranus)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode106": {
+  "name": "Alator (Mars)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode107": {
+  "name": "Venera (Venus)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SolNode108": {
+  "name": "Tolstoj (Mercury)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode109": {
+  "name": "Linea (Venus)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SolNode110": {
+  "name": "Hyperion (Saturn)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode111": {
+  "name": "Juliet (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode112": {
+  "name": "Setebos (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode113": {
+  "name": "Ares (Mars)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode114": {
+  "name": "Puck (Uranus)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode115": {
+  "name": "Quirinus (Mars)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode116": {
+  "name": "Mab (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode117": {
+  "name": "Naiad (Neptune)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode118": {
+  "name": "Laomedeia (Neptune)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "SolNode119": {
+  "name": "Caloris (Mercury)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode120": {
+  "name": "Halimede (Neptune)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode121": {
+  "name": "Carpo (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode122": {
+  "name": "Stephano (Uranus)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode123": {
+  "name": "V Prime (Venus)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "SolNode124": {
+  "name": "Trinculo (Uranus)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode125": {
+  "name": "Io (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "SolNode126": {
+  "name": "Metis (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SolNode127": {
+  "name": "Psamathe (Neptune)",
+  "enemy": "Corpus",
+  "type": "Assassination"
+ },
+ "SolNode128": {
+  "name": "E Gate (Venus)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode129": {
+  "name": "Orb Vallis (Venus)",
+  "enemy": "Corpus",
+  "type": "Free Roam"
+ },
+ "SolNode130": {
+  "name": "Lares (Mercury)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode131": {
+  "name": "Pallas (Ceres)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode132": {
+  "name": "Bode (Ceres)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode133": {
+  "name": "Vedic (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode134": {
+  "name": "Varro (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode135": {
+  "name": "Thon (Ceres)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode136": {
+  "name": "Olla (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode137": {
+  "name": "Nuovo (Ceres)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode138": {
+  "name": "Ludi (Ceres)",
+  "enemy": "Grineer",
+  "type": "Hijack"
+ },
+ "SolNode139": {
+  "name": "Lex (Ceres)",
+  "enemy": "Grineer",
+  "type": "Capture"
+ },
+ "SolNode140": {
+  "name": "Kiste (Ceres)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode141": {
+  "name": "Ker (Ceres)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode142": {
+  "name": "Hapke (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode143": {
+  "name": "Gefion (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode144": {
+  "name": "Exta (Ceres)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode145": {
+  "name": "Egeria (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode146": {
+  "name": "Draco (Ceres)",
+  "enemy": "Grineer",
+  "type": "Survival"
+ },
+ "SolNode147": {
+  "name": "Cinxia (Ceres)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode148": {
+  "name": "Cerium (Ceres)",
+  "enemy": "",
+  "type": ""
+ },
+ "SolNode149": {
+  "name": "Casta (Ceres)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode150": {
+  "name": "Albedo (Ceres)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode151": {
+  "name": "Acanth (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode152": {
+  "name": "Ascar (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode153": {
+  "name": "Brugia (Eris)",
+  "enemy": "Infested",
+  "type": "Rescue"
+ },
+ "SolNode154": {
+  "name": "Candiru (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode155": {
+  "name": "Cosis (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode156": {
+  "name": "Cyath (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode157": {
+  "name": "Giardia (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode158": {
+  "name": "Gnathos (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode159": {
+  "name": "Lepis (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode160": {
+  "name": "Histo (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode161": {
+  "name": "Hymeno (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode162": {
+  "name": "Isos (Eris)",
+  "enemy": "Infested",
+  "type": "Capture"
+ },
+ "SolNode163": {
+  "name": "Ixodes (Eris)",
+  "enemy": "",
+  "type": ""
+ },
+ "SolNode164": {
+  "name": "Kala-azar (Eris)",
+  "enemy": "Infested",
+  "type": "Defense"
+ },
+ "SolNode165": {
+  "name": "Sporid (Eris)",
+  "enemy": "Infested",
+  "type": "Hive Sabotage"
+ },
+ "SolNode166": {
+  "name": "Nimus (Eris)",
+  "enemy": "Infested",
+  "type": "Survival"
+ },
+ "SolNode167": {
+  "name": "Oestrus (Eris)",
+  "enemy": "Infested",
+  "type": "Infested Salvage"
+ },
+ "SolNode168": {
+  "name": "Phalan (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode169": {
+  "name": "Psoro (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode170": {
+  "name": "Ranova (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode171": {
+  "name": "Saxis (Eris)",
+  "enemy": "Infested",
+  "type": "Extermination"
+ },
+ "SolNode172": {
+  "name": "Xini (Eris)",
+  "enemy": "Infested",
+  "type": "Interception"
+ },
+ "SolNode173": {
+  "name": "Solium (Eris)",
+  "enemy": "Infested",
+  "type": "Mobile Defense"
+ },
+ "SolNode174": {
+  "name": "Sparga (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode175": {
+  "name": "Naeglar (Eris)",
+  "enemy": "Infested",
+  "type": "Hive"
+ },
+ "SolNode176": {
+  "name": "Viver (Eris)",
+  "enemy": "Infested",
+  "type": "Ancient Retribution"
+ },
+ "SolNode177": {
+  "name": "Kappa (Sedna)",
+  "enemy": "Grineer",
+  "type": "Disruption"
+ },
+ "SolNode178": {
+  "name": "Hyosube (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode179": {
+  "name": "Jengu (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode180": {
+  "name": "Undine (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode181": {
+  "name": "Adaro (Sedna)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode182": {
+  "name": "Camenae (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode183": {
+  "name": "Vodyanoi (Sedna)",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "SolNode184": {
+  "name": "Rusalka (Sedna)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode185": {
+  "name": "Berehynia (Sedna)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode186": {
+  "name": "Phithale (Sedna)",
+  "enemy": "Grineer",
+  "type": "Sabotage"
+ },
+ "SolNode187": {
+  "name": "Selkie (Sedna)",
+  "enemy": "Grineer",
+  "type": "Survival"
+ },
+ "SolNode188": {
+  "name": "Kelpie (Sedna)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode189": {
+  "name": "Naga (Sedna)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode190": {
+  "name": "Nakki (Sedna)",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "SolNode191": {
+  "name": "Marid (Sedna)",
+  "enemy": "Grineer",
+  "type": "Hijack"
+ },
+ "SolNode192": {
+  "name": "Tikoloshe (Sedna)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode193": {
+  "name": "Merrow (Sedna)",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "SolNode194": {
+  "name": "Ponaturi (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode195": {
+  "name": "Hydron (Sedna)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode196": {
+  "name": "Charybdis (Sedna)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode197": {
+  "name": "Graeae (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode198": {
+  "name": "Scylla (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode199": {
+  "name": "Yam (Sedna)",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "SolNode200": {
+  "name": "Veles (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode201": {
+  "name": "Tiamat (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode202": {
+  "name": "Yemaja (Sedna)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode203": {
+  "name": "Abaddon (Europa)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SolNode204": {
+  "name": "Armaros (Europa)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode205": {
+  "name": "Baal (Europa)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SolNode206": {
+  "name": "Eligor (Europa)",
+  "enemy": "",
+  "type": ""
+ },
+ "SolNode207": {
+  "name": "Gamygyn (Europa)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode208": {
+  "name": "Lillith (Europa)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode209": {
+  "name": "Morax (Europa)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SolNode210": {
+  "name": "Naamah (Europa)",
+  "enemy": "Corpus",
+  "type": "Assassination"
+ },
+ "SolNode211": {
+  "name": "Ose (Europa)",
+  "enemy": "Corpus",
+  "type": "Interception"
+ },
+ "SolNode212": {
+  "name": "Paimon (Europa)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "SolNode213": {
+  "name": "Shax (Europa)",
+  "enemy": "",
+  "type": ""
+ },
+ "SolNode214": {
+  "name": "Sorath (Europa)",
+  "enemy": "Corpus",
+  "type": "Hijack"
+ },
+ "SolNode215": {
+  "name": "Valac (Europa)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SolNode216": {
+  "name": "Valefor (Europa)",
+  "enemy": "Corpus",
+  "type": "Excavation"
+ },
+ "SolNode217": {
+  "name": "Orias (Europa)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SolNode218": {
+  "name": "Zagan (Europa)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode219": {
+  "name": "Beleth (Europa)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SolNode220": {
+  "name": "Kokabiel (Europa)",
+  "enemy": "Corpus",
+  "type": "Sabotage"
+ },
+ "SolNode221": {
+  "name": "Neruda (Mercury)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode222": {
+  "name": "Eminescu (Mercury)",
+  "enemy": "Grineer",
+  "type": "Ancient Retribution"
+ },
+ "SolNode223": {
+  "name": "Boethius (Mercury)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode224": {
+  "name": "Odin (Mercury)",
+  "enemy": "Grineer",
+  "type": "Interception"
+ },
+ "SolNode225": {
+  "name": "Suisei (Mercury)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode226": {
+  "name": "Pantheon (Mercury)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode227": {
+  "name": "Verdi (Mercury)",
+  "enemy": "",
+  "type": ""
+ },
+ "SolNode228": {
+  "name": "Plains of Eidolon (Earth)",
+  "enemy": "Grineer",
+  "type": "Free Roam"
+ },
+ "SolNode229": {
+  "name": "Cambion Drift (Deimos)",
+  "enemy": "Infested",
+  "type": "Free Roam"
+ },
+ "SolNode230": {
+  "name": "Everview Arc (Zariman)",
+  "enemy": "Crossfire",
+  "type": "Void Flood"
+ },
+ "SolNode231": {
+  "name": "Halako Perimeter (Zariman)",
+  "enemy": "Crossfire",
+  "type": "Extermination"
+ },
+ "SolNode232": {
+  "name": "Tuvul Commons (Zariman)",
+  "enemy": "Crossfire",
+  "type": "Void Cascade"
+ },
+ "SolNode233": {
+  "name": "Oro Works (Zariman)",
+  "enemy": "Crossfire",
+  "type": "Void Armageddon"
+ },
+ "SolNode234": {
+  "name": "Dormizone (Zariman)",
+  "enemy": "Tenno",
+  "type": "Relay"
+ },
+ "SolNode235": {
+  "name": "The Greenway (Zariman)",
+  "enemy": "Crossfire",
+  "type": "Mobile Defense"
+ },
+ "SolNode236": {
+  "name": "The Duviri Experience (Duviri)",
+  "enemy": "Duviri",
+  "type": "Free Roam"
+ },
+ "SolNode237": {
+  "name": "The Lone Story (Duviri)",
+  "enemy": "Duviri",
+  "type": "Free Roam"
+ },
+ "SolNode238": {
+  "name": "The Circuit (Duviri)",
+  "enemy": "Duviri",
+  "type": "Free Roam"
+ },
+ "SolNode239": {
+  "name": "Vesper Relay (Venus)",
+  "enemy": "Corpus",
+  "type": "Relay"
+ },
+ "ZarimanHub": {
+  "name": "Chrysalith (Zariman)",
+  "enemy": "Tenno",
+  "type": "Relay"
+ },
+ "SolNode400": {
+  "name": "Teshub (Void)",
+  "enemy": "Orokin",
+  "type": "Extermination"
+ },
+ "SolNode401": {
+  "name": "Hepit (Void)",
+  "enemy": "Orokin",
+  "type": "Capture"
+ },
+ "SolNode402": {
+  "name": "Taranis (Void)",
+  "enemy": "Orokin",
+  "type": "Defense"
+ },
+ "SolNode403": {
+  "name": "Tiwaz (Void)",
+  "enemy": "Orokin",
+  "type": "Mobile Defense"
+ },
+ "SolNode404": {
+  "name": "Stribog (Void)",
+  "enemy": "Orokin",
+  "type": "Orokin Sabotage"
+ },
+ "SolNode405": {
+  "name": "Ani (Void)",
+  "enemy": "Orokin",
+  "type": "Survival"
+ },
+ "SolNode406": {
+  "name": "Ukko (Void)",
+  "enemy": "Orokin",
+  "type": "Capture"
+ },
+ "SolNode407": {
+  "name": "Oxomoco (Void)",
+  "enemy": "Orokin",
+  "type": "Extermination"
+ },
+ "SolNode408": {
+  "name": "Belenus (Void)",
+  "enemy": "Orokin",
+  "type": "Defense"
+ },
+ "SolNode409": {
+  "name": "Mot (Void)",
+  "enemy": "Orokin",
+  "type": "Survival"
+ },
+ "SolNode410": {
+  "name": "Aten (Void)",
+  "enemy": "Orokin",
+  "type": "Mobile Defense"
+ },
+ "SolNode411": {
+  "name": "Marduk (Void)",
+  "enemy": "Orokin",
+  "type": "Sabotage"
+ },
+ "SolNode412": {
+  "name": "Mithra (Void)",
+  "enemy": "Orokin",
+  "type": "Interception"
+ },
+ "SolNode413": {
+  "name": "SolNode413 (Void)",
+  "enemy": "Corrupted",
+  "type": "Ancient Retribution"
+ },
+ "SolNode450": {
+  "name": "Tyana Pass (Mars)",
+  "enemy": "Crossfire",
+  "type": "Mirror Defense"
+ },
+ "DeimosHub": {
+  "name": "Necralisk (Deimos)",
+  "enemy": "Tenno",
+  "type": "Relay"
+ },
+ "SolNode706": {
+  "name": "Horend (Deimos)",
+  "enemy": "Infested",
+  "type": "Capture"
+ },
+ "SolNode707": {
+  "name": "Hyf (Deimos)",
+  "enemy": "Infested",
+  "type": "Defense"
+ },
+ "SolNode708": {
+  "name": "Phlegyas (Deimos)",
+  "enemy": "Infested",
+  "type": "Extermination"
+ },
+ "SolNode709": {
+  "name": "Dirus (Deimos)",
+  "enemy": "Infested",
+  "type": "Mobile Defense"
+ },
+ "SolNode710": {
+  "name": "Formido (Deimos)",
+  "enemy": "Infested",
+  "type": "Sabotage"
+ },
+ "SolNode711": {
+  "name": "Terrorem (Deimos)",
+  "enemy": "Infested",
+  "type": "Survival"
+ },
+ "SolNode712": {
+  "name": "Magnacidium (Deimos)",
+  "enemy": "Infested",
+  "type": "Assassination"
+ },
+ "SolNode713": {
+  "name": "Exequias (Deimos)",
+  "enemy": "Infested",
+  "type": "Assassination"
+ },
+ "SolNode714": {
+  "name": "Sanctum Anatomica (Deimos)",
+  "enemy": "Tenno",
+  "type": "Relay"
+ },
+ "SolNode715": {
+  "name": "Effervo (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Assassination"
+ },
+ "SolNode716": {
+  "name": "Nex (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Extermination"
+ },
+ "SolNode717": {
+  "name": "Persto (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Survival"
+ },
+ "SolNode718": {
+  "name": "Cambire (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Alchemy"
+ },
+ "SolNode719": {
+  "name": "Munio (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Mirror Defense"
+ },
+ "SolNode720": {
+  "name": "Testudo (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Netracells"
+ },
+ "SolNode721": {
+  "name": "Armatus (Deimos)",
+  "enemy": "The Murmur",
+  "type": "Disruption"
+ },
+ "SolNode251": {
+  "name": "Dark Refactory (Deimos)",
+  "enemy": "Anarch",
+  "type": "The Perita Rebellion"
+ },
+ "SolNode740": {
+  "name": "The Ropalolyst (Jupiter)",
+  "enemy": "Sentient",
+  "type": "Assassination"
+ },
+ "SolNode741": {
+  "name": "Koro (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Assault"
+ },
+ "SolNode742": {
+  "name": "Nabuk (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode743": {
+  "name": "Rotuma (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode744": {
+  "name": "Taveuni (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Survival"
+ },
+ "SolNode745": {
+  "name": "Tamu (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Disruption"
+ },
+ "SolNode746": {
+  "name": "Dakata (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "SolNode747": {
+  "name": "Pago (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Spy"
+ },
+ "SolNode748": {
+  "name": "Garus (Kuva Fortress)",
+  "enemy": "Grineer",
+  "type": "Rescue"
+ },
+ "SolNode901": {
+  "name": "Caduceus",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "SolNode902": {
+  "name": "Montes (Venus)",
+  "enemy": "Corpus",
+  "type": "Extermination (Archwing)"
+ },
+ "SolNode903": {
+  "name": "Erpo (Earth)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense (Archwing)"
+ },
+ "SolNode904": {
+  "name": "Syrtis (Mars)",
+  "enemy": "Grineer",
+  "type": "Extermination (Archwing)"
+ },
+ "SolNode905": {
+  "name": "Galilea (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Sabotage (Archwing)"
+ },
+ "SolNode906": {
+  "name": "Pandora (Saturn)",
+  "enemy": "Grineer",
+  "type": "Pursuit (Archwing)"
+ },
+ "SolNode907": {
+  "name": "Caelus (Uranus)",
+  "enemy": "Grineer",
+  "type": "Interception (Archwing)"
+ },
+ "SolNode908": {
+  "name": "Salacia (Neptune)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense (Archwing)"
+ },
+ "SolNode300": {
+  "name": "Plato (Lua)",
+  "enemy": "Crossfire",
+  "type": "Extermination"
+ },
+ "SolNode301": {
+  "name": "Grimaldi (Lua)",
+  "enemy": "Grineer",
+  "type": "Mobile Defense"
+ },
+ "SolNode302": {
+  "name": "Tycho (Lua)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "SolNode304": {
+  "name": "Copernicus (Lua)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SolNode305": {
+  "name": "Stöfler (Lua)",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "SolNode306": {
+  "name": "Pavlov (Lua)",
+  "enemy": "Crossfire",
+  "type": "Spy"
+ },
+ "SolNode307": {
+  "name": "Zeipel (Lua)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SolNode308": {
+  "name": "Apollo (Lua)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "SolNode309": {
+  "name": "Yuvarium (Lua)",
+  "enemy": "Orokin",
+  "type": "Survival"
+ },
+ "SolNode310": {
+  "name": "Circulus (Lua)",
+  "enemy": "Grineer",
+  "type": "Survival"
+ },
+ "SettlementNode1": {
+  "name": "Roche (Phobos)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "SettlementNode2": {
+  "name": "Skyresh (Phobos)",
+  "enemy": "Corpus",
+  "type": "Capture"
+ },
+ "SettlementNode3": {
+  "name": "Stickney (Phobos)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "SettlementNode4": {
+  "name": "Drunlo (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode5": {
+  "name": "Grildrig (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode6": {
+  "name": "Limtoc (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode7": {
+  "name": "Hall (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode8": {
+  "name": "Reldresal (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode9": {
+  "name": "Clustril (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode10": {
+  "name": "Kepler (Phobos)",
+  "enemy": "Corpus",
+  "type": "Rush (Archwing)"
+ },
+ "SettlementNode11": {
+  "name": "Gulliver (Phobos)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "SettlementNode12": {
+  "name": "Monolith (Phobos)",
+  "enemy": "Corpus",
+  "type": "Rescue"
+ },
+ "SettlementNode13": {
+  "name": "D'Arrest (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode14": {
+  "name": "Shklovsky (Phobos)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "SettlementNode15": {
+  "name": "Sharpless (Phobos)",
+  "enemy": "Corpus",
+  "type": "Mobile Defense"
+ },
+ "SettlementNode16": {
+  "name": "Wendell (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode17": {
+  "name": "Flimnap (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode18": {
+  "name": "Opik (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode19": {
+  "name": "Todd (Phobos)",
+  "enemy": "Corpus",
+  "type": "Ancient Retribution"
+ },
+ "SettlementNode20": {
+  "name": "Iliad (Phobos)",
+  "enemy": "Corpus",
+  "type": "Assassination"
+ },
+ "MercuryHUB": {
+  "name": "Larunda Relay (Mercury)",
+  "enemy": "Grineer",
+  "type": "Relay"
+ },
+ "VenusHUB": {
+  "name": "Vesper Relay (Venus)",
+  "enemy": "Corpus",
+  "type": "Relay"
+ },
+ "EarthHUB": {
+  "name": "Strata Relay (Earth)",
+  "enemy": "Grineer",
+  "type": "Relay"
+ },
+ "SaturnHUB": {
+  "name": "Kronia Relay (Saturn)",
+  "enemy": "Grineer",
+  "type": "Relay"
+ },
+ "ErisHUB": {
+  "name": "Kuiper Relay (Eris)",
+  "enemy": "Infested",
+  "type": "Relay"
+ },
+ "EuropaHUB": {
+  "name": "Leonov Relay (Europa)",
+  "enemy": "Corpus",
+  "type": "Relay"
+ },
+ "PlutoHUB": {
+  "name": "Orcus Relay (Pluto)",
+  "enemy": "Corpus",
+  "type": "Relay"
+ },
+ "TradeHUB1": {
+  "name": "Maroo's Bazaar (Mars)",
+  "enemy": "Corpus",
+  "type": "Relay"
+ },
+ "EventNode0": {
+  "name": "Balor",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode1": {
+  "name": "Tethra",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode2": {
+  "name": "Operation Gate Crash",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode3": {
+  "name": "Elatha",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode4": {
+  "name": "Proxy Rebellion",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "EventNode5": {
+  "name": "Birog",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode6": {
+  "name": "Tyl Reygor Seal Lab",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode7": {
+  "name": "Proxy Rebellion",
+  "enemy": "Corpus",
+  "type": "Interception"
+ },
+ "EventNode8": {
+  "name": "Corb",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode9": {
+  "name": "Operation Gate Crash Pt. 2",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode10": {
+  "name": "Lugh",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode11": {
+  "name": "Nemed",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode12": {
+  "name": "Operation Cryotic Front",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode13": {
+  "name": "Shifting Sands",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode14": {
+  "name": "Gate Crash",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode15": {
+  "name": "Operation Cryotic Front",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode16": {
+  "name": "Operation Cryotic Front",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode17": {
+  "name": "Proxy Rebellion",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "EventNode18": {
+  "name": "Proxy Rebellion",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "EventNode19": {
+  "name": "Mars",
+  "enemy": "Grineer",
+  "type": "Defense"
+ },
+ "EventNode20": {
+  "name": "Tyl Regor Sea Lab",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode22": {
+  "name": "Tyl Regor Sea Lab",
+  "enemy": "Sentient",
+  "type": "Ancient Retribution"
+ },
+ "EventNode24": {
+  "name": "Earth",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "EventNode25": {
+  "name": "Earth",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "EventNode26": {
+  "name": "Earth",
+  "enemy": "Grineer",
+  "type": "Extermination"
+ },
+ "EventNode27": {
+  "name": "Void",
+  "enemy": "Corrupted",
+  "type": "Survival"
+ },
+ "EventNode28": {
+  "name": "Saturn",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "EventNode29": {
+  "name": "Saturn",
+  "enemy": "Grineer",
+  "type": "Assassination"
+ },
+ "EventNode30": {
+  "name": "Ganymede (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "EventNode31": {
+  "name": "Ganymede (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "EventNode32": {
+  "name": "Ganymede (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "EventNode33": {
+  "name": "Ganymede (Jupiter)",
+  "enemy": "Corpus",
+  "type": "Disruption"
+ },
+ "EventNode34": {
+  "name": "Earth",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "EventNode35": {
+  "name": "Earth",
+  "enemy": "Grineer",
+  "type": "Arena"
+ },
+ "EventNode761": {
+  "name": "The Index",
+  "enemy": "Corpus",
+  "type": "Arena"
+ },
+ "EventNode762": {
+  "name": "The Index pt 2",
+  "enemy": "Corpus",
+  "type": "Arena"
+ },
+ "EventNode763": {
+  "name": "The Index Endurance",
+  "enemy": "Corpus",
+  "type": "Arena"
+ },
+ "PvpNode0": {
+  "name": "Conclave Capture the Cephalon",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode1": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode2": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode3": {
+  "name": "Conclave Capture the Cephalon",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode4": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode5": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode6": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode7": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode8": {
+  "name": "Conclave",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode9": {
+  "name": "Conclave Team Domination",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode10": {
+  "name": "Conclave Domination",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode11": {
+  "name": "Conclave Domination",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode12": {
+  "name": "Conclave Domination",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode13": {
+  "name": "Tactical Alert: Snoball Fight!",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "PvpNode14": {
+  "name": "Conclave: Quick Steel",
+  "enemy": "Tenno",
+  "type": "Conclave"
+ },
+ "ClanNode0": {
+  "name": "Romula (Venus)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode1": {
+  "name": "Malva (Venus)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode2": {
+  "name": "Coba (Earth)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode3": {
+  "name": "Tikal (Earth)",
+  "enemy": "Infested",
+  "type": "Dark Sector Excavation"
+ },
+ "ClanNode4": {
+  "name": "Sinai (Jupiter)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode5": {
+  "name": "Cameria (Jupiter)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode6": {
+  "name": "Larzac (Europa)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode7": {
+  "name": "Cholistan (Europa)",
+  "enemy": "Infested",
+  "type": "Dark Sector Excavation"
+ },
+ "ClanNode8": {
+  "name": "Kadesh (Mars)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode9": {
+  "name": "Wahiba (Mars)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode10": {
+  "name": "Memphis (Phobos)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defection"
+ },
+ "ClanNode11": {
+  "name": "Zeugma (Phobos)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode12": {
+  "name": "Caracol (Saturn)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defection"
+ },
+ "ClanNode13": {
+  "name": "Piscinas (Saturn)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode14": {
+  "name": "Amarna (Sedna)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode15": {
+  "name": "Sangeru (Sedna)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode16": {
+  "name": "Ur (Uranus)",
+  "enemy": "Infested",
+  "type": "Dark Sector Disruption"
+ },
+ "ClanNode17": {
+  "name": "Assur (Uranus)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode18": {
+  "name": "Akkad (Eris)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode19": {
+  "name": "Zabala (Eris)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode20": {
+  "name": "Yursa (Neptune)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defection"
+ },
+ "ClanNode21": {
+  "name": "Kelashin (Neptune)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode22": {
+  "name": "Seimeni (Ceres)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode23": {
+  "name": "Gabii (Ceres)",
+  "enemy": "Infested",
+  "type": "Dark Sector Survival"
+ },
+ "ClanNode24": {
+  "name": "Sechura (Pluto)",
+  "enemy": "Infested",
+  "type": "Dark Sector Defense"
+ },
+ "ClanNode25": {
+  "name": "Hieracon (Pluto)",
+  "enemy": "Infested",
+  "type": "Dark Sector Excavation"
+ },
+ "/Lotus/Types/Keys/SortieBossKeyPhorid": {
+  "name": "Sortie Boss: Phorid",
+  "enemy": "Infested",
+  "type": "Assassination"
+ },
+ "CrewBattleNode501": {
+  "name": "Mordo Cluster (Saturn)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode502": {
+  "name": "Sover Strait (Earth)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode503": {
+  "name": "Bifrost Echo (Venus)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "CrewBattleNode504": {
+  "name": "Arva Vector (Neptune)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "CrewBattleNode505": {
+  "name": "Ruse War Field (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode509": {
+  "name": "Iota Temple (Earth)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode510": {
+  "name": "Gian Point (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode511": {
+  "name": "Beacon Shield Ring (Venus)",
+  "enemy": "Corpus",
+  "type": "Volatile"
+ },
+ "CrewBattleNode512": {
+  "name": "Orvin-Haarc (Venus)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "CrewBattleNode513": {
+  "name": "Vesper Strait (Venus)",
+  "enemy": "Corpus",
+  "type": "Orphix"
+ },
+ "CrewBattleNode514": {
+  "name": "Falling Glory (Venus)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "CrewBattleNode515": {
+  "name": "Luckless Expanse (Venus)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "CrewBattleNode516": {
+  "name": "Nu-gua Mines (Neptune)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "CrewBattleNode518": {
+  "name": "Ogal Cluster (Earth)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode519": {
+  "name": "Korm's Belt (Earth)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode521": {
+  "name": "Enkidu Ice Drifts (Neptune)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "CrewBattleNode522": {
+  "name": "Bendar Cluster (Earth)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode523": {
+  "name": "Mammon's Prospect (Neptune)",
+  "enemy": "Corpus",
+  "type": "Orphix"
+ },
+ "CrewBattleNode524": {
+  "name": "Sovereign Grasp (Neptune)",
+  "enemy": "Corpus",
+  "type": "Volatile"
+ },
+ "CrewBattleNode525": {
+  "name": "Brom Cluster (Neptune)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "CrewBattleNode526": {
+  "name": "Khufu Envoy (Pluto)",
+  "enemy": "Corpus",
+  "type": "Orphix"
+ },
+ "CrewBattleNode527": {
+  "name": "Seven Sirens (Pluto)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "CrewBattleNode528": {
+  "name": "Obol Crossing (Pluto)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "CrewBattleNode529": {
+  "name": "Profit Margin (Pluto)",
+  "enemy": "Corpus",
+  "type": "Volatile"
+ },
+ "CrewBattleNode530": {
+  "name": "Kasio's Rest (Saturn)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode531": {
+  "name": "Fenton's Field (Pluto)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "CrewBattleNode533": {
+  "name": "Nodo Gap (Saturn)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode534": {
+  "name": "Lupal Pass (Saturn)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode535": {
+  "name": "Vand Cluster (Saturn)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode536": {
+  "name": "Peregrine Axis (Pluto)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "CrewBattleNode538": {
+  "name": "Calabash (Veil)",
+  "enemy": "Corpus",
+  "type": "Extermination"
+ },
+ "CrewBattleNode539": {
+  "name": "Numina (Veil)",
+  "enemy": "Corpus",
+  "type": "Volatile"
+ },
+ "CrewBattleNode540": {
+  "name": "Arc Silver (Veil)",
+  "enemy": "Corpus",
+  "type": "Defense"
+ },
+ "CrewBattleNode541": {
+  "name": "Erato (Veil)",
+  "enemy": "Corpus",
+  "type": "Orphix"
+ },
+ "CrewBattleNode542": {
+  "name": "Lu-yan (Veil)",
+  "enemy": "Corpus",
+  "type": "Survival"
+ },
+ "CrewBattleNode543": {
+  "name": "Sambir Cloud (Veil)",
+  "enemy": "Corpus",
+  "type": "Spy"
+ },
+ "CrewBattleNode550": {
+  "name": "Nsu Grid (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode551": {
+  "name": "Ganalen's Grave (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode552": {
+  "name": "Rya (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode553": {
+  "name": "Flexa (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode554": {
+  "name": "H-2 Cloud (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "CrewBattleNode555": {
+  "name": "R-9 Cloud (Veil)",
+  "enemy": "Grineer",
+  "type": "Skirmish"
+ },
+ "SolNode723": {
+  "name": "Brutus (Uranus)",
+  "enemy": "Corpus",
+  "type": "Ascension"
+ },
+ "SolarisUnitedHub1": {
+  "name": "Fortuna (Venus)",
+  "enemy": "Corpus",
+  "type": "Relay"
+ }
+}

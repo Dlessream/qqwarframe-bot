@@ -705,7 +705,7 @@ def storms_reply(raw) -> Reply:
         parse_timestamp(item.get("expiry"))))
     rows = []
     lines = []
-    for item in items[:15]:
+    for item in items:
         tier = terms.localize_relic_tier(str(item.get("tier") or "—"))
         mission = terms.localize_storm_mission(
             str(item.get("missionType") or "—"))
@@ -736,7 +736,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
         items = [item for item in _as_list(raw)
                  if not item.get("isHard") and not item.get("isStorm")
                  and parse_timestamp(item.get("expiry")) > now]
-    for row in items[:15]:
+    for row in items:
         rows.append([
             terms.localize_node(str(row.get("node") or "—")),
             terms.localize_mission(str(row.get("missionType") or "—")),
@@ -745,11 +745,14 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
             countdown(parse_timestamp(row.get("expiry"))),
         ])
     title = "钢铁裂缝" if hard else "裂缝"
+    source = ("数据 Warframe 官方 · 世界状态"
+              if any(row.get("source") == "official" for row in items)
+              else "数据 warframestat.us · 世界状态")
     return _world_reply(
-        title, "当前 %d 条%s，显示前 15 条" % (
+        title, "当前 %d 条%s" % (
             len(items), "钢铁之路" if hard else ""),
         ["节点", "任务", "等级", "敌人", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", title,
+        source, title,
         ratios=[1.7, 1.0, 0.7, 0.9, 0.9])
 
 

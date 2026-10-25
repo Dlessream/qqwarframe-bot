@@ -75,6 +75,9 @@ DEFAULTS: Dict[str, Any] = {
         "timeout_seconds": 12,
         "retries": 1,
         "proxy": "http://127.0.0.1:10809",
+        "official_url": "https://api.warframe.com/cdn/worldState.php",
+        "official_proxy": "none",
+        "prefer_official_fissures": True,
         "user_agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/126.0.0.0 Safari/537.36"),

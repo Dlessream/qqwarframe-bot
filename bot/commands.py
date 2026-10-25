@@ -279,9 +279,10 @@ class CommandRouter:
             if command == "archon":
                 return [present.archon_reply(self._ws("archonHunt"))]
             if command == "fissures":
-                return [present.fissures_reply(self._ws("fissures"))]
+                return [present.fissures_reply(self.worldstate.fissures())]
             if command == "steel_fissures":
-                return [present.fissures_reply(self._ws("fissures"), hard=True)]
+                return [present.fissures_reply(self.worldstate.fissures(),
+                                               hard=True)]
             if command == "storms":
                 return [present.storms_reply(self._ws("fissures"))]
             if command == "bounties":

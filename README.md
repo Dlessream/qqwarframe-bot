@@ -591,6 +591,11 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | `base_url` | `https://api.warframestat.us` | 世界状态 API |
 | `language` | `zh` | 请求中文 |
 | `proxy` | `http://127.0.0.1:10809` | 该站有 Cloudflare，建议走代理 |
+| `official_url` | Warframe 官方 worldState | 裂缝等数据的官方备用源 |
+| `official_proxy` | `none` | 官方 API 默认直连（代理可能 403） |
+| `prefer_official_fissures` | true | 裂缝优先官方 ActiveMissions，失败回退 warframestat |
+
+裂缝/钢铁裂缝会显示**全部当前有效条目**，不再截断前 15 条。官方源没有数据时自动回退 warframestat。
 
 ### 紫卡分析
 
@@ -728,11 +733,11 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**301 个离线测试**，不联网、不连 QQ，覆盖：
+**302 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
-- 世界状态解析、钢铁裂缝、虚空风暴/九重天、赏金、希图斯 7 档赏金/帐篷 A-C、深层/时光科研、紫卡范围/roll 评分/OCR
+- 世界状态解析、官方/ warframestat 裂缝回退、全部裂缝不截断、钢铁裂缝、虚空风暴/九重天、赏金、希图斯 7 档赏金/帐篷 A-C、深层/时光科研、紫卡范围/roll 评分/OCR
 - 仲裁评级 JSON 解析、节点查找、轮换兜底
 - 市场响应解析、48h 统计聚合、缓存、429 重试
 - 维基摘要与 HTML 回退、Wiki 专用代理线路切换、世界状态时间解析
@@ -800,7 +805,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 301 个测试 + fixtures
+├── tests/                 # 302 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
@@ -912,6 +917,7 @@ huijiwiki 和 B 站 WIKI 都会拦截部分网络/机房 IP。处理顺序：
 ## License
 
 仅供学习交流使用。你可以自由修改、自用；转载请注明数据来源。
+
 
 
 
