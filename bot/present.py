@@ -732,25 +732,42 @@ BOUNTY_ORDER = ["Ostrons", "Solaris United", "Entrati", "Cavia",
                 "The Hex", "The Holdfasts"]
 
 
-def _bounty_reward(job) -> str:
-    drops = _as_list(job.get("rewardPoolDrops"))
-    rewards = []
-    for drop in drops[:2]:
-        if isinstance(drop, dict) and drop.get("item"):
-            rewards.append(terms.localize_reward(str(drop["item"])))
-    if not rewards:
-        rewards = [terms.localize_reward(str(value))
-                   for value in _as_list(job.get("rewardPool"))[:2]]
-    return "、".join(rewards) or "—"
-
-
 def _bounty_level(job) -> str:
     levels = _as_list(job.get("enemyLevels"))
     if len(levels) >= 2:
+        if str(levels[0]) == str(levels[1]):
+            return str(levels[0])
         return "%s–%s" % (levels[0], levels[1])
     if levels:
         return str(levels[0])
     return "—"
+
+
+def _bounty_key_rewards(job, limit: int = 2) -> str:
+    rare = []
+    blueprints = []
+    fallback = []
+    for drop in _as_list(job.get("rewardPoolDrops")):
+        if not isinstance(drop, dict) or not drop.get("item"):
+            continue
+        raw = str(drop["item"])
+        item = terms.localize_reward(raw)
+        if item not in fallback:
+            fallback.append(item)
+        if str(drop.get("rarity") or "").lower() == "rare":
+            if item not in rare:
+                rare.append(item)
+            if ("Blueprint" in raw or "蓝图" in item) and item not in blueprints:
+                blueprints.append(item)
+    values = blueprints or rare or fallback
+    return "、".join(values[:limit]) or "—"
+
+
+CETUS_TENTS = {
+    "A": ["取回被盗器物", "间谍捕手", "破坏原型机"],
+    "B": ["捕获新克隆尼指挥官", "宰杀敌人", "间谍捕手"],
+    "C": ["削弱克隆尼据点", "捕获敌方领袖", "捕获克隆尼指挥官"],
+}
 
 
 def cetus_reply(cycle, raw) -> Reply:
@@ -767,36 +784,34 @@ def cetus_reply(cycle, raw) -> Reply:
                 continue
             seen.add(key)
             jobs.append((job, title))
-    jobs.sort(key=lambda pair: (
-        (_as_list(pair[0].get("enemyLevels")) or [999])[0],
-        pair[1]))
     if not jobs:
         return Reply(text="希图斯当前没有可接赏金。")
 
+    numbers = ["一", "二", "三", "四", "五", "六", "七"]
     rows = []
     text_lines = []
-    for index, (job, title) in enumerate(jobs[:3], 1):
-        label = "小帐篷 %d" % index
+    for index, (job, title) in enumerate(jobs[:7]):
+        label = "赏金%s" % (numbers[index] if index < len(numbers)
+                           else str(index + 1))
         rows.append([label, title, _bounty_level(job),
-                     _bounty_reward(job),
+                     _bounty_key_rewards(job),
                      countdown(parse_timestamp(job.get("expiry")))])
         text_lines.append("%s / %s / %s" % (label, title, _bounty_level(job)))
-    for job, title in jobs[3:]:
-        rows.append(["其他赏金", title, _bounty_level(job),
-                     _bounty_reward(job),
-                     countdown(parse_timestamp(job.get("expiry")))])
-        text_lines.append("其他 / %s / %s" % (title, _bounty_level(job)))
+    for key in ("A", "B", "C"):
+        missions = "·".join(CETUS_TENTS[key])
+        rows.append(["帐篷 %s" % key, missions, "—", "—", "—"])
+        text_lines.append("帐篷 %s / %s" % (key, " / ".join(CETUS_TENTS[key])))
 
     state = _state_label((cycle or {}).get("state"))
     time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
     return _world_reply(
-        "希图斯", "当前 %s · 剩余 %s ｜ 小帐篷 1–3 + 全部 Ostrons 赏金" % (
+        "希图斯赏金", "当前 %s · 剩余 %s ｜ 7 档赏金 + 帐篷 A/B/C" % (
             state, time_left),
-        ["类型", "任务", "等级", "奖励", "剩余"], rows,
+        ["档位", "任务", "等级", "奖励", "剩余"], rows,
         "数据 warframestat.us · 希图斯", "希图斯",
-        text_lines=text_lines, ratios=[0.8, 1.8, 0.7, 1.7, 0.8],
+        text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 1.0, 0.8],
         accent=imagecard.GREEN,
-        note="小帐篷按当前 Ostrons 赏金中敌人等级最低的三条排序。")
+        note="帐篷 A/B/C 各 3 个任务；赏金按当前 Ostrons 任务顺序显示。")
 
 
 def bounties_reply(raw) -> Reply:
