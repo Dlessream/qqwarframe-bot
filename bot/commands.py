@@ -145,11 +145,13 @@ class CommandRouter:
                  worldstate: Optional[WorldStateClient] = None,
                  alerts: Optional[AlertStore] = None,
                  arbi: Optional[ArbiClient] = None,
-                 updater: Optional[DataUpdater] = None):
+                 updater: Optional[DataUpdater] = None,
+                 translator=None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
         self.log = logger or LOGGER
+        self.translator = translator
         self.prefixes = list(config.get("behavior", {}).get("prefixes") or ["#"])
         self.top_orders = int(config.get("warframe_market", {}).get("top_orders", 5))
         self.price_orders = int(config.get("warframe_market", {}).get("price_orders", 8))
@@ -738,7 +740,19 @@ class CommandRouter:
                 "· https://warframe.fandom.com/wiki/%s\n"
                 "可换一个能通过验证的代理（wiki.proxy），或稍后再试。"
                 % (exc, keyword, keyword))
-        return present.wiki_reply(argument, page, hits)
+        return present.wiki_reply(argument, page, hits,
+                                  translated=self._translate_wiki(page))
+
+    def _translate_wiki(self, page) -> str:
+        if page is None or self.translator is None:
+            return ""
+        if not bool(self.cfg.get("wiki", {}).get("translate", True)):
+            return ""
+        try:
+            return self.translator.translate(page.extract)
+        except Exception as exc:
+            self.log.warning("Wiki 中文翻译失败：%s", exc)
+            return ""
 
 
 def strip_cq(text: str) -> str:

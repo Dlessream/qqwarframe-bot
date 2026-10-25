@@ -993,8 +993,8 @@ def worldstate_reply(data: dict) -> Reply:
 
 # ---------------------------------------------------------------------- 维基
 def wiki_reply(query: str, page: Optional[WikiPage],
-               hits: Sequence[WikiHit]) -> Reply:
-    text = render.render_wiki(query, page, hits)
+               hits: Sequence[WikiHit], translated: str = "") -> Reply:
+    text = render.render_wiki(query, page, hits, translated)
     if page is None:
         from urllib.parse import quote
         search_url = ("https://wiki.warframe.com/w/Special:Search?search="
@@ -1007,9 +1007,11 @@ def wiki_reply(query: str, page: Optional[WikiPage],
                 "可以换英文名或更短的关键词，例如 Volt、Rubico、Riven Mod。",
                 search_url, "英文维基 · wiki.warframe.com"))
     label = render.wiki_label(page.url)
+    footer = "%s · wiki.warframe.com" % label
+    if translated:
+        footer += " · 中文翻译"
     return Reply(text=text, image=lambda: imagecard.wiki_card(
-        page.title, page.extract, page.url,
-        "%s · wiki.warframe.com" % label))
+        page.title, translated or page.extract, page.url, footer))
 
 
 # ---------------------------------------------------------------------- 提醒

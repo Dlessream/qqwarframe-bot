@@ -26,6 +26,7 @@ from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
 from .render import chunk_text
 from .riven import RivenClient
+from .translate import Translator
 from .update import UpdateChecker
 from .updater import DataUpdater
 from .web import AdminServer
@@ -81,6 +82,9 @@ class BotApp:
         self.alias_store.ensure_component_defaults()
         self.wiki = WikiClient(config.get("wiki", {}), logger=self.log,
                                cache_config=config.get("cache", {}))
+        self.translator = Translator(
+            config.get("wiki", {}), cache_config=config.get("cache", {}),
+            logger=self.log)
         self.riven = RivenClient(
             self.market, self.log,
             cache_config=config.get("cache", {}),
@@ -113,7 +117,8 @@ class BotApp:
         self.router = CommandRouter(
             self.market, self.wiki, config, logger=self.log,
             riven=self.riven, worldstate=self.worldstate, alerts=self.alerts,
-            arbi=self.arbi, updater=self.updater)
+            arbi=self.arbi, updater=self.updater,
+            translator=self.translator)
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
                                      logger=self.log)

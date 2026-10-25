@@ -64,6 +64,8 @@ DEFAULTS: Dict[str, Any] = {
         "proxy_mode": "auto",
         "proxy_fallbacks": ["none"],
         "summary_chars": 280,
+        "translate": True,
+        "translate_seconds": 86400,
         "fallback_fandom": True,
         "fandom_api": "https://warframe.fandom.com/api.php",
         "fallback_bwiki": False,

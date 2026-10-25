@@ -55,6 +55,8 @@
       "none"
     ],
     "summary_chars": 280,
+    "translate": true,
+    "translate_seconds": 86400,
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     "fallback_fandom": true,
     "fandom_api": "https://warframe.fandom.com/api.php",

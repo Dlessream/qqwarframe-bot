@@ -202,7 +202,7 @@ def wiki_label(url: str = "") -> str:
 
 
 def render_wiki(query: str, page: Optional[WikiPage],
-                hits: Sequence[WikiHit] = ()) -> str:
+                hits: Sequence[WikiHit] = (), translated: str = "") -> str:
     if page is None:
         from urllib.parse import quote
         search = ("https://wiki.warframe.com/w/Special:Search?search="
@@ -212,7 +212,12 @@ def render_wiki(query: str, page: Optional[WikiPage],
                 "· 也可以直接搜索：%s" % (query, search))
 
     label = wiki_label(page.url)
-    lines = ["【%s】%s" % (page.title, label), "", page.extract, "", page.url]
+    lines = ["【%s】%s" % (page.title, label), ""]
+    if translated:
+        lines.extend(["中文翻译：", translated, "", "英文原文：", page.extract])
+    else:
+        lines.extend([page.extract])
+    lines.extend(["", page.url])
     others = [hit for hit in hits if hit.title != page.title][:3]
     if others:
         lines.append("")
