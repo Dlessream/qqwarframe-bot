@@ -177,6 +177,9 @@ class CommandRouter:
         parts = text.split(None, 1)
         head = parts[0]
         tail = parts[1].strip() if len(parts) > 1 else ""
+        if head in ("唤醒", "唤醒词"):
+            # 明确废弃 #唤醒，不当作物品查询处理。
+            return None
         if head.lower() in COMMANDS:
             return (COMMANDS[head.lower()], tail)
 

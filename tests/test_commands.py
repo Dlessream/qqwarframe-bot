@@ -345,6 +345,7 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertEqual(router.parse("#wm 绝路"), ("query", "绝路"))
         self.assertEqual(router.parse("#紫卡分析 绝路"),
                          ("riven_analysis", "绝路"))
+        self.assertIsNone(router.parse("#唤醒"))
         self.assertEqual(router.parse("#紫卡分析绝路"),
                          ("riven_analysis", "绝路"))
 

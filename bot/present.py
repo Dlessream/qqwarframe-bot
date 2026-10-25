@@ -715,11 +715,11 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
 
 
 BOUNTY_LOCATIONS = {
-    "Ostrons": "地球 · 希图斯",
-    "Solaris United": "金星 · 福尔图娜",
-    "Entrati": "火卫二 · 英择谛",
-    "Cavia": "火卫二 · 解剖圣所",
-    "The Hex": "1999 · 霍瓦尼亚",
+    "Ostrons": "希图斯",
+    "Solaris United": "福尔图娜",
+    "Entrati": "英择谛",
+    "Cavia": "解剖圣所",
+    "The Hex": "霍瓦尼亚",
     "The Holdfasts": "扎里曼",
     "Necraloid": "火卫二",
 }
@@ -748,7 +748,7 @@ def bounties_reply(raw) -> Reply:
         location = BOUNTY_LOCATIONS.get(name, terms.localize_syndicate(name))
         if not jobs:
             if name in BOUNTY_ORDER:
-                rows.append([terms.localize_syndicate(name), location,
+                rows.append(["%s · %s" % (terms.localize_syndicate(name), location),
                              "暂无可接赏金", "—", "—"])
             continue
         for job in jobs:
@@ -766,8 +766,7 @@ def bounties_reply(raw) -> Reply:
             if not rewards:
                 rewards = [str(value) for value in _as_list(job.get("rewardPool"))[:2]]
             rows.append([
-                terms.localize_syndicate(name),
-                location,
+                "%s · %s" % (terms.localize_syndicate(name), location),
                 title,
                 "、".join(rewards) or "—",
                 countdown(parse_timestamp(job.get("expiry"))),
@@ -777,9 +776,9 @@ def bounties_reply(raw) -> Reply:
         return _world_reply("赏金", "当前没有可接赏金", [], [],
                             "数据 warframestat.us", "赏金")
     return _world_reply(
-        "赏金", "各大 NPC 可接赏金", ["NPC", "地点", "任务", "奖励", "剩余"], rows,
+        "赏金", "各大 NPC 可接赏金", ["NPC / 地点", "任务", "奖励", "剩余"], rows,
         "数据 warframestat.us · 世界状态", "赏金",
-        ratios=[1.1, 1.2, 1.8, 1.6, 0.9], accent=imagecard.GREEN)
+        ratios=[1.5, 1.8, 1.7, 0.8], accent=imagecard.GREEN)
 
 
 def worldstate_reply(data: dict) -> Reply:

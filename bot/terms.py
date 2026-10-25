@@ -66,6 +66,9 @@ RESEARCH_TERMS = {
     "No Pets": "禁止宠物", "Dull Blades": "钝刃",
     "Dropped Guard": "卸防", "Secondary Wounds": "副武器创伤",
     "Range Debuff": "范围削弱", "Anemic Shields": "贫血护盾",
+    "Bold Venture": "大胆冒险", "Alluring Arcocanids": "诱人弧蛛",
+    "Fortified Foes": "强化敌人", "Postmortal Surges": "死后涌动",
+    "Entanglement": "纠缠", "Commanding Culverins": "指挥重炮",
 }
 
 RESOURCES = {
@@ -95,6 +98,19 @@ BOUNTY_PHRASES = {
     "Cleanse the Land": "净化土地",
     "Rise and Fall": "兴衰",
     "Operational Intelligence": "作战情报",
+    "Picket Duty": "哨戒任务",
+    "Agent Down": "特工倒下",
+    "Trash Their Traps": "破坏陷阱",
+    "Financial Liberation": "财务解放",
+    "Tax Taxmen": "税务官",
+    "Crush Cult": "粉碎教团",
+    "Brute Force": "暴力破解",
+    "Strip Mining (Endless)": "露天开采（无尽）",
+    "Isolation Vault Chamber": "隔离宝库",
+    "Salvage": "回收",
+    "Core Samples": "核心样本",
+    "Anomaly Retrieval": "异常回收",
+    "Isolation Vault Chambers": "隔离宝库",
 }
 
 BOUNTY_WORDS = {
@@ -103,6 +119,8 @@ BOUNTY_WORDS = {
     "Artifact": "神器", "Enemy": "敌人", "Supply Lines": "补给线",
     "Commander": "指挥官", "Foothold": "据点", "Stolen": "被盗",
     "Reclaim": "夺回", "Cleanse": "净化", "Land": "土地",
+    "Rise and Fall": "兴衰", "Crush Cult": "粉碎教团",
+    "Isolation Vault Chamber": "隔离宝库", "Tax Taxmen": "税务官",
     "Bounty": "赏金", "Defend": "防守", "Rescue": "救援",
     "Destroy": "摧毁", "Recover": "回收", "Hunt": "狩猎",
     "Assassinate": "刺杀", "Escort": "护送", "Investigate": "调查",
