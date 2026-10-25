@@ -13,6 +13,7 @@
       "#",
       "＃"
     ],
+    "require_prefix": false,
     "allow_private": true,
     "respond_to_at": true,
     "at_sender": true,

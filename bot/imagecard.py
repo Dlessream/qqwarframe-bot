@@ -886,7 +886,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s帮助" % prefix, "显示本菜单"],
     ]
     return build_table(
-        "Warframe 查询机器人", "所有命令直接发送，无需 @ 机器人",
+        "Warframe 查询机器人", "命令可直接发送，不需要 # 前缀或 @ 机器人",
         ["命令", "说明"], rows,
         "平台：pc / ps / xbox / switch / mobile，默认 PC",
         accent=GOLD, chip="HELP", ratios=[1.2, 2.0],

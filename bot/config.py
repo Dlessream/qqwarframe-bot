@@ -24,6 +24,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     "behavior": {
         "prefixes": ["#", "＃"],
+        "require_prefix": False,
         "allow_private": True,
         "respond_to_at": True,
         "at_sender": True,
@@ -149,6 +150,7 @@ _REQUIRED_PATHS = (
 
 _ENV_OVERRIDES = {
     "QQWF_WS_URL": ("onebot", "ws_url", "str"),
+    "QQWF_REQUIRE_PREFIX": ("behavior", "require_prefix", "bool"),
     "QQWF_ACCESS_TOKEN": ("onebot", "access_token", "str"),
     "QQWF_PROXY": ("warframe_market", "proxy", "str"),
     "QQWF_WIKI_PROXY": ("wiki", "proxy", "str"),

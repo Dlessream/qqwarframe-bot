@@ -237,8 +237,8 @@ def render_help(prefix: str = "#") -> str:
         "%s帮助               显示本菜单" % prefix,
         DIVIDER,
         "平台可写 pc / ps / xbox / switch / mobile，默认 PC。",
-        "例：%swm 绝路 ｜ %s拆件 Mesa ｜ %s紫卡分析 绝路 + 截图 ｜ %s提醒 牛甲 50" % (
-            prefix, prefix, prefix, prefix),
+        "命令可直接发送，也可带 # / ＃；不再需要先唤醒。",
+        "例：wm 绝路 ｜ 拆件 Mesa ｜ 紫卡分析 绝路 + 截图 ｜ 提醒 牛甲 50",
         "名称支持中文、英文和常用外号；结果以图片卡片发送。",
     ]
     return "\n".join(lines)

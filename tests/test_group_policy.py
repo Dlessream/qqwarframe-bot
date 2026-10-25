@@ -75,5 +75,30 @@ class GroupPolicyTest(unittest.TestCase):
         self.assertEqual(fake.sent, [])
 
 
+    def test_bare_command_in_allowed_group(self):
+        app = make_app(["100"])
+        fake = FakeOneBot()
+        app.onebot = fake
+        app.on_event({
+            "post_type": "message", "message_type": "group",
+            "group_id": "100", "user_id": "1", "self_id": "9",
+            "message": [{"type": "text", "data": {"text": "帮助"}}],
+            "raw_message": "帮助",
+        })
+        self.assertTrue(fake.sent)
+
+    def test_plain_chat_ignored(self):
+        app = make_app(["100"])
+        fake = FakeOneBot()
+        app.onebot = fake
+        app.on_event({
+            "post_type": "message", "message_type": "group",
+            "group_id": "100", "user_id": "1", "self_id": "9",
+            "message": [{"type": "text", "data": {"text": "今天天气不错"}}],
+            "raw_message": "今天天气不错",
+        })
+        self.assertEqual(fake.sent, [])
+
+
 if __name__ == "__main__":
     unittest.main()

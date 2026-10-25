@@ -90,6 +90,7 @@ class Context:
     self_id: str = ""
     prefix: str = "#"
     image: Optional[bytes] = None
+    allow_bare: bool = False
 
     @property
     def chat_type(self) -> str:
@@ -158,7 +159,8 @@ class CommandRouter:
         self.updater = updater
 
     # ------------------------------------------------------------------ 解析
-    def parse(self, text: str) -> Optional[Tuple[str, str]]:
+    def parse(self, text: str,
+              allow_bare: bool = False) -> Optional[Tuple[str, str]]:
         text = (text or "").strip()
         if not text:
             return None
@@ -170,6 +172,20 @@ class CommandRouter:
                 text = text[len(candidate):].strip()
                 break
         if not prefix:
+            if not allow_bare:
+                return None
+            # 无前缀模式：只匹配已知命令，普通聊天不当作物品查询。
+            parts = text.split(None, 1)
+            head = parts[0]
+            if head in ("唤醒", "唤醒词"):
+                return None
+            if head.lower() in COMMANDS:
+                return (COMMANDS[head.lower()],
+                        parts[1].strip() if len(parts) > 1 else "")
+            for alias in COMMAND_ORDER:
+                if (len(alias) >= 2 or not alias.isascii()) \
+                        and text.startswith(alias) and len(text) > len(alias):
+                    return (COMMANDS[alias], text[len(alias):].strip())
             return None
         if not text:
             return ("help", "")
@@ -193,7 +209,7 @@ class CommandRouter:
 
     # ------------------------------------------------------------------ 入口
     def handle(self, text: str, ctx: Context) -> List[Reply]:
-        parsed = self.parse(text)
+        parsed = self.parse(text, allow_bare=ctx.allow_bare)
         if parsed is None:
             return []
         command, argument = parsed

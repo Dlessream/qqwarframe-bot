@@ -36,6 +36,7 @@ class BotApp:
         self.cfg = config
         self.log = logger or LOGGER
         self.behavior = config.get("behavior", {})
+        self.allow_bare = not bool(self.behavior.get("require_prefix", False))
         self.prefixes: List[str] = list(self.behavior.get("prefixes") or ["#"])
         self.self_id = ""
         self._stop = threading.Event()
@@ -287,7 +288,7 @@ class BotApp:
         if not text:
             return
 
-        parsed = self.router.parse(text)
+        parsed = self.router.parse(text, allow_bare=self.allow_bare)
         if parsed is None:
             if at_me and self.behavior.get("respond_to_at", True):
                 text = self.prefixes[0] + text
@@ -310,6 +311,7 @@ class BotApp:
             self_id=self.self_id,
             prefix=self.prefixes[0],
             image=image,
+            allow_bare=self.allow_bare,
         )
 
         try:

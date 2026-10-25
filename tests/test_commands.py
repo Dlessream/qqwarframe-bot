@@ -346,6 +346,19 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertEqual(router.parse("#紫卡分析 绝路"),
                          ("riven_analysis", "绝路"))
         self.assertIsNone(router.parse("#唤醒"))
+
+    def test_parse_bare_command(self):
+        router, _, _ = make_router()
+        self.assertEqual(router.parse("wm 绝路", allow_bare=True),
+                         ("query", "绝路"))
+        self.assertEqual(router.parse("帮助", allow_bare=True), ("help", ""))
+        self.assertEqual(router.parse("价格 绝路", allow_bare=True),
+                         ("price", "绝路"))
+        self.assertEqual(router.parse("wm绝路", allow_bare=True),
+                         ("query", "绝路"))
+        self.assertIsNone(router.parse("绝路", allow_bare=True))
+        self.assertIsNone(router.parse("随便聊聊", allow_bare=True))
+        self.assertIsNone(router.parse("唤醒", allow_bare=True))
         self.assertEqual(router.parse("#紫卡分析绝路"),
                          ("riven_analysis", "绝路"))
 
