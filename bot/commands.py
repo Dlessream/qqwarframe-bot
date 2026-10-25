@@ -27,6 +27,7 @@ LOGGER = logging.getLogger("qqwarframe.commands")
 CQ_RE = re.compile(r"\[CQ:[^\]]*\]")
 
 COMMANDS: Dict[str, str] = {
+    "wm": "query",
     "查": "query", "查询": "query", "物品": "query", "装备": "query",
     "item": "query", "search": "query", "q": "query",
     "价格": "price", "行情": "price", "报价": "price", "price": "price", "p": "price",
@@ -50,7 +51,11 @@ COMMANDS: Dict[str, str] = {
     "今日特惠": "deals", "新闻": "news", "活动": "events",
     "回廊": "circuit", "无尽回廊": "circuit", "灵化": "circuit",
     "执刑官": "archon", "执刑官猎杀": "archon",
-    "裂缝": "fissures", "赏金": "bounties",
+    "裂缝": "fissures", "钢铁裂缝": "steel_fissures", "钢铁裂隙": "steel_fissures",
+    "赏金": "bounties", "平原赏金": "bounties",
+    "今日仲裁": "today_arbitration", "高效仲裁": "effective_arbitration",
+    "深层科研": "deep_research", "时光科研": "temporal_research",
+    "科研": "research",
     "提醒": "alert", "订阅": "alert", "alert": "alert", "watch": "alert",
     "提醒列表": "alerts", "我的提醒": "alerts", "alerts": "alerts",
     "取消提醒": "unalert", "删除提醒": "unalert", "unalert": "unalert",
@@ -249,8 +254,20 @@ class CommandRouter:
                 return [present.archon_reply(self._ws("archonHunt"))]
             if command == "fissures":
                 return [present.fissures_reply(self._ws("fissures"))]
+            if command == "steel_fissures":
+                return [present.fissures_reply(self._ws("fissures"), hard=True)]
             if command == "bounties":
                 return [present.bounties_reply(self._ws("syndicateMissions"))]
+            if command == "today_arbitration":
+                return [self._today_arbitration(argument, ctx)]
+            if command == "effective_arbitration":
+                return [self._effective_arbitration(argument, ctx)]
+            if command == "deep_research":
+                return [self._research("C T_ L A B", "深层科研")]
+            if command == "temporal_research":
+                return [self._research("C T_ H E X", "时光科研")]
+            if command == "research":
+                return [self._research(None, "科研")]
             if command == "alert":
                 return [self._add_alert(argument, ctx)]
             if command == "alerts":
@@ -387,14 +404,16 @@ class CommandRouter:
     def _riven_analysis(self, argument: str, ctx: Context) -> Reply:
         if self.riven is None:
             return present.error_reply("紫卡功能未启用。")
-        weapon_text, pairs = split_roll_args(argument)
+        weapon_text, _pairs = split_roll_args(argument)
         weapon_text, _platform = split_platform(weapon_text)
         if not weapon_text:
             return present.error_reply(
-                "用法：%s紫卡分析 <武器> [词条=数值 ...]\n"
-                "例如：%s紫卡分析 绝路\n"
-                "　　　%s紫卡分析 绝路 伤害=165 多重=90\n"
-                "数值带负号表示负面，例如 变焦=-30。" % (ctx.prefix, ctx.prefix, ctx.prefix))
+                "用法：%s紫卡分析 <武器> + 紫卡截图\n"
+                "例如：%s紫卡分析 绝路 + 图片" % (ctx.prefix, ctx.prefix))
+        if not ctx.image:
+            return present.error_reply(
+                "紫卡分析现在只支持截图识别。\n"
+                "请发送：%s紫卡分析 绝路 + 紫卡截图" % ctx.prefix)
         try:
             hits = self.market.lookup(weapon_text, limit=3)
         except MarketError as exc:
@@ -406,20 +425,18 @@ class CommandRouter:
             return present.error_reply(
                 "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
                 % hits[0].item.name)
-        if not pairs and ctx.image:
-            try:
-                ocr_text = ocr.image_to_text(ctx.image)
-            except ocr.OcrError as exc:
-                return present.error_reply(str(exc))
-            pairs = ocr.parse_rolls(ocr_text)
-            if not pairs:
-                return present.error_reply(
-                    "图片里没有识别到有效紫卡词条。\n"
-                    "请把紫卡词条截图和武器名一起发，例如：\n"
-                    "  #紫卡分析 绝路 + 图片")
+        try:
+            ocr_text = ocr.image_to_text(ctx.image)
+        except ocr.OcrError as exc:
+            return present.error_reply(str(exc))
+        pairs = ocr.parse_rolls(ocr_text)
+        if not pairs:
+            return present.error_reply(
+                "图片里没有识别到有效紫卡词条。\n"
+                "请把紫卡词条截图和武器名一起发，例如：\n"
+                "  #紫卡分析 绝路 + 图片")
         analysis = calculate(weapon)
-        evaluations = evaluate_roll(analysis, pairs) if pairs else []
-        return present.riven_analysis_reply(analysis, evaluations)
+        return present.riven_ocr_reply(analysis, pairs)
 
     # ------------------------------------------------------------------ 数据更新
     def _update(self, argument: str, ctx: Context) -> Reply:
@@ -466,6 +483,31 @@ class CommandRouter:
         state = dict(state)
         state["arbitration"] = arbitration
         return present.worldstate_reply(state)
+
+    def _today_arbitration(self, argument: str, ctx: Context) -> Reply:
+        if self.arbi is None:
+            return present.error_reply("仲裁评级未启用。")
+        entries = self.arbi.today()
+        return present.arbitration_schedule_reply(entries, "今日仲裁")
+
+    def _effective_arbitration(self, argument: str, ctx: Context) -> Reply:
+        if self.arbi is None:
+            return present.error_reply("仲裁评级未启用。")
+        entries = self.arbi.effective(hours=24)
+        return present.arbitration_schedule_reply(
+            entries, "高效仲裁（未来 24 小时 S/A 级）",
+            empty="未来 24 小时没有 S/A 级仲裁。")
+
+    def _research(self, type_key, label: str) -> Reply:
+        if self.worldstate is None:
+            return present.error_reply("世界状态功能未启用。")
+        state = self._ws("")
+        if not isinstance(state, dict):
+            return present.error_reply("科研数据格式异常。")
+        items = [item for item in (state.get("archimedeas") or [])
+                 if isinstance(item, dict)
+                 and (type_key is None or item.get("typeKey") == type_key)]
+        return present.research_reply(items, label)
 
     def _arbitration(self, ctx: Context) -> Reply:
         if self.worldstate is None:

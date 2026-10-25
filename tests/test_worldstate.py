@@ -60,7 +60,7 @@ class VoidTraderTest(unittest.TestCase):
         }
         trader = make_client(payload).void_trader()
         self.assertTrue(trader.active)
-        self.assertEqual(trader.location, "Orcus 中继站（冥王星）")
+        self.assertEqual(trader.location, "奥库斯中继站（冥王星）")
         self.assertEqual(len(trader.inventory), 2)
         self.assertEqual(trader.inventory[0].ducats, 350)
 
@@ -103,7 +103,7 @@ class ArbitrationTest(unittest.TestCase):
         arbitration = make_client(payload).arbitration()
         self.assertEqual(arbitration.node, "Mithra（虚空）")
         self.assertEqual(arbitration.mission, "防御")
-        self.assertEqual(arbitration.enemy, "Corpus")
+        self.assertEqual(arbitration.enemy, "科普斯")
 
 
 class ErrorTest(unittest.TestCase):

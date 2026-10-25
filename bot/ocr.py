@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import io
+import os
 import re
 import shutil
 from typing import List, Tuple
@@ -30,9 +31,30 @@ class OcrError(Exception):
     pass
 
 
+def _find_tesseract() -> str:
+    override = os.environ.get("TESSERACT_CMD", "").strip()
+    if override and os.path.isfile(override):
+        return override
+    found = shutil.which("tesseract")
+    if found:
+        return found
+    candidates = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Tesseract-OCR\tesseract.exe"),
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            return path
+    return ""
+
+
 def available() -> bool:
-    return bool(pytesseract is not None and Image is not None
-                and shutil.which("tesseract"))
+    path = _find_tesseract()
+    if pytesseract is None or Image is None or not path:
+        return False
+    pytesseract.pytesseract.tesseract_cmd = path
+    return True
 
 
 def image_to_text(png: bytes) -> str:

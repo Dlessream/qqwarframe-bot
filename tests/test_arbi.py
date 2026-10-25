@@ -105,6 +105,18 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(node.key, "SolNode2")
         self.assertEqual(expiry, 7200.0)
 
+    def test_schedule_entries(self):
+        client = self.make_client()
+        entries = client.schedule_entries(0, 10800)
+        self.assertEqual(len(entries), 3)
+        self.assertEqual(entries[0][2].key, "SolNode1")
+        self.assertEqual(entries[0][3], "S")
+
+    def test_effective(self):
+        client = self.make_client()
+        entries = client.effective(now=3600, hours=3)
+        self.assertEqual([entry[3] for entry in entries], ["S", "A+"])
+
     def test_find_node(self):
         client = self.make_client()
         self.assertEqual(client.find_node("Callisto（木星）").key, "SolNode1")

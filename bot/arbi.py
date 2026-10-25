@@ -202,6 +202,55 @@ class ArbiClient:
             self.log.warning("仲裁轮换数据不可用：%s", exc)
             return None
 
+    def schedule_entries(self, start_ts: float,
+                         end_ts: float) -> List[Tuple[float, float, ArbiNode, str]]:
+        """按轮换表返回 [start_ts, end_ts) 内的仲裁节点。"""
+        try:
+            schedule = self._schedule_data()
+            keys = schedule.get("nodes") or []
+            seq = schedule.get("seq") or []
+            start = int(schedule.get("startTs") or 0)
+            step = int(schedule.get("stepSec") or 3600)
+            if not keys or not seq or step <= 0:
+                return []
+            data = self.data()
+            first = max(0, int((start_ts - start) // step))
+            last = int((end_ts - start) // step) + 1
+            entries = []
+            for index in range(first, min(last, first + 500)):
+                ts = start + index * step
+                if ts >= end_ts:
+                    break
+                if ts + step <= start_ts:
+                    continue
+                key = str(keys[int(seq[index % len(seq)])])
+                node = data.nodes.get(key)
+                if node is None:
+                    continue
+                entries.append((float(ts), float(ts + step), node,
+                                data.rating(key)))
+            return entries
+        except ArbiError as exc:
+            self.log.warning("仲裁轮换数据不可用：%s", exc)
+            return []
+
+    def today(self, now: Optional[float] = None
+              ) -> List[Tuple[float, float, ArbiNode, str]]:
+        now = time.time() if now is None else now
+        local = time.localtime(now)
+        day_start = time.mktime((local.tm_year, local.tm_mon, local.tm_mday,
+                                 0, 0, 0, local.tm_wday, local.tm_yday, -1))
+        return self.schedule_entries(max(now - 1800, day_start), day_start + 86400)
+
+    def effective(self, now: Optional[float] = None, hours: int = 24
+                  ) -> List[Tuple[float, float, ArbiNode, str]]:
+        now = time.time() if now is None else now
+        rank = {"S": 0, "A+": 1, "A": 2, "A-": 3}
+        entries = [entry for entry in self.schedule_entries(
+            now, now + hours * 3600) if entry[3] in rank]
+        entries.sort(key=lambda entry: (rank[entry[3]], entry[0]))
+        return entries
+
     # ------------------------------------------------------------------ 查找
     def find_node(self, text: str) -> Optional[ArbiNode]:
         text = (text or "").strip()

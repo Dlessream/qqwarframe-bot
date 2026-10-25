@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import List, Optional, Sequence
 
 from . import imagecard, render, terms
@@ -147,6 +148,34 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
 
 
 # ---------------------------------------------------------------------- 紫卡分析
+def riven_ocr_reply(analysis: RivenAnalysis,
+                    pairs: Sequence) -> Reply:
+    rows = []
+    lines = []
+    for name, value in pairs:
+        stat = None
+        for candidate in list(analysis.two) + list(analysis.two_neg) + \
+                list(analysis.three) + list(analysis.three_neg):
+            if candidate.name == name:
+                stat = candidate
+                break
+        unit = stat.unit if stat else "%"
+        rows.append([name, "%g%s" % (value, unit)])
+        lines.append("%s %g%s" % (name, value, unit))
+    text = "【%s】紫卡截图识别\n倾向 %.2f（%s）\n%s\n\n只做截图词条识别，不计算范围/评分。" % (
+        analysis.name, analysis.disposition, analysis.dots or "—",
+        "\n".join(lines))
+    return Reply(
+        text=text,
+        image=lambda: imagecard.build_table(
+            "紫卡截图识别", "%s · 倾向 %.2f" % (analysis.name, analysis.disposition),
+            ["词条", "数值"], rows,
+            "数据 OCR · 本地识别 · 不计算范围/评分",
+            accent=imagecard.PURPLE, chip="OCR",
+            ratios=[2.4, 0.8],
+            note="只识别截图中的词条，不做范围与 roll 评分。"))
+
+
 def riven_analysis_reply(analysis: RivenAnalysis,
                          evaluations: Sequence[RollEvaluation]) -> Reply:
     lines = [
@@ -496,7 +525,7 @@ def cycles_reply(cetus=None, vallis=None, cambion=None) -> Reply:
         if not isinstance(data, dict):
             return "—", "—"
         return (_state_label(data.get(key)),
-                str(data.get("timeLeft") or "—"))
+                terms.localize_duration(str(data.get("timeLeft") or "—")))
 
     rows = []
     for name, data in (("地球 · 希图斯", cetus), ("金星 · 福尔图娜", vallis),
@@ -591,9 +620,84 @@ def archon_reply(raw) -> Reply:
         ratios=[2.0, 1.2, 0.8], accent=imagecard.GOLD)
 
 
-def fissures_reply(raw) -> Reply:
+def arbitration_schedule_reply(entries, title: str = "今日仲裁",
+                               empty: str = "") -> Reply:
     rows = []
-    for row in _as_list(raw)[:15]:
+    highlights = []
+    lines = []
+    for start, end, node, tier in entries[:20]:
+        when = time.strftime("%m-%d %H:%M", time.localtime(start))
+        rows.append([when, node.display_name, node.mission, tier])
+        lines.append("%s %s · %s · %s" % (
+            when, node.display_name, node.mission, tier))
+        color = _rating_color(tier)
+        highlights.append([None, None, None, color])
+    if not rows:
+        return Reply(text=empty or "今天没有更多仲裁。")
+    return _world_reply(
+        title, "按 arbi.wf.wiki 轮换表", ["时间", "节点", "任务", "评级"], rows,
+        "数据 arbi.wf.wiki · 轮换表", "仲裁",
+        text_lines=lines, ratios=[1.0, 1.8, 0.9, 0.6],
+        accent=imagecard.GOLD, note="时间按本机时区显示。")
+
+
+def research_reply(items, label: str = "科研") -> Reply:
+    rows = []
+    text_lines = []
+    for item in items:
+        research = terms.localize_research(str(item.get("typeKey") or ""))
+        for mission in _as_list(item.get("missions")):
+            deviation = terms.localize_text(
+                str((mission.get("deviation") or {}).get("name") or "—"))
+            risks = "、".join(
+                terms.localize_text(str(risk.get("name") or ""))
+                for risk in _as_list(mission.get("risks"))[:2])
+            rows.append([
+                research,
+                terms.localize_mission(str(mission.get("missionType") or "—")),
+                terms.localize_faction(str(mission.get("faction") or "—")),
+                deviation,
+                risks or "—",
+            ])
+            text_lines.append("%s / %s / %s / %s" % (
+                research,
+                terms.localize_mission(str(mission.get("missionType") or "—")),
+                terms.localize_faction(str(mission.get("faction") or "—")),
+                deviation))
+    if not rows:
+        return Reply(text="当前没有可用的%s数据。" % label)
+    modifiers = []
+    for item in items:
+        for value in item.get("personalModifiers") or []:
+            if isinstance(value, dict):
+                modifiers.append(terms.localize_text(
+                    str(value.get("name") or value.get("key") or "")))
+            else:
+                modifiers.append(str(value))
+    return _world_reply(
+        label, "本周科研任务与个人修正",
+        ["类型", "任务", "敌人", "偏差", "风险"], rows,
+        "数据 warframestat.us · 科研", "科研",
+        text_lines=text_lines, ratios=[0.8, 0.9, 0.9, 1.2, 1.8],
+        accent=imagecard.PURPLE,
+        note=("个人修正：" + "、".join(modifiers[:8])) if modifiers else "")
+
+
+def _json_table(raw, hard: bool = False) -> list:
+    rows = []
+    for item in _as_list(raw):
+        if hard and not item.get("isHard"):
+            continue
+        rows.append(item)
+    return rows
+
+
+def fissures_reply(raw, hard: bool = False) -> Reply:
+    rows = []
+    now = time.time()
+    items = [item for item in _json_table(raw, hard=hard)
+             if parse_timestamp(item.get("expiry")) > now]
+    for row in items[:15]:
         rows.append([
             terms.localize_node(str(row.get("node") or "—")),
             terms.localize_mission(str(row.get("missionType") or "—")),
@@ -601,30 +705,81 @@ def fissures_reply(raw) -> Reply:
             terms.localize_faction(str(row.get("enemy") or "—")),
             countdown(parse_timestamp(row.get("expiry"))),
         ])
+    title = "钢铁裂缝" if hard else "裂缝"
     return _world_reply(
-        "裂缝", "当前 %d 条，显示前 15 条" % len(_as_list(raw)),
+        title, "当前 %d 条%s，显示前 15 条" % (
+            len(items), "钢铁之路" if hard else ""),
         ["节点", "任务", "等级", "敌人", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "裂缝",
+        "数据 warframestat.us · 世界状态", title,
         ratios=[1.7, 1.0, 0.7, 0.9, 0.9])
+
+
+BOUNTY_LOCATIONS = {
+    "Ostrons": "地球 · 希图斯",
+    "Solaris United": "金星 · 福尔图娜",
+    "Entrati": "火卫二 · 英择谛",
+    "Cavia": "火卫二 · 解剖圣所",
+    "The Hex": "1999 · 霍瓦尼亚",
+    "The Holdfasts": "扎里曼",
+    "Necraloid": "火卫二",
+}
+
+
+BOUNTY_ORDER = ["Ostrons", "Solaris United", "Entrati", "Cavia",
+                "The Hex", "The Holdfasts"]
 
 
 def bounties_reply(raw) -> Reply:
     rows = []
+    seen = set()
+    by_name = {}
     for syndicate in _as_list(raw):
-        name = str(syndicate.get("syndicate") or "—")
-        for job in _as_list(syndicate.get("jobs"))[:2]:
+        name = str(syndicate.get("syndicate") or "")
+        if name and name not in by_name:
+            by_name[name] = syndicate
+
+    ordered = list(BOUNTY_ORDER) + [
+        name for name in by_name if name not in BOUNTY_ORDER]
+    for name in ordered:
+        syndicate = by_name.get(name)
+        if not syndicate:
+            continue
+        jobs = _as_list(syndicate.get("jobs"))
+        location = BOUNTY_LOCATIONS.get(name, terms.localize_syndicate(name))
+        if not jobs:
+            if name in BOUNTY_ORDER:
+                rows.append([terms.localize_syndicate(name), location,
+                             "暂无可接赏金", "—", "—"])
+            continue
+        for job in jobs:
+            title = terms.localize_bounty(
+                str(job.get("type") or job.get("jobType") or "赏金"))
+            key = (name, title)
+            if key in seen:
+                continue
+            seen.add(key)
+            drops = _as_list(job.get("rewardPoolDrops"))
+            rewards = []
+            for drop in drops[:2]:
+                if isinstance(drop, dict) and drop.get("item"):
+                    rewards.append(terms.localize_text(str(drop["item"])))
+            if not rewards:
+                rewards = [str(value) for value in _as_list(job.get("rewardPool"))[:2]]
             rows.append([
-                terms.localize_text(name),
-                str(job.get("type") or job.get("jobType") or "赏金"),
+                terms.localize_syndicate(name),
+                location,
+                title,
+                "、".join(rewards) or "—",
                 countdown(parse_timestamp(job.get("expiry"))),
             ])
-    rows = rows[:12]
+    rows = rows[:30]
     if not rows:
-        return _world_reply("赏金", "当前没有赏金", [], [], "数据 warframestat.us", "赏金")
+        return _world_reply("赏金", "当前没有可接赏金", [], [],
+                            "数据 warframestat.us", "赏金")
     return _world_reply(
-        "赏金", "集团赏金轮换", ["集团", "任务", "剩余"], rows,
+        "赏金", "各大 NPC 可接赏金", ["NPC", "地点", "任务", "奖励", "剩余"], rows,
         "数据 warframestat.us · 世界状态", "赏金",
-        ratios=[1.2, 1.8, 0.9], accent=imagecard.GREEN)
+        ratios=[1.1, 1.2, 1.8, 1.6, 0.9], accent=imagecard.GREEN)
 
 
 def worldstate_reply(data: dict) -> Reply:
@@ -636,6 +791,7 @@ def worldstate_reply(data: dict) -> Reply:
     cetus = data.get("cetusCycle") or {}
     circuit = data.get("duviriCycle") or {}
     archon = data.get("archonHunt") or {}
+    archimedeas = data.get("archimedeas") or []
     deals = data.get("dailyDeals") or []
     fissures = data.get("fissures") or []
     alerts = data.get("alerts") or []
@@ -644,27 +800,29 @@ def worldstate_reply(data: dict) -> Reply:
     events = data.get("events") or []
     bounties = data.get("syndicateMissions") or []
     rows = [
-        ["奸商", str(trader.get("location") or "—"),
+        ["奸商", terms.localize_location(str(trader.get("location") or "—")),
          countdown(parse_timestamp(trader.get("expiry")))],
-        ["突击", str(sortie.get("boss") or "—"),
+        ["突击", terms.localize_boss(str(sortie.get("boss") or "—")),
          countdown(parse_timestamp(sortie.get("expiry")))],
         ["仲裁", terms.localize_node(str(arbitration.get("node") or "—")),
          countdown(parse_timestamp(arbitration.get("expiry")))],
         ["警报", "%d 条" % len(alerts), "—"],
         ["入侵", "%d 条" % len(invasions), "—"],
-        ["钢铁侵袭", str((steel.get("currentReward") or {}).get("name") or "—"),
+        ["钢铁侵袭", terms.localize_text(str((steel.get("currentReward") or {}).get("name") or "—")),
          countdown(parse_timestamp((steel.get("incursions") or {}).get("expiry")))],
-        ["电波", "第 %s 季 · %d 挑战" % (
+        ["电波", "第 %s 季 · %d 个挑战" % (
             nightwave.get("season") or "?", len(nightwave.get("activeChallenges") or [])), "—"],
         ["平原", _state_label(cetus.get("state")),
-         str(cetus.get("timeLeft") or "—")],
+         terms.localize_duration(str(cetus.get("timeLeft") or "—"))],
         ["特惠", "%d 件" % len(deals), "—"],
         ["回廊", _state_label(circuit.get("state")),
          countdown(parse_timestamp(circuit.get("expiry")))],
-        ["执刑官", str(archon.get("boss") or "—"),
+        ["执刑官", terms.localize_boss(str(archon.get("boss") or "—")),
          countdown(parse_timestamp(archon.get("expiry")))],
+        ["科研", "深层 / 时光" if len(archimedeas) >= 2 else "%d 项" % len(archimedeas),
+         "—"],
         ["裂缝", "%d 条" % len(fissures), "—"],
-        ["赏金", "%d 个集团" % len(bounties), "—"],
+        ["赏金", "%d 组" % len(bounties), "—"],
         ["新闻", "%d 条" % len(news), "—"],
         ["活动", "%d 个" % len(events), "—"],
     ]
