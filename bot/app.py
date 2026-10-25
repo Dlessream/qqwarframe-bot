@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import collections
 import logging
+import os
 import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
@@ -13,6 +15,7 @@ from .alerts import AlertStore
 from .arbi import ArbiClient
 from .commands import CommandRouter, Context, strip_cq
 from .market import Item, MarketClient, MarketError
+from .net import HttpClient, HttpError
 from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
 from .render import chunk_text
@@ -82,6 +85,12 @@ class BotApp:
             riven=self.riven, worldstate=self.worldstate, alerts=self.alerts,
             arbi=self.arbi, updater=self.updater)
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
+        self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
+                                     logger=self.log)
+        self.image_proxy_http = HttpClient(
+            timeout=15, retries=0,
+            proxy=config.get("warframe_market", {}).get("proxy", ""),
+            logger=self.log)
 
         self._last_reply: Dict[str, float] = {}
         self._chat_bucket: Dict[str, Deque[float]] = {}
@@ -161,12 +170,15 @@ class BotApp:
             self.log.debug("触发限流：%s", user_key)
             return
 
+        image = (self._event_image(event)
+                 if parsed[0] == "riven_analysis" else None)
         context = Context(
             user_id=user_id,
             group_id=group_id,
             is_group=is_group,
             self_id=self.self_id,
             prefix=self.prefixes[0],
+            image=image,
         )
 
         try:
@@ -210,6 +222,53 @@ class BotApp:
         if self.self_id and ("[CQ:at,qq=%s]" % self.self_id) in raw_source:
             at_me = True
         return raw, at_me
+
+    def _download_image(self, url: str) -> Optional[bytes]:
+        try:
+            raw = self.image_http.request(url)
+            if raw:
+                return raw
+        except HttpError as exc:
+            self.log.info("图片直连失败，尝试代理：%s", exc)
+        try:
+            raw = self.image_proxy_http.request(url)
+            if raw:
+                return raw
+        except HttpError as exc:
+            self.log.warning("图片下载失败：%s", exc)
+        return None
+
+    def _event_image(self, event: Dict[str, Any]) -> Optional[bytes]:
+        """只取消息里的第一张图片；支持 URL / base64 / 本地 file://。"""
+        segments = event.get("message")
+        if not isinstance(segments, list):
+            return None
+        for segment in segments:
+            if not isinstance(segment, dict) or segment.get("type") != "image":
+                continue
+            data = segment.get("data") or {}
+            url = str(data.get("url") or "").strip()
+            if url.startswith(("http://", "https://")):
+                raw = self._download_image(url)
+                if raw and len(raw) <= 8 * 1024 * 1024:
+                    return raw
+                continue
+            file_value = str(data.get("file") or "").strip()
+            if file_value.startswith("base64://"):
+                try:
+                    payload = file_value[len("base64://"):]
+                    payload += "=" * (-len(payload) % 4)
+                    raw = base64.b64decode(payload)
+                    if len(raw) <= 8 * 1024 * 1024:
+                        return raw
+                except Exception as exc:
+                    self.log.warning("图片 base64 解码失败：%s", exc)
+            elif file_value.startswith("file://"):
+                path = file_value[len("file://"):]
+                if os.path.isfile(path) and os.path.getsize(path) <= 8 * 1024 * 1024:
+                    with open(path, "rb") as handle:
+                        return handle.read()
+        return None
 
     # ------------------------------------------------------------------ 限流
     def _allow(self, chat_key: str, user_key: str) -> bool:

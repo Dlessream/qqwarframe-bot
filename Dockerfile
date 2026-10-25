@@ -19,6 +19,9 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     && apt-get install -y --no-install-recommends \
         fonts-noto-cjk \
         fontconfig \
+        tesseract-ocr \
+        tesseract-ocr-chi-sim \
+        tesseract-ocr-eng \
         ca-certificates \
         tzdata \
     && (fc-cache -f >/dev/null 2>&1 || true) \

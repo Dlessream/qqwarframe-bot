@@ -858,6 +858,38 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
     return _encode(image.crop((0, 0, WIDTH, min(height, _footer(draw, y, footer) + 10))))
 
 
+def help_card(prefix: str = "#") -> bytes:
+    rows = [
+        ["%s查 <名称> [平台]" % prefix, "物品详情 + 实时报价 + 15 天走势"],
+        ["%s价格 <名称> [平台]" % prefix, "只看价格、买卖单与行情"],
+        ["%s战甲 / %s武器 / %smod" % (prefix, prefix, prefix), "按分类搜索"],
+        ["%s拆件 <套装>" % prefix, "套装 vs 部件比价"],
+        ["%s紫卡 <武器>" % prefix, "紫卡倾向与拍卖"],
+        ["%s紫卡分析 <武器> [词条=数值]" % prefix, "词条范围与 roll 评分"],
+        ["%s紫卡分析 <武器> + 截图" % prefix, "OCR 识别紫卡截图（需 Tesseract）"],
+        ["%s奸商 / %s突击 / %s仲裁" % (prefix, prefix, prefix), "奸商、突击、当前仲裁"],
+        ["%s世界状态" % prefix, "完整世界状态总览"],
+        ["%s警报 / %s入侵" % (prefix, prefix), "当前警报、入侵进度"],
+        ["%s钢铁侵袭 / %s电波" % (prefix, prefix), "钢铁侵袭、午夜电波"],
+        ["%s平原 / %s特惠" % (prefix, prefix), "平原时间、每日特惠"],
+        ["%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"],
+        ["%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化、执刑官猎杀"],
+        ["%s裂缝 / %s赏金" % (prefix, prefix), "裂缝、集团赏金"],
+        ["%s仲裁评级" % prefix, "仲裁节点梯队"],
+        ["%s提醒 <名称> <价>" % prefix, "降价提醒"],
+        ["%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"],
+        ["%s更新 / %s数据状态" % (prefix, prefix), "刷新缓存、查看数据源"],
+        ["%swiki <关键词>" % prefix, "中文维基"],
+        ["%s帮助" % prefix, "显示本菜单"],
+    ]
+    return build_table(
+        "Warframe 查询机器人", "所有命令直接发送，无需 @ 机器人",
+        ["命令", "说明"], rows,
+        "平台：pc / ps / xbox / switch / mobile，默认 PC",
+        accent=GOLD, chip="HELP", ratios=[1.2, 2.0],
+        note="名称支持中文、英文、slug 和常用外号；结果优先以图片发送。")
+
+
 def build_table(title: str, subtitle: str, headers: Sequence[str],
                 rows: Sequence[Sequence[str]], footer: str, accent=GOLD,
                 chip: str = "", note: str = "",

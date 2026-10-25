@@ -28,6 +28,8 @@ class WorldStateError(Exception):
 
 
 def parse_timestamp(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
     text = str(value or "").strip()
     if not text:
         return 0.0
@@ -149,6 +151,10 @@ class WorldStateClient:
         if exc.status == 0:
             return "无法连接世界状态接口，请检查网络/代理。"
         return "世界状态接口异常（HTTP %d）。" % exc.status
+
+    def fetch(self, path: str) -> Any:
+        """读取任意 warframestat 子路径（带短缓存）。"""
+        return self._get(path)
 
     # ------------------------------------------------------------------ 奸商
     def void_trader(self) -> VoidTrader:

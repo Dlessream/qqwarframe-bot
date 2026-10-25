@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import present
+from . import ocr
 from .alerts import AlertStore
 from .arbi import ArbiClient, ArbiError
 from .market import Item, MarketClient, MarketError, SearchHit
@@ -35,12 +36,21 @@ COMMANDS: Dict[str, str] = {
     "拆件": "set", "拆卖": "set", "拆": "set", "套装": "set", "parts": "set",
     "紫卡": "riven", "riven": "riven", "zk": "riven",
     "紫卡分析": "riven_analysis", "紫卡测评": "riven_analysis",
+    "分析": "riven_analysis", "紫卡图片": "riven_analysis",
     "rivenanalysis": "riven_analysis", "zkfx": "riven_analysis",
     "奸商": "baro", "虚空商人": "baro", "baro": "baro",
     "突击": "sortie", "sortie": "sortie",
     "仲裁": "arbitration", "arbitration": "arbitration",
     "仲裁评级": "arbi_tiers", "仲裁梯队": "arbi_tiers",
     "arbitrationrating": "arbi_tiers",
+    "世界状态": "world_summary", "worldstate": "world_summary",
+    "警报": "world_alerts", "入侵": "world_invasions",
+    "钢铁侵袭": "steel_path", "电波": "nightwave", "午夜电波": "nightwave",
+    "平原": "cycles", "平原轮换": "cycles", "特惠": "deals",
+    "今日特惠": "deals", "新闻": "news", "活动": "events",
+    "回廊": "circuit", "无尽回廊": "circuit", "灵化": "circuit",
+    "执刑官": "archon", "执刑官猎杀": "archon",
+    "裂缝": "fissures", "赏金": "bounties",
     "提醒": "alert", "订阅": "alert", "alert": "alert", "watch": "alert",
     "提醒列表": "alerts", "我的提醒": "alerts", "alerts": "alerts",
     "取消提醒": "unalert", "删除提醒": "unalert", "unalert": "unalert",
@@ -74,6 +84,7 @@ class Context:
     is_group: bool = False
     self_id: str = ""
     prefix: str = "#"
+    image: Optional[bytes] = None
 
     @property
     def chat_type(self) -> str:
@@ -211,6 +222,35 @@ class CommandRouter:
                 return [self._arbitration(ctx)]
             if command == "arbi_tiers":
                 return [self._arbi_tiers(argument, ctx)]
+            if command == "world_summary":
+                return [self._world_summary(ctx)]
+            if command == "world_alerts":
+                return [present.alerts_reply(self._ws("alerts"))]
+            if command == "world_invasions":
+                return [present.invasions_reply(self._ws("invasions"))]
+            if command == "steel_path":
+                return [present.steel_path_reply(self._ws("steelPath"))]
+            if command == "nightwave":
+                return [present.nightwave_reply(self._ws("nightwave"))]
+            if command == "cycles":
+                state = self._ws("")
+                return [present.cycles_reply(state.get("cetusCycle"),
+                                             state.get("vallisCycle"),
+                                             state.get("cambionCycle"))]
+            if command == "deals":
+                return [present.deals_reply(self._ws("dailyDeals"))]
+            if command == "news":
+                return [present.news_reply(self._ws("news"))]
+            if command == "events":
+                return [present.events_reply(self._ws("events"))]
+            if command == "circuit":
+                return [present.circuit_reply(self._ws("duviriCycle"))]
+            if command == "archon":
+                return [present.archon_reply(self._ws("archonHunt"))]
+            if command == "fissures":
+                return [present.fissures_reply(self._ws("fissures"))]
+            if command == "bounties":
+                return [present.bounties_reply(self._ws("syndicateMissions"))]
             if command == "alert":
                 return [self._add_alert(argument, ctx)]
             if command == "alerts":
@@ -366,6 +406,17 @@ class CommandRouter:
             return present.error_reply(
                 "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
                 % hits[0].item.name)
+        if not pairs and ctx.image:
+            try:
+                ocr_text = ocr.image_to_text(ctx.image)
+            except ocr.OcrError as exc:
+                return present.error_reply(str(exc))
+            pairs = ocr.parse_rolls(ocr_text)
+            if not pairs:
+                return present.error_reply(
+                    "图片里没有识别到有效紫卡词条。\n"
+                    "请把紫卡词条截图和武器名一起发，例如：\n"
+                    "  #紫卡分析 绝路 + 图片")
         analysis = calculate(weapon)
         evaluations = evaluate_roll(analysis, pairs) if pairs else []
         return present.riven_analysis_reply(analysis, evaluations)
@@ -397,6 +448,24 @@ class CommandRouter:
         if self.worldstate is None:
             return present.error_reply("世界状态功能未启用。")
         return present.sortie_reply(self.worldstate.sortie())
+
+    def _ws(self, path: str):
+        if self.worldstate is None:
+            raise CommandError("世界状态功能未启用。")
+        return self.worldstate.fetch(path)
+
+    def _world_summary(self, ctx: Context) -> Reply:
+        state = self._ws("")
+        if not isinstance(state, dict):
+            raise CommandError("世界状态数据格式异常。")
+        arbitration = dict(state.get("arbitration") or {})
+        if (arbitration.get("expired") or not arbitration.get("nodeKey")
+                or arbitration.get("nodeKey") == "SolNode000"):
+            # 详细仲裁由 #仲裁 做 arbi 轮换兜底；总览不触发额外网络请求。
+            arbitration = {"node": "暂无有效数据", "expiry": 0}
+        state = dict(state)
+        state["arbitration"] = arbitration
+        return present.worldstate_reply(state)
 
     def _arbitration(self, ctx: Context) -> Reply:
         if self.worldstate is None:
