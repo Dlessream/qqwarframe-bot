@@ -158,6 +158,23 @@ class AdminServer:
                         return
                     self._json({"ok": True, "items": items})
                     return
+                if path == "/api/translate":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    query = parse_qs(parsed.query).get("q", [""])[0]
+                    try:
+                        result = server.app.translate_item(query)
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, **result})
+                    return
                 self._json({"ok": False, "message": "Not found"},
                            HTTPStatus.NOT_FOUND)
 
@@ -234,9 +251,14 @@ class AdminServer:
 
                 if parsed.path == "/api/aliases":
                     try:
-                        result = server.app.save_alias(
-                            str(data.get("alias") or ""),
-                            str(data.get("target") or ""))
+                        if isinstance(data.get("aliases"), list):
+                            result = server.app.save_aliases(
+                                data.get("aliases") or [],
+                                str(data.get("target") or ""))
+                        else:
+                            result = server.app.save_alias(
+                                str(data.get("alias") or ""),
+                                str(data.get("target") or ""))
                     except ValueError as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_REQUEST)

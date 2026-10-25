@@ -237,6 +237,7 @@ def render_help(prefix: str = "#") -> str:
         "%s更新               立即刷新缓存数据" % prefix,
         "%s数据状态           各数据源更新时间" % prefix,
         "%swiki <关键词>      中文维基" % prefix,
+        "%s翻译 <物品名>      中英双语对照" % prefix,
         "%s帮助               显示本菜单" % prefix,
         DIVIDER,
         "平台可写 pc / ps / xbox / switch / mobile，默认 PC。",

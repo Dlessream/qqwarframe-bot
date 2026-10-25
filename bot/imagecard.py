@@ -886,6 +886,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"],
         ["%s更新 / %s数据状态" % (prefix, prefix), "刷新缓存、查看数据源"],
         ["%swiki <关键词>" % prefix, "中文维基"],
+        ["%s翻译 <物品名>" % prefix, "中英双语对照"],
         ["%s帮助" % prefix, "显示本菜单"],
     ]
     return build_table(

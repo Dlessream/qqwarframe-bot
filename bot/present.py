@@ -850,6 +850,31 @@ def cetus_reply(cycle, raw) -> Reply:
         note="帐篷 A/B/C 各 3 个任务；赏金按当前 Ostrons 任务顺序显示。")
 
 
+def translation_reply(query: str, zh: str, en: str,
+                     source: str = "", url: str = "") -> Reply:
+    zh = str(zh or "").strip() or "—"
+    en = str(en or "").strip() or "—"
+    lines = [
+        "【中英对照】",
+        "中文：%s" % zh,
+        "英文：%s" % en,
+    ]
+    if source:
+        lines.append("来源：%s" % source)
+    if url:
+        lines.append(url)
+    if zh != "—" and en != "—" and zh.strip().lower() == en.strip().lower():
+        lines.append("提示：该名称目前没有独立中文译名。")
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "中英对照", query,
+            ["语言", "名称"],
+            [["中文", zh], ["英文", en]],
+            source or "warframe.market", accent=imagecard.CYAN,
+            chip="翻译", ratios=[0.9, 4.0]))
+
+
 def bounties_reply(raw) -> Reply:
     rows = []
     seen = set()

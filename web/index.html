@@ -133,12 +133,19 @@
         <span id="sourceInfo">正在读取 warframe.market 数据源…</span>
         <span id="aliasCount" class="source-count"></span>
       </div>
-      <div class="alias-form">
-        <input id="aliasName" class="input" type="text" maxlength="40" placeholder="别名，例如 电男头">
-        <input id="aliasTarget" class="input" type="text" placeholder="目标名称或 slug，例如 volt_prime_neuroptics_blueprint">
+      <div class="alias-names">
+        <input id="aliasName" class="input" type="text" maxlength="40" placeholder="别名 1（必填），例如 电男">
+        <input id="aliasName2" class="input" type="text" maxlength="40" placeholder="别名 2，例如 伏特">
+        <input id="aliasName3" class="input" type="text" maxlength="40" placeholder="别名 3，例如 阿米尔">
+        <input id="aliasName4" class="input" type="text" maxlength="40" placeholder="别名 4">
+      </div>
+      <div class="alias-target-row">
+        <input id="aliasTarget" class="input" type="text" placeholder="目标名称或 slug，例如 volt_prime_blueprint">
         <button id="aliasSearch" class="btn btn-ghost btn-sm" type="button">搜索物品</button>
+        <button id="aliasTranslate" class="btn btn-ghost btn-sm" type="button">中英对照</button>
         <button id="aliasSave" class="btn btn-primary btn-sm" type="button">保存别名</button>
       </div>
+      <div id="aliasTranslation" class="alias-translation" hidden></div>
       <div id="aliasResults" class="alias-results" hidden></div>
       <div id="aliasList" class="alias-list"></div>
     </section>

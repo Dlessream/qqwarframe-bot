@@ -29,7 +29,7 @@ from .riven import RivenClient
 from .update import UpdateChecker
 from .updater import DataUpdater
 from .web import AdminServer
-from .wiki import WikiClient
+from .wiki import WikiClient, WikiError
 from .worldstate import WorldStateClient, WorldStateError
 
 LOGGER = logging.getLogger("qqwarframe.app")
@@ -451,6 +451,38 @@ class BotApp:
         return [{"slug": hit.item.slug, "name": hit.item.name,
                  "name_en": hit.item.name_en} for hit in hits]
 
+    def translate_item(self, query: str) -> Dict[str, str]:
+        query = str(query or "").strip()
+        if not query:
+            raise ValueError("请填写要翻译的物品名。")
+        item = None
+        try:
+            hits = self.market.lookup(query, limit=3)
+            if hits:
+                item = hits[0].item
+        except MarketError:
+            item = None
+        if item is not None:
+            zh = item.name or item.name_en
+            en = item.name_en or item.name
+            if re.search(r"[\u4e00-\u9fff]", zh):
+                return {"query": query, "zh": zh, "en": en,
+                        "source": "warframe.market", "url": item.url}
+        try:
+            page, _hits = self.wiki.lookup(query, limit=1)
+        except WikiError:
+            page = None
+        if page is not None:
+            return {"query": query, "zh": page.title,
+                    "en": item.name_en if item is not None else query,
+                    "source": "中文维基", "url": page.url}
+        if item is not None:
+            zh = item.name or item.name_en
+            en = item.name_en or item.name
+            return {"query": query, "zh": zh, "en": en,
+                    "source": "warframe.market", "url": item.url}
+        raise ValueError("没有找到“%s”的可靠中英译名。" % query)
+
     def _resolve_alias_target(self, target: str) -> str:
         target = str(target or "").strip()
         if not target:
@@ -476,13 +508,22 @@ class BotApp:
         raise ValueError("目标不唯一，请改用更精确的名称或 slug：%s" % examples)
 
     def save_alias(self, alias: str, target: str) -> Dict[str, Any]:
+        return self.save_aliases([alias], target)
+
+    def save_aliases(self, aliases, target: str) -> Dict[str, Any]:
+        names = [str(alias or "").strip() for alias in aliases
+                 if str(alias or "").strip()]
+        if not names:
+            raise ValueError("至少填一个别名。")
         slug = self._resolve_alias_target(target)
-        self.alias_store.save(alias, slug)
+        saved = []
+        for alias in names:
+            self.alias_store.save(alias, slug)
+            saved.append(alias)
         self.market.reload_aliases()
-        entry = next((item for item in self.alias_store.entries()
-                      if item["alias"] == str(alias).strip()), None)
-        self.log.info("别名已保存：%s -> %s", alias, slug)
-        return {"ok": True, "alias": entry or {"alias": alias, "slug": slug}}
+        self.log.info("别名已保存：%s -> %s", "、".join(saved), slug)
+        return {"ok": True, "aliases": saved,
+                "entry": {"alias": saved[0], "slug": slug}}
 
     def delete_alias(self, alias: str) -> Dict[str, Any]:
         removed = self.alias_store.delete(alias)

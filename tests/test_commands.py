@@ -255,6 +255,11 @@ class HandleTest(unittest.TestCase):
         self.assertIn("速度为主题", replies[0])
         self.assertEqual(self.wiki.calls, ["高斯"])
 
+    def test_translate(self):
+        replies = texts(self.router.handle("#翻译 分裂膛室", self.ctx))
+        self.assertIn("中文：分裂膛室", replies[0])
+        self.assertIn("英文：Split Chamber", replies[0])
+
     def test_wiki_empty(self):
         replies = texts(self.router.handle("#wiki", self.ctx))
         self.assertIn("用法", replies[0])

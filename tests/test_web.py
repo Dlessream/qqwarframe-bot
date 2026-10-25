@@ -68,9 +68,20 @@ class FakeApp:
         return [{"slug": "volt_prime_neuroptics_blueprint",
                  "name": "Volt Prime 头部神经光元 蓝图", "name_en": "Volt"}]
 
+    def translate_item(self, query):
+        return {"zh": "Volt Prime 头部神经光元 蓝图",
+                "en": "Volt Prime Neuroptics Blueprint",
+                "source": "warframe.market"}
+
     def save_alias(self, alias, target):
         self.aliases[alias] = target
         return {"ok": True, "alias": {"alias": alias, "slug": target}}
+
+    def save_aliases(self, aliases, target):
+        for alias in aliases:
+            self.aliases[alias] = target
+        return {"ok": True, "aliases": list(aliases),
+                "entry": {"alias": aliases[0], "slug": target}}
 
     def delete_alias(self, alias):
         self.aliases.pop(alias, None)
@@ -187,6 +198,17 @@ class AdminServerTest(unittest.TestCase):
         self.assertTrue(json.loads(body)["ok"])
         self.assertIn("测试头", self.app.aliases)
 
+    def test_aliases_save_many(self):
+        status, body = self.request(
+            "/api/aliases", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"aliases": ["电男", "伏特", "阿米尔"],
+                  "target": "volt_prime_blueprint"})
+        self.assertEqual(status, 200)
+        saved = json.loads(body)
+        self.assertEqual(saved["aliases"], ["电男", "伏特", "阿米尔"])
+        self.assertIn("阿米尔", self.app.aliases)
+
     def test_aliases_delete(self):
         status, body = self.request(
             "/api/aliases/delete", method="POST",
@@ -201,6 +223,12 @@ class AdminServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["items"][0]["slug"],
                          "volt_prime_neuroptics_blueprint")
+
+    def test_translate(self):
+        status, body = self.request(
+            "/api/translate?q=volt", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["zh"], "Volt Prime 头部神经光元 蓝图")
 
     def test_market_refresh(self):
         status, body = self.request(

@@ -428,11 +428,12 @@
         button.className = "alias-candidate";
         button.textContent = item.name || item.slug;
         const small = document.createElement("small");
-        small.textContent = item.slug;
+        small.textContent = (item.name_en ? item.name_en + " · " : "") + item.slug;
         button.appendChild(small);
         button.addEventListener("click", () => {
           $("aliasTarget").value = item.slug;
-          box.hidden = true;
+          $("aliasResults").hidden = true;
+          $("aliasTranslation").hidden = true;
         });
         box.appendChild(button);
       });
@@ -441,22 +442,51 @@
     }
   }
 
+  async function translateTarget() {
+    const query = $("aliasTarget").value.trim();
+    if (!query) {
+      toast("先输入要翻译的物品名");
+      return;
+    }
+    const box = $("aliasTranslation");
+    box.hidden = false;
+    box.textContent = "翻译中…";
+    try {
+      const data = await api("/api/translate?q=" + encodeURIComponent(query));
+      box.innerHTML = "";
+      const zh = document.createElement("div");
+      zh.innerHTML = "中文：<b></b>";
+      zh.querySelector("b").textContent = data.zh || "—";
+      const en = document.createElement("div");
+      en.innerHTML = "英文：<b></b>";
+      en.querySelector("b").textContent = data.en || "—";
+      const src = document.createElement("div");
+      src.textContent = "来源：" + (data.source || "—");
+      box.append(zh, en, src);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") box.textContent = "翻译失败：" + exc.message;
+    }
+  }
+
   async function saveAlias() {
-    const alias = $("aliasName").value.trim();
+    const fields = ["aliasName", "aliasName2", "aliasName3", "aliasName4"];
+    const aliases = fields.map((id) => $(id).value.trim()).filter(Boolean);
     const target = $("aliasTarget").value.trim();
-    if (!alias || !target) {
-      toast("别名和目标都要填");
+    if (!aliases.length || !target) {
+      toast("至少填一个别名和目标");
       return;
     }
     const button = $("aliasSave");
     button.disabled = true;
     button.textContent = "保存中…";
     try {
-      await api("/api/aliases", { method: "POST", body: { alias, target } });
-      $("aliasName").value = "";
+      const result = await api("/api/aliases", {
+        method: "POST", body: { aliases, target },
+      });
+      fields.forEach((id) => { $(id).value = ""; });
       $("aliasTarget").value = "";
       $("aliasResults").hidden = true;
-      toast("别名已保存，wm 立即生效");
+      toast("已保存 " + Number((result.aliases || aliases).length) + " 个别名，wm 立即生效");
       await loadAliases();
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
@@ -500,6 +530,7 @@
     $("logRefresh").addEventListener("click", refreshLogs);
     $("groupSave").addEventListener("click", saveGroups);
     $("aliasSearch").addEventListener("click", searchItems);
+    $("aliasTranslate").addEventListener("click", translateTarget);
     $("aliasSave").addEventListener("click", saveAlias);
     $("dataRefresh").addEventListener("click", refreshData);
     $("aliasTarget").addEventListener("keydown", (event) => {

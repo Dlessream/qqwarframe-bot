@@ -61,7 +61,8 @@ COMMANDS: Dict[str, str] = {
     "提醒": "alert", "订阅": "alert", "alert": "alert", "watch": "alert",
     "提醒列表": "alerts", "我的提醒": "alerts", "alerts": "alerts",
     "取消提醒": "unalert", "删除提醒": "unalert", "unalert": "unalert",
-    "wiki": "wiki", "维基": "wiki", "百科": "wiki", "wikipedia": "wiki",
+    "wiki": "wiki", "维基": "wiki",
+    "翻译": "translate", "中英": "translate", "双语": "translate", "百科": "wiki", "wikipedia": "wiki",
     "更新": "update", "刷新": "update", "refresh": "update",
     "数据状态": "data_status", "缓存状态": "data_status", "状态": "data_status",
     "data": "data_status",
@@ -222,6 +223,8 @@ class CommandRouter:
                 return [present.help_reply(ctx.prefix)]
             if command == "wiki":
                 return [self._wiki(argument, ctx)]
+            if command == "translate":
+                return [self._translate(argument, ctx)]
             if command == "price":
                 return [self._item(argument, ctx, category=None, price_only=True)]
             if command == "warframe":
@@ -661,6 +664,43 @@ class CommandRouter:
         return present.error_reply("已取消 %d 条提醒。" % removed)
 
     # ------------------------------------------------------------------ 维基
+    def _translate(self, argument: str, ctx: Context) -> Reply:
+        argument = argument.strip()
+        if not argument:
+            return present.error_reply(
+                "用法：%s翻译 <中文/英文物品名>\n例如：%s翻译 Volt Prime Neuroptics Blueprint"
+                % (ctx.prefix, ctx.prefix))
+        item = None
+        try:
+            hits = self.market.lookup(argument, limit=3)
+            if hits:
+                item = hits[0].item
+        except MarketError:
+            item = None
+        if item is not None:
+            zh = item.name or item.name_en
+            en = item.name_en or item.name
+            if re.search(r"[\u4e00-\u9fff]", zh):
+                return present.translation_reply(
+                    argument, zh, en, "warframe.market", item.url)
+        try:
+            page, _hits = self.wiki.lookup(argument, limit=1)
+        except WikiError:
+            page = None
+        if page is not None:
+            zh = page.title
+            en = item.name_en if item is not None else argument
+            return present.translation_reply(
+                argument, zh, en or argument, "中文维基", page.url)
+        if item is not None:
+            zh = item.name or item.name_en
+            en = item.name_en or item.name
+            return present.translation_reply(
+                argument, zh, en, "warframe.market", item.url)
+        return present.error_reply(
+            "没有找到“%s”的可靠中英译名。\n"
+            "可以先用 wm 查询物品，或换一个更完整的英文名。" % argument)
+
     def _wiki(self, argument: str, ctx: Context) -> Reply:
         if not argument:
             return present.error_reply(
