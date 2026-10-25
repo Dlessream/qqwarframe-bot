@@ -28,10 +28,30 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("温暖", reply.text)
         self.assertIn("法斯", reply.text)
 
+    def test_cetus_tents(self):
+        raw = [{
+            "syndicate": "Ostrons",
+            "jobs": [
+                {"type": "High", "enemyLevels": [50, 60], "expiry": "2030-01-01T00:00:00Z"},
+                {"type": "Mid", "enemyLevels": [20, 40], "expiry": "2030-01-01T00:00:00Z"},
+                {"type": "Low", "enemyLevels": [5, 15], "expiry": "2030-01-01T00:00:00Z"},
+                {"type": "Second", "enemyLevels": [10, 30], "expiry": "2030-01-01T00:00:00Z"},
+            ],
+        }]
+        reply = present.cetus_reply(
+            {"state": "day", "timeLeft": "1h 20m 0s"}, raw)
+        self.assertIn("希图斯", reply.text)
+        self.assertIn("白天", reply.text)
+        lines = reply.text.splitlines()
+        tent_lines = [line for line in lines if line.startswith("小帐篷 ")]
+        self.assertEqual(len(tent_lines), 3)
+        self.assertIn("Low", tent_lines[0])
+        self.assertIn("Second", tent_lines[1])
+        self.assertIn("Mid", tent_lines[2])
+
     def test_summary(self):
         reply = present.worldstate_reply({
-            "alerts": [1, 2, 3],
-            "invasions": [1],
+            "alerts": [1, 2, 3],            "invasions": [1],
             "fissures": [1, 2],
             "news": [1],
             "events": [],

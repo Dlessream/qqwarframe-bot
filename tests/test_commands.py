@@ -354,6 +354,9 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertEqual(router.parse("帮助", allow_bare=True), ("help", ""))
         self.assertEqual(router.parse("价格 绝路", allow_bare=True),
                          ("price", "绝路"))
+        self.assertEqual(router.parse("#希图斯"), ("cetus", ""))
+        self.assertEqual(router.parse("希图斯赏金", allow_bare=True),
+                         ("cetus", ""))
         self.assertEqual(router.parse("wm绝路", allow_bare=True),
                          ("query", "绝路"))
         self.assertIsNone(router.parse("绝路", allow_bare=True))

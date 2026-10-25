@@ -732,6 +732,73 @@ BOUNTY_ORDER = ["Ostrons", "Solaris United", "Entrati", "Cavia",
                 "The Hex", "The Holdfasts"]
 
 
+def _bounty_reward(job) -> str:
+    drops = _as_list(job.get("rewardPoolDrops"))
+    rewards = []
+    for drop in drops[:2]:
+        if isinstance(drop, dict) and drop.get("item"):
+            rewards.append(terms.localize_reward(str(drop["item"])))
+    if not rewards:
+        rewards = [terms.localize_reward(str(value))
+                   for value in _as_list(job.get("rewardPool"))[:2]]
+    return "、".join(rewards) or "—"
+
+
+def _bounty_level(job) -> str:
+    levels = _as_list(job.get("enemyLevels"))
+    if len(levels) >= 2:
+        return "%s–%s" % (levels[0], levels[1])
+    if levels:
+        return str(levels[0])
+    return "—"
+
+
+def cetus_reply(cycle, raw) -> Reply:
+    jobs = []
+    seen = set()
+    for syndicate in _as_list(raw):
+        if syndicate.get("syndicate") != "Ostrons":
+            continue
+        for job in _as_list(syndicate.get("jobs")):
+            title = terms.localize_bounty(
+                str(job.get("type") or job.get("jobType") or "赏金"))
+            key = (title, str(job.get("expiry") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            jobs.append((job, title))
+    jobs.sort(key=lambda pair: (
+        (_as_list(pair[0].get("enemyLevels")) or [999])[0],
+        pair[1]))
+    if not jobs:
+        return Reply(text="希图斯当前没有可接赏金。")
+
+    rows = []
+    text_lines = []
+    for index, (job, title) in enumerate(jobs[:3], 1):
+        label = "小帐篷 %d" % index
+        rows.append([label, title, _bounty_level(job),
+                     _bounty_reward(job),
+                     countdown(parse_timestamp(job.get("expiry")))])
+        text_lines.append("%s / %s / %s" % (label, title, _bounty_level(job)))
+    for job, title in jobs[3:]:
+        rows.append(["其他赏金", title, _bounty_level(job),
+                     _bounty_reward(job),
+                     countdown(parse_timestamp(job.get("expiry")))])
+        text_lines.append("其他 / %s / %s" % (title, _bounty_level(job)))
+
+    state = _state_label((cycle or {}).get("state"))
+    time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
+    return _world_reply(
+        "希图斯", "当前 %s · 剩余 %s ｜ 小帐篷 1–3 + 全部 Ostrons 赏金" % (
+            state, time_left),
+        ["类型", "任务", "等级", "奖励", "剩余"], rows,
+        "数据 warframestat.us · 希图斯", "希图斯",
+        text_lines=text_lines, ratios=[0.8, 1.8, 0.7, 1.7, 0.8],
+        accent=imagecard.GREEN,
+        note="小帐篷按当前 Ostrons 赏金中敌人等级最低的三条排序。")
+
+
 def bounties_reply(raw) -> Reply:
     rows = []
     seen = set()

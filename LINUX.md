@@ -193,10 +193,11 @@ docker run -d --name napcat --restart unless-stopped \
 
 ```bash
 ./check.sh                              # 联网自检
-python3 -m unittest discover -s tests -t .   # 274 个离线测试
+python3 -m unittest discover -s tests -t .   # 275 个离线测试
 ```
 
 自检里维基可能显示 `WARN`（Cloudflare/WAF 拦截），不影响市场、图片、提醒等功能。
+
 
 
 
