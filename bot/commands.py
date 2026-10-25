@@ -52,6 +52,7 @@ COMMANDS: Dict[str, str] = {
     "回廊": "circuit", "无尽回廊": "circuit", "灵化": "circuit",
     "执刑官": "archon", "执刑官猎杀": "archon",
     "裂缝": "fissures", "钢铁裂缝": "steel_fissures", "钢铁裂隙": "steel_fissures",
+    "虚空风暴": "storms", "九重天": "storms", "风暴": "storms",
     "赏金": "bounties", "平原赏金": "bounties",
     "希图斯": "cetus", "希图斯赏金": "cetus", "希图斯帐篷": "cetus",
     "今日仲裁": "today_arbitration", "高效仲裁": "effective_arbitration",
@@ -276,6 +277,8 @@ class CommandRouter:
                 return [present.fissures_reply(self._ws("fissures"))]
             if command == "steel_fissures":
                 return [present.fissures_reply(self._ws("fissures"), hard=True)]
+            if command == "storms":
+                return [present.storms_reply(self._ws("fissures"))]
             if command == "bounties":
                 return [present.bounties_reply(self._ws("syndicateMissions"))]
             if command == "cetus":

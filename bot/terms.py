@@ -88,6 +88,55 @@ RELIC_TIERS = {
     "Axi": "后纪", "Requiem": "安魂", "Omnia": "全能",
 }
 
+STORM_REGIONS = {
+    "Earth": "地球比邻星域", "Venus": "金星比邻星域",
+    "Saturn": "土星比邻星域", "Neptune": "海王星比邻星域",
+    "Pluto": "冥王星比邻星域", "Veil": "面纱比邻星域",
+}
+
+STORM_NODES = {
+    "Bendar Cluster": "本达尔星团",
+    "Beacon Shield Ring": "卫标星环",
+    "Enkidu Ice Drifts": "初裔冰渍区",
+    "Vand Cluster": "水域星团",
+    "Profit Margin": "利益外缘",
+    "H-2 Cloud": "H-2 星云",
+    "Nu-gua Mines": "女娲之矿",
+    "Ogal Cluster": "奥加尔星团",
+    "Mordo Cluster": "魔多星团",
+    "Orvin-Haarc": "欧文－哈克",
+    "Seven Sirens": "七魅之息",
+    "R-9 Cloud": "R-9 星云",
+}
+
+STORM_MISSIONS = {
+    "Skirmish": "前哨战", "Volatile": "爆发",
+    "Spy": "间谍", "Survival": "生存",
+    "Extermination": "歼灭", "Defense": "防御",
+    "Excavation": "挖掘", "Mobile Defense": "移动防御",
+}
+
+STORM_ENEMIES = {"Grineer": "G系", "Corpus": "C系"}
+
+
+def localize_storm_node(text: str) -> str:
+    raw = str(text or "").strip()
+    match = re.match(r"^(.*?)\s*\(([^()]+)\)$", raw)
+    if not match:
+        return STORM_NODES.get(raw, localize_node(raw))
+    name, region = match.group(1).strip(), match.group(2).strip()
+    localized_name = STORM_NODES.get(name, name)
+    localized_region = STORM_REGIONS.get(region, localize_location(region))
+    return "%s - %s" % (localized_region, localized_name)
+
+
+def localize_storm_mission(text: str) -> str:
+    return STORM_MISSIONS.get(str(text or ""), localize_mission(str(text or "")))
+
+
+def localize_storm_enemy(text: str) -> str:
+    return STORM_ENEMIES.get(str(text or ""), localize_faction(str(text or "")))
+
 NEWS_PHRASES = {
     "Join the official Warframe Discord server": "加入 Warframe 官方 Discord 服务器",
     "Check out the official Warframe Wiki": "查看 Warframe 官方 Wiki",

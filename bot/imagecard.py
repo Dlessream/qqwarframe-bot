@@ -875,6 +875,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"],
         ["%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化、执刑官猎杀"],
         ["%s裂缝 / %s钢铁裂缝" % (prefix, prefix), "普通裂缝、钢铁之路裂缝"],
+        ["%s虚空风暴 / %s九重天" % (prefix, prefix), "Railjack 风暴裂缝"],
         ["%s赏金 / %s平原赏金" % (prefix, prefix), "各大 NPC 可接赏金"],
         ["%s希图斯" % prefix, "希图斯时间 + 7档赏金 + 帐篷A/B/C"],
         ["%s深层科研 / %s时光科研" % (prefix, prefix), "深层科研、时光科研"],

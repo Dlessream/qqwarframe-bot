@@ -47,6 +47,26 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("间谍捕手", reply.text)
         self.assertIn("帐篷 C", reply.text)
 
+    def test_storms(self):
+        raw = [
+            {"isStorm": True, "tier": "Lith", "tierNum": 1,
+             "missionType": "Skirmish", "node": "Bendar Cluster (Earth)",
+             "enemy": "Grineer", "expiry": "2030-01-01T00:00:00Z"},
+            {"isStorm": True, "tier": "Meso", "tierNum": 2,
+             "missionType": "Volatile", "node": "Beacon Shield Ring (Venus)",
+             "enemy": "Corpus", "expiry": "2030-01-01T00:00:00Z"},
+            {"isStorm": False, "tier": "Neo", "tierNum": 3,
+             "missionType": "Survival", "node": "Ani (Void)",
+             "enemy": "Corrupted", "expiry": "2030-01-01T00:00:00Z"},
+        ]
+        reply = present.storms_reply(raw)
+        self.assertIn("虚空风暴", reply.text)
+        self.assertIn("前哨战", reply.text)
+        self.assertIn("地球比邻星域 - 本达尔星团", reply.text)
+        self.assertIn("G系", reply.text)
+        self.assertIn("古纪", reply.text)
+        self.assertNotIn("Ani", reply.text)
+
     def test_summary(self):
         reply = present.worldstate_reply({
             "alerts": [1, 2, 3],            "invasions": [1],

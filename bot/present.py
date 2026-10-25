@@ -695,11 +695,47 @@ def _json_table(raw, hard: bool = False) -> list:
     return rows
 
 
+def storms_reply(raw) -> Reply:
+    now = time.time()
+    items = [item for item in _as_list(raw)
+             if item.get("isStorm")
+             and parse_timestamp(item.get("expiry")) > now]
+    items.sort(key=lambda item: (
+        int(item.get("tierNum") or 99),
+        parse_timestamp(item.get("expiry"))))
+    rows = []
+    lines = []
+    for item in items[:15]:
+        tier = terms.localize_relic_tier(str(item.get("tier") or "—"))
+        mission = terms.localize_storm_mission(
+            str(item.get("missionType") or "—"))
+        node = terms.localize_storm_node(str(item.get("node") or "—"))
+        enemy = terms.localize_storm_enemy(str(item.get("enemy") or "—"))
+        rows.append([tier, mission, node, enemy,
+                     countdown(parse_timestamp(item.get("expiry")))])
+        lines.append("%s / %s / %s / %s" % (tier, mission, node, enemy))
+    if not rows:
+        return _world_reply("虚空风暴", "当前没有活跃的风暴裂缝", [], [],
+                            "数据 warframestat.us", "风暴")
+    return _world_reply(
+        "虚空风暴", "九重天 Railjack 风暴裂缝 · %d 条" % len(rows),
+        ["遗物", "任务", "节点", "敌人", "剩余"], rows,
+        "数据 warframestat.us · 虚空风暴", "风暴",
+        text_lines=lines, ratios=[0.7, 0.8, 2.8, 0.6, 0.8],
+        accent=imagecard.CYAN)
+
+
 def fissures_reply(raw, hard: bool = False) -> Reply:
     rows = []
     now = time.time()
-    items = [item for item in _json_table(raw, hard=hard)
-             if parse_timestamp(item.get("expiry")) > now]
+    if hard:
+        items = [item for item in _as_list(raw)
+                 if item.get("isHard") and not item.get("isStorm")
+                 and parse_timestamp(item.get("expiry")) > now]
+    else:
+        items = [item for item in _as_list(raw)
+                 if not item.get("isHard") and not item.get("isStorm")
+                 and parse_timestamp(item.get("expiry")) > now]
     for row in items[:15]:
         rows.append([
             terms.localize_node(str(row.get("node") or "—")),
