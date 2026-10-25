@@ -701,7 +701,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
         rows.append([
             terms.localize_node(str(row.get("node") or "—")),
             terms.localize_mission(str(row.get("missionType") or "—")),
-            str(row.get("tier") or "—"),
+            terms.localize_relic_tier(str(row.get("tier") or "—")),
             terms.localize_faction(str(row.get("enemy") or "—")),
             countdown(parse_timestamp(row.get("expiry"))),
         ])

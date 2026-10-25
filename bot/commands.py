@@ -298,9 +298,9 @@ class CommandRouter:
         argument, platform = split_platform(argument)
         platform = platform or self.default_platform
         if not argument:
-            example = "%s价格 牛甲" % ctx.prefix if price_only else "%s查 绝路" % ctx.prefix
+            example = "%s价格 牛甲" % ctx.prefix if price_only else "%swm 绝路" % ctx.prefix
             return present.error_reply("用法：%s%s <名称> [平台]\n例如：%s" % (
-                ctx.prefix, "价格" if price_only else "查", example))
+                ctx.prefix, "价格" if price_only else "wm", example))
 
         hits = self.market.lookup(argument, category=category, limit=5)
         if not hits:

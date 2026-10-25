@@ -78,6 +78,11 @@ RESOURCES = {
     "Rubedo": "红化结晶", "Plastids": "生物质", "Nano Spores": "纳米孢子",
 }
 
+RELIC_TIERS = {
+    "Lith": "古纪", "Meso": "前纪", "Neo": "中纪",
+    "Axi": "后纪", "Requiem": "安魂", "Omnia": "全能",
+}
+
 BOUNTY_PHRASES = {
     "Capture the Grineer Commander": "捕获克隆尼指挥官",
     "Sabotage the Enemy Supply Lines": "破坏敌人补给线",
@@ -88,6 +93,8 @@ BOUNTY_PHRASES = {
     "Weaken the Grineer Foothold": "削弱克隆尼据点",
     "Reclaim the Stolen Artifact": "夺回被盗神器",
     "Cleanse the Land": "净化土地",
+    "Rise and Fall": "兴衰",
+    "Operational Intelligence": "作战情报",
 }
 
 BOUNTY_WORDS = {
@@ -133,12 +140,16 @@ def localize_research(text: str) -> str:
     return RESEARCH_TYPES.get(text, text)
 
 
+def localize_relic_tier(text: str) -> str:
+    return RELIC_TIERS.get(str(text or ""), str(text or ""))
+
+
 def localize_bounty(text: str) -> str:
     if not text:
         return ""
     if text in BOUNTY_PHRASES:
         return BOUNTY_PHRASES[text]
-    result = text
+    result = localize_text(text)
     for english, chinese in sorted(BOUNTY_WORDS.items(),
                                    key=lambda item: -len(item[0])):
         result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)

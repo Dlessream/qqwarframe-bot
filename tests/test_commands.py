@@ -194,7 +194,7 @@ class HandleTest(unittest.TestCase):
     def test_help(self):
         replies = texts(self.router.handle("#帮助", self.ctx))
         self.assertEqual(len(replies), 1)
-        self.assertIn("#查", replies[0])
+        self.assertIn("#wm", replies[0])
         self.assertIn("#紫卡", replies[0])
 
     def test_query_card(self):

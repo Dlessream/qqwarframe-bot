@@ -129,11 +129,11 @@ class RenderMiscTest(unittest.TestCase):
 
     def test_help(self):
         text = render_help("#")
-        for keyword in ("#查", "#价格", "#战甲", "#武器", "#mod", "#wiki", "#帮助"):
+        for keyword in ("#wm", "#价格", "#战甲", "#武器", "#mod", "#wiki", "#帮助"):
             self.assertIn(keyword, text)
 
     def test_help_custom_prefix(self):
-        self.assertIn("！查", render_help("！"))
+        self.assertIn("！wm", render_help("！"))
 
 
 class ChunkTest(unittest.TestCase):
