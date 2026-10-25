@@ -10,6 +10,8 @@ from typing import Dict, List, Optional
 
 # 这些别名即使运行中的 data/aliases.json 没有，也会生效。
 DEFAULT_ALIASES = {
+    "电男": "volt_prime_set",
+    "电男蓝图": "volt_prime_blueprint",
     "电男头": "volt_prime_neuroptics_blueprint",
     "电男机体": "volt_prime_chassis_blueprint",
     "电男系统": "volt_prime_systems_blueprint",
@@ -67,16 +69,36 @@ class AliasStore:
             return 0
         with self._lock:
             raw = self._read_raw()
-            if str(raw.get("_frame_aliases_v1") or "") == "1":
-                return 0
             added = 0
-            for key, value in defaults.items():
-                if str(key).startswith("_") or not value:
-                    continue
-                if str(key) not in raw:
-                    raw[str(key)] = str(value)
-                    added += 1
-            raw["_frame_aliases_v1"] = "1"
+            changed = False
+            if str(raw.get("_frame_aliases_v1") or "") != "1":
+                for key, value in defaults.items():
+                    if str(key).startswith("_") or not value:
+                        continue
+                    if str(key) not in raw:
+                        raw[str(key)] = str(value)
+                        added += 1
+                raw["_frame_aliases_v1"] = "1"
+                changed = True
+            if str(raw.get("_frame_aliases_v2") or "") != "1":
+                for key, value in defaults.items():
+                    if str(key).startswith("_") or not value:
+                        continue
+                    if not str(value).endswith("_prime_set"):
+                        continue
+                    blueprint = str(value)[:-len("_set")] + "_blueprint"
+                    if raw.get(str(key)) == blueprint:
+                        raw[str(key)] = str(value)
+                        changed = True
+                    blueprint_alias = str(key) + "蓝图"
+                    if blueprint_alias not in raw:
+                        raw[blueprint_alias] = blueprint
+                        added += 1
+                        changed = True
+                raw["_frame_aliases_v2"] = "1"
+                changed = True
+            if not changed:
+                return 0
             try:
                 self._write(raw)
             except OSError:

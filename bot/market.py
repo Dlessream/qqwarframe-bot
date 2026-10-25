@@ -358,6 +358,8 @@ class ItemIndex:
         for alias_key, slug in list(self.aliases.items()):
             if not slug.endswith("_blueprint"):
                 continue
+            if alias_key.endswith("蓝图"):
+                continue
             # 已经是部件蓝图时不要再展开“头/机体/系统”，避免 电男头p 之类。
             if any(slug.endswith(suffix) for suffix in (
                     "_neuroptics_blueprint", "_chassis_blueprint",
@@ -392,6 +394,15 @@ class ItemIndex:
                 generated = alias_key + label
                 if generated not in self.aliases:
                     self.aliases[generated] = part_slug
+            if base.endswith("_prime"):
+                for label, part in (("头", "neuroptics"), ("头部", "neuroptics"),
+                                    ("机体", "chassis"), ("系统", "systems")):
+                    part_slug = "%s_%s_blueprint" % (base, part)
+                    if part_slug not in self.by_slug:
+                        continue
+                    generated = alias_key + label
+                    if generated not in self.aliases:
+                        self.aliases[generated] = part_slug
         self._searchable: List[Tuple[Item, str, str, str]] = [
             (item,
              _normalize(item.name),

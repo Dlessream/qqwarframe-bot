@@ -429,14 +429,17 @@ class CommandRouter:
         if self.riven is None:
             return present.error_reply("紫卡功能未启用。")
 
-        hits = self.market.lookup(argument, limit=3)
-        if not hits:
-            return present.not_found_reply(argument)
-        weapon = self.riven.find(hits[0].item)
+        try:
+            hits = self.market.lookup(argument, limit=3)
+        except MarketError:
+            hits = []
+        weapon = self.riven.find(hits[0].item) if hits else None
+        if weapon is None:
+            weapon = self.riven.resolve(argument)
         if weapon is None:
             return present.error_reply(
                 "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
-                % hits[0].item.name)
+                % argument)
 
         auctions, note = self.riven.auctions(weapon.slug, limit=5)
         return present.riven_reply(weapon, auctions, note, platform)
@@ -446,35 +449,47 @@ class CommandRouter:
             return present.error_reply("紫卡功能未启用。")
         weapon_text, pairs = split_roll_args(argument)
         weapon_text, _platform = split_platform(weapon_text)
-        if not weapon_text:
-            return present.error_reply(
-                "用法：\n"
-                "  %s紫卡分析 绝路                         查看词条范围\n"
-                "  %s紫卡分析 绝路 伤害=165 多重=90        范围 + roll 评分\n"
-                "  %s紫卡分析 绝路 + 紫卡截图              OCR 后范围 + 评分"
-                % (ctx.prefix, ctx.prefix, ctx.prefix))
-        try:
-            hits = self.market.lookup(weapon_text, limit=3)
-        except MarketError as exc:
-            return present.error_reply("查询失败：%s" % exc)
-        if not hits:
-            return present.not_found_reply(weapon_text)
-        weapon = self.riven.find(hits[0].item)
-        if weapon is None:
-            return present.error_reply(
-                "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
-                % hits[0].item.name)
-        if ctx.image and not pairs:
+        ocr_text = ""
+        if ctx.image:
             try:
                 ocr_text = ocr.image_to_text(ctx.image)
             except ocr.OcrError as exc:
                 return present.error_reply(str(exc))
-            pairs = ocr.parse_rolls(ocr_text)
             if not pairs:
+                pairs = ocr.parse_rolls(ocr_text)
+        weapon = None
+        if weapon_text:
+            try:
+                hits = self.market.lookup(weapon_text, limit=3)
+            except MarketError as exc:
+                return present.error_reply("查询失败：%s" % exc)
+            if hits:
+                weapon = self.riven.find(hits[0].item)
+            if weapon is None:
+                weapon = self.riven.resolve(weapon_text)
+        if weapon is None and ocr_text:
+            for line in ocr_text.splitlines():
+                line = line.strip()
+                if not line or "%" in line or "％" in line or len(line) < 2:
+                    continue
+                weapon = self.riven.resolve(line)
+                if weapon is not None:
+                    break
+        if weapon is None:
+            if pairs:
+                return present.riven_ocr_reply(
+                    pairs, "未识别到武器，先按通用词条列出。")
+            if not weapon_text and not ctx.image:
                 return present.error_reply(
-                    "图片里没有识别到有效紫卡词条。\n"
-                    "可以改用文字词条：%s紫卡分析 绝路 伤害=165 多重=90"
-                    % ctx.prefix)
+                    "用法：直接发送紫卡截图，或：\n"
+                    "  %s紫卡分析 绝路\n"
+                    "  %s紫卡分析 绝路 伤害=165 多重=90"                    % (ctx.prefix, ctx.prefix))
+            return present.error_reply(
+                "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
+                % (weapon_text or "图片"))
+        if ctx.image and not pairs:
+            return present.error_reply(
+                "图片里没有识别到有效紫卡词条，请发送完整、清晰的紫卡截图。")
         analysis = calculate(weapon)
         evaluations = evaluate_roll(analysis, pairs) if pairs else []
         return present.riven_analysis_reply(analysis, evaluations)

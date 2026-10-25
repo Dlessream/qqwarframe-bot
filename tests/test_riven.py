@@ -104,6 +104,12 @@ class WeaponTableTest(unittest.TestCase):
         item = Item(slug="custom-slug", name="绝路", name_en="Rubico Prime")
         self.assertEqual(client.find(item).slug, "rubico")
 
+    def test_resolve_by_name(self):
+        client = RivenClient(FakeMarket())
+        self.assertEqual(client.resolve("Rubico Prime").slug, "rubico")
+        self.assertEqual(client.resolve("rubico_prime").slug, "rubico")
+        self.assertIsNone(client.resolve("不存在的武器"))
+
     def test_find_none_for_warframe(self):
         client = RivenClient(FakeMarket())
         item = Item(slug="mesa_prime_set", name="Mesa Prime 一套",

@@ -176,6 +176,17 @@ def riven_ocr_reply(analysis: RivenAnalysis,
             note="只识别截图中的词条，不做范围与 roll 评分。"))
 
 
+def riven_ocr_reply(pairs, note: str = "") -> Reply:
+    lines = ["【紫卡识别】"]
+    if note:
+        lines.append(note)
+    for name, value in pairs:
+        lines.append("  %s %+g" % (name, value))
+    lines.append("")
+    lines.append("未识别到具体武器；发送完整紫卡截图，或带武器名可看范围/评分。")
+    return Reply(text="\n".join(lines))
+
+
 def riven_analysis_reply(analysis: RivenAnalysis,
                          evaluations: Sequence[RollEvaluation]) -> Reply:
     lines = [

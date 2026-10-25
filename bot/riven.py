@@ -165,6 +165,30 @@ class RivenClient:
     def weapon_count(self) -> int:
         return len(self._weapons) if self._weapons is not None else 0
 
+    def resolve(self, text: str) -> Optional[RivenWeapon]:
+        """按 slug / 中文名 / 英文名解析武器，供紫卡截图自动识别。"""
+        key = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(text or "").lower())
+        if not key:
+            return None
+        weapons = self.weapons()
+        if not weapons:
+            return None
+        for weapon in weapons.values():
+            names = (weapon.slug, weapon.name, weapon.name_en)
+            if any(re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", name.lower()) == key
+                   for name in names):
+                return weapon
+        candidates = []
+        for weapon in weapons.values():
+            for name in (weapon.name, weapon.name_en):
+                normalized = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", name.lower())
+                if len(normalized) >= 2 and normalized in key:
+                    candidates.append((len(normalized), weapon))
+        if candidates:
+            candidates.sort(key=lambda pair: pair[0], reverse=True)
+            return candidates[0][1]
+        return None
+
     def find(self, item: Item) -> Optional[RivenWeapon]:
         weapons = self.weapons()
         if not weapons:
@@ -190,7 +214,7 @@ class RivenClient:
             name = re.sub(r"[^a-z0-9]+", " ", weapon.name_en.lower()).strip()
             if name == base or name.startswith(base + " ") or base.startswith(name + " "):
                 return weapon
-        return None
+        return self.resolve(item.name) or self.resolve(item.name_en)
 
     # ------------------------------------------------------------------ 拍卖
     def auctions(self, slug: str, limit: int = 5) -> Tuple[List[RivenAuction], str]:

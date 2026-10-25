@@ -115,6 +115,29 @@ class AliasStoreTest(unittest.TestCase):
         self.assertEqual(index.search("绝路蓝图")[0].item.slug,
                          "rubico_prime_blueprint")
 
+    def test_frame_set_and_blueprint_aliases(self):
+        items = [
+            Item(slug="ash_prime_set", name="Ash Prime 一套"),
+            Item(slug="ash_prime_blueprint", name="Ash Prime 蓝图"),
+            Item(slug="ash_prime_neuroptics_blueprint",
+                 name="Ash Prime 头部神经光元 蓝图"),
+            Item(slug="ash_prime_chassis_blueprint", name="Ash Prime 机体 蓝图"),
+            Item(slug="ash_prime_systems_blueprint", name="Ash Prime 系统 蓝图"),
+        ]
+        index = ItemIndex(items, {
+            "忍者": "ash_prime_set",
+            "忍者蓝图": "ash_prime_blueprint",
+        })
+        self.assertEqual(index.search("忍者")[0].item.slug, "ash_prime_set")
+        self.assertEqual(index.search("忍者蓝图")[0].item.slug,
+                         "ash_prime_blueprint")
+        self.assertEqual(index.search("忍者头")[0].item.slug,
+                         "ash_prime_neuroptics_blueprint")
+        self.assertEqual(index.search("忍者机体")[0].item.slug,
+                         "ash_prime_chassis_blueprint")
+        self.assertFalse(any(hit.item.slug.endswith("蓝图头")
+                             for hit in index.search("忍者蓝图头")))
+
     def test_categories(self):
         self.assertEqual(_item_category(Item(
             slug="volt_prime_blueprint", tags=("warframe", "prime")))[0],

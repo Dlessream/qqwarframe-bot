@@ -19,6 +19,15 @@ class ParseRollsTest(unittest.TestCase):
         self.assertEqual(parse_rolls(text), [
             ("暴击几率", 120.0), ("变焦", -30.5)])
 
+    def test_negative_unicode_sign_without_percent(self):
+        text = "暴击几率 89.2%\n变焦 −30.5\n后坐力 - 25.0%"
+        self.assertEqual(parse_rolls(text), [
+            ("暴击几率", 89.2), ("变焦", -30.5), ("后坐力", -25.0)])
+
+    def test_negative_wins_when_second_pass_has_sign(self):
+        text = "变焦 30.5%\n变焦 -30.5%"
+        self.assertEqual(parse_rolls(text), [("变焦", -30.5)])
+
     def test_ignores_unknown(self):
         text = "+50% 不存在词条\n完成 3 次任务"
         self.assertEqual(parse_rolls(text), [])
