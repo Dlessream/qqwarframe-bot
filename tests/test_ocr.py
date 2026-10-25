@@ -19,6 +19,15 @@ class ParseRollsTest(unittest.TestCase):
         self.assertEqual(parse_rolls(text), [
             ("暴击几率", 120.0), ("变焦", -30.5)])
 
+    def test_multiplier_faction_negative(self):
+        text = """+95.8% 毒素伤害
++100.3% 暴击伤害
++137.1% 多重射击
+x0.59 对 Grineer 的伤害"""
+        self.assertEqual(parse_rolls(text), [
+            ("毒素伤害", 95.8), ("暴击伤害", 100.3),
+            ("多重射击", 137.1), ("对派系伤害", -41.0)])
+
     def test_negative_unicode_sign_without_percent(self):
         text = "暴击几率 89.2%\n变焦 −30.5\n后坐力 - 25.0%"
         self.assertEqual(parse_rolls(text), [

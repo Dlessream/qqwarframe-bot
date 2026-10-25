@@ -66,15 +66,29 @@ def image_to_text(png: bytes) -> str:
             "Docker 镜像已内置；Windows 需单独安装。")
     try:
         image = Image.open(io.BytesIO(png)).convert("RGB")
-        # 正负词条颜色不同，红色负面在灰度图里容易消失；多跑一遍增强图再合并。
+        # 正负词条颜色不同，红色负面在灰度图里容易消失；多跑增强图和稀疏文本模式。
         gray = ImageOps.autocontrast(image.convert("L"))
-        gray = gray.resize((max(1, gray.width * 2), max(1, gray.height * 2)))
-        gray = ImageEnhance.Contrast(gray).enhance(1.8)
+        gray = gray.resize((max(1, gray.width * 3), max(1, gray.height * 3)))
+        gray = ImageEnhance.Contrast(gray).enhance(2.0)
+        binary = gray.point(lambda value: 255 if value > 150 else 0)
+        width, height = image.size
+        text_area = image.crop((0, int(height * 0.38), width, height))
+        text_area = ImageOps.autocontrast(text_area.convert("L"))
+        text_area = text_area.resize(
+            (max(1, text_area.width * 3), max(1, text_area.height * 3)))
+        text_area = ImageEnhance.Contrast(text_area).enhance(2.0)
+        jobs = (
+            (image, "--psm 6"),
+            (gray, "--psm 6"),
+            (gray, "--psm 11"),
+            (text_area, "--psm 6"),
+            (binary, "--psm 11"),
+        )
         texts = []
-        for source in (image, gray):
+        for source, config in jobs:
             try:
                 texts.append(pytesseract.image_to_string(
-                    source, lang="chi_sim+eng", config="--psm 6"))
+                    source, lang="chi_sim+eng", config=config))
             except Exception:
                 continue
         if not texts:
@@ -105,16 +119,25 @@ def parse_rolls(text: str) -> List[Tuple[str, float]]:
         line = line.strip()
         if not line:
             continue
-        match = re.search(r"([+-]?)\s*(\d+(?:\.\d+)?)\s*%?", line)
-        if not match:
-            continue
-        value = float(match.group(2))
-        before = line[:match.start()]
-        if match.group(1) == "-" or re.search(r"[-]", before):
-            value = -value
+        # 游戏里的负面派系伤害显示为 x0.59（倍率），不是 -41%。
+        multiplier = re.search(r"[x×]\s*(\d+(?:\.\d+)?)", line, re.I)
+        if multiplier:
+            value = (float(multiplier.group(1)) - 1.0) * 100.0
+            match = multiplier
+        else:
+            match = re.search(r"([+-]?)\s*(\d+(?:\.\d+)?)\s*%?", line)
+            if not match:
+                continue
+            value = float(match.group(2))
+            before = line[:match.start()]
+            if match.group(1) == "-" or re.search(r"[-]", before):
+                value = -value
         canonical = canonical_name(line)
         if canonical not in ALIASES:
             continue
+        # OCR 可能把 x 漏掉，只留下 0.59；派系伤害小于 1 仍是倍率。
+        if not multiplier and canonical == "对派系伤害" and 0 < value < 1:
+            value = (value - 1.0) * 100.0
         if canonical in index:
             position = index[canonical]
             if value < 0 < found[position][1]:

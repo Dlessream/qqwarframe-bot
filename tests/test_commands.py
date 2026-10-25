@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from bot.arbi import ArbiData, ArbiNode
 from bot.alerts import AlertStore
@@ -99,6 +100,19 @@ def make_router(fail_market=False, alerts=None, riven=None, updater=None,
     return CommandRouter(market, wiki, config, alerts=alerts, riven=riven,
                          updater=updater, arbi=arbi,
                          worldstate=worldstate), market, wiki
+
+
+class FakeImageRiven:
+    def resolve(self, text):
+        if "视使之触" in str(text):
+            return RivenWeapon(
+                slug="ocucor", name="视使之触", name_en="Ocucor",
+                riven_type="secondary", group="secondary",
+                disposition=1.0, mastery_rank=8)
+        return None
+
+    def find(self, item):
+        return None
 
 
 class FakeUpdater:
@@ -510,6 +524,22 @@ class ArbitrationCommandTest(unittest.TestCase):
         replies = router.handle("#仲裁", self.ctx)
         self.assertIn("Everest", replies[0].text)
         self.assertIn("推算", replies[0].text)
+
+
+class RivenImageOnlyTest(unittest.TestCase):
+    def test_image_only_parses_four_stats(self):
+        router, _, _ = make_router(riven=FakeImageRiven())
+        text = """视使之触 Sati-acritox
++95.8% 毒素伤害
++100.3% 暴击伤害
++137.1% 多重射击
+x0.59 对 Grineer 的伤害"""
+        ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
+        with mock.patch("bot.commands.ocr.image_to_text", return_value=text):
+            reply = router.handle("#紫卡分析", ctx)[0]
+        self.assertIn("3+1", reply.text)
+        self.assertIn("对派系伤害", reply.text)
+        self.assertIn("-41", reply.text)
 
 
 if __name__ == "__main__":
