@@ -371,20 +371,30 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertEqual(pairs, [])
         self.assertEqual(weapon, "绝路 165")
 
-    def test_analysis_requires_image(self):
+    def test_analysis_ranges_and_score(self):
         riven = FakeRiven()
         router, _, _ = make_router(riven=riven)
         replies = router.handle("#紫卡分析 绝路 伤害=165", self.ctx)
         self.assertEqual(len(replies), 1)
-        self.assertIn("截图", replies[0].text)
-        self.assertFalse(riven.queries)
+        self.assertIn("紫卡分析", replies[0].text)
+        self.assertIn("绝路", replies[0].text)
+        self.assertIn("范围", replies[0].text)
+        self.assertTrue(riven.queries)
 
-    def test_analysis_alias_requires_image(self):
+    def test_analysis_ranges_only(self):
+        riven = FakeRiven()
+        router, _, _ = make_router(riven=riven)
+        replies = router.handle("#紫卡分析 绝路", self.ctx)
+        self.assertEqual(len(replies), 1)
+        self.assertIn("正向范围", replies[0].text)
+        self.assertTrue(riven.queries)
+
+    def test_analysis_alias(self):
         riven = FakeRiven()
         router, _, _ = make_router(riven=riven)
         replies = router.handle("#紫卡 分析 绝路", self.ctx)
-        self.assertIn("截图", replies[0].text)
-        self.assertFalse(riven.queries)
+        self.assertIn("紫卡分析", replies[0].text)
+        self.assertTrue(riven.queries)
 
     def test_analysis_disabled(self):
         router, _, _ = make_router(riven=None)

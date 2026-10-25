@@ -423,16 +423,15 @@ class CommandRouter:
     def _riven_analysis(self, argument: str, ctx: Context) -> Reply:
         if self.riven is None:
             return present.error_reply("紫卡功能未启用。")
-        weapon_text, _pairs = split_roll_args(argument)
+        weapon_text, pairs = split_roll_args(argument)
         weapon_text, _platform = split_platform(weapon_text)
         if not weapon_text:
             return present.error_reply(
-                "用法：%s紫卡分析 <武器> + 紫卡截图\n"
-                "例如：%s紫卡分析 绝路 + 图片" % (ctx.prefix, ctx.prefix))
-        if not ctx.image:
-            return present.error_reply(
-                "紫卡分析现在只支持截图识别。\n"
-                "请发送：%s紫卡分析 绝路 + 紫卡截图" % ctx.prefix)
+                "用法：\n"
+                "  %s紫卡分析 绝路                         查看词条范围\n"
+                "  %s紫卡分析 绝路 伤害=165 多重=90        范围 + roll 评分\n"
+                "  %s紫卡分析 绝路 + 紫卡截图              OCR 后范围 + 评分"
+                % (ctx.prefix, ctx.prefix, ctx.prefix))
         try:
             hits = self.market.lookup(weapon_text, limit=3)
         except MarketError as exc:
@@ -444,18 +443,20 @@ class CommandRouter:
             return present.error_reply(
                 "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
                 % hits[0].item.name)
-        try:
-            ocr_text = ocr.image_to_text(ctx.image)
-        except ocr.OcrError as exc:
-            return present.error_reply(str(exc))
-        pairs = ocr.parse_rolls(ocr_text)
-        if not pairs:
-            return present.error_reply(
-                "图片里没有识别到有效紫卡词条。\n"
-                "请把紫卡词条截图和武器名一起发，例如：\n"
-                "  #紫卡分析 绝路 + 图片")
+        if ctx.image and not pairs:
+            try:
+                ocr_text = ocr.image_to_text(ctx.image)
+            except ocr.OcrError as exc:
+                return present.error_reply(str(exc))
+            pairs = ocr.parse_rolls(ocr_text)
+            if not pairs:
+                return present.error_reply(
+                    "图片里没有识别到有效紫卡词条。\n"
+                    "可以改用文字词条：%s紫卡分析 绝路 伤害=165 多重=90"
+                    % ctx.prefix)
         analysis = calculate(weapon)
-        return present.riven_ocr_reply(analysis, pairs)
+        evaluations = evaluate_roll(analysis, pairs) if pairs else []
+        return present.riven_analysis_reply(analysis, evaluations)
 
     # ------------------------------------------------------------------ 数据更新
     def _update(self, argument: str, ctx: Context) -> Reply:
