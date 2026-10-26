@@ -22,6 +22,7 @@ RELICS = {
 
 FACTIONS = {
     "Grineer": "克隆尼", "Corpus": "科普斯", "Infested": "感染者",
+    "Infestation": "感染者", "The Infested": "感染者",
     "Corrupted": "堕落者", "Sentient": "灵煞", "Tenno": "天诺",
     "Orokin": "奥罗金", "Narmer": "纳尔迈", "Murmur": "低语者",
     "The Murmur": "低语者", "Man in the Wall": "墙中低语",
