@@ -292,13 +292,27 @@
       const result = await api("/api/update/check", { method: "POST", body: {} });
       if (result.update) render(Object.assign({}, state.status, { update: result.update }));
       const update = result.update || {};
+      const local = shortHash(update.local_commit);
+      const remote = shortHash(update.remote_commit);
       let message = "当前已是最新";
-      if (update.available) message = "发现新版本";
-      else if (update.local_changed) message = "检测到本地代码变化";
-      else if (update.local_missing && update.remote_short) {
-        message = "本地版本未知；远端最新 " + update.remote_short +
-          "（Docker 需带 BUILD_COMMIT 重建）";
-      } else if (update.state !== "up_to_date") {
+      if (update.available) {
+        message = "发现新版本 " + (remote || "") + "，可点击更新";
+      } else if (update.local_changed) {
+        message = "检测到本地代码变化，重启后生效";
+      } else if (update.local_missing) {
+        message = remote
+          ? "本地版本未知；远端最新 " + remote +
+            "（重建时带 BUILD_COMMIT 或设置 QQWF_COMMIT 环境变量）"
+          : "本地版本未知（重建时带 BUILD_COMMIT 或设置 QQWF_COMMIT 环境变量）";
+      } else if (update.state === "up_to_date") {
+        message = "当前已是最新（" + local + "）";
+      } else if (update.state === "local_only") {
+        message = "本地 " + local + " 还没推送到远端（远端 main 在 " + remote + "）";
+      } else if (update.state === "local_ahead") {
+        message = "本地领先远端：" + local + " → " + remote;
+      } else if (update.state === "diverged") {
+        message = "本地与远端历史分叉：" + local + " / " + remote;
+      } else {
         message = update.last_error || "无法确认版本";
       }
       toast(message);

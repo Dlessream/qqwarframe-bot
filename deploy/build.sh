@@ -12,5 +12,11 @@ else
 fi
 export BUILD_COMMIT
 
+# 同步写一份到 .build_commit：这样即使直接 `docker compose up -d --build`
+# （不经过本脚本、不传 BUILD_COMMIT），镜像里也带着版本号。
+if [ "$BUILD_COMMIT" != "unknown" ]; then
+    printf '%s\n' "$BUILD_COMMIT" > .build_commit
+fi
+
 echo "构建版本：${BUILD_COMMIT}"
 exec docker compose -f docker-compose.full.yml build "$@"

@@ -52,6 +52,8 @@ services:
       QQWF_WEB_HOST: 0.0.0.0
       QQWF_WEB_PORT: "8080"
       QQWF_WEB_TOKEN: ${WEB_ADMIN_TOKEN:-}
+      # 镜像里已写入 .build_commit，这里再兜一层：不重建也能用环境变量声明版本
+      QQWF_COMMIT: ${BUILD_COMMIT:-}
     volumes:
       - ./config:/app/config
       - ./data:/app/data
