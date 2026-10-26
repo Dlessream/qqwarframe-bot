@@ -958,6 +958,16 @@ def worldstate_reply(data: dict) -> Reply:
     news = data.get("news") or []
     events = data.get("events") or []
     bounties = data.get("syndicateMissions") or []
+
+    def missing(key: str) -> bool:
+        """官方兜底源没有的模块，值为 None。"""
+        return data.get(key, "absent") is None
+
+    def count_row(label: str, key: str, value, text: str) -> list:
+        if missing(key):
+            return [label, "暂不可用", "—"]
+        return [label, text, value]
+
     rows = [
         ["奸商", terms.localize_location(str(trader.get("location") or "—")),
          countdown(parse_timestamp(trader.get("expiry")))],
@@ -967,28 +977,31 @@ def worldstate_reply(data: dict) -> Reply:
          countdown(parse_timestamp(arbitration.get("expiry")))],
         ["警报", "%d 条" % len(alerts), "—"],
         ["入侵", "%d 条" % len(invasions), "—"],
-        ["钢铁侵袭", terms.localize_text(str((steel.get("currentReward") or {}).get("name") or "—")),
-         countdown(parse_timestamp((steel.get("incursions") or {}).get("expiry")))],
-        ["电波", "第 %s 季 · %d 个挑战" % (
-            nightwave.get("season") or "?", len(nightwave.get("activeChallenges") or [])), "—"],
+        count_row("钢铁侵袭", "steelPath", "—", terms.localize_text(
+            str((steel.get("currentReward") or {}).get("name") or "—"))),
+        count_row("电波", "nightwave", "—", "第 %s 季 · %d 个挑战" % (
+            nightwave.get("season") or "?", len(nightwave.get("activeChallenges") or []))),
         ["平原", _state_label(cetus.get("state")),
          terms.localize_duration(str(cetus.get("timeLeft") or "—"))],
-        ["特惠", "%d 件" % len(deals), "—"],
-        ["回廊", _state_label(circuit.get("state")),
-         countdown(parse_timestamp(circuit.get("expiry")))],
-        ["执刑官", terms.localize_boss(str(archon.get("boss") or "—")),
-         countdown(parse_timestamp(archon.get("expiry")))],
+        count_row("特惠", "dailyDeals", "—", "%d 件" % len(deals)),
+        count_row("回廊", "duviriCycle", "—", _state_label(circuit.get("state"))),
+        count_row("执刑官", "archonHunt", "—",
+                  terms.localize_boss(str(archon.get("boss") or "—"))),
         ["科研", "深层 / 时光" if len(archimedeas) >= 2 else "%d 项" % len(archimedeas),
          "—"],
         ["裂缝", "%d 条" % len(fissures), "—"],
         ["赏金", "%d 组" % len(bounties), "—"],
-        ["新闻", "%d 条" % len(news), "—"],
-        ["活动", "%d 个" % len(events), "—"],
+        count_row("新闻", "news", "—", "%d 条" % len(news)),
+        count_row("活动", "events", "—", "%d 个" % len(events)),
     ]
+    source = ("数据 Warframe 官方 · 世界状态" if data.get("source") == "official"
+              else "数据 warframestat.us · 世界状态")
     return _world_reply(
         "世界状态", "Warframe 全量状态总览", ["模块", "状态", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "WORLD",
-        ratios=[1.1, 2.0, 1.0], accent=imagecard.GOLD)
+        source, "WORLD",
+        ratios=[1.1, 2.0, 1.0], accent=imagecard.GOLD,
+        note=("标「暂不可用」的模块官方接口不提供，需要代理访问 warframestat"
+              if data.get("source") == "official" else ""))
 
 
 # ---------------------------------------------------------------------- 维基

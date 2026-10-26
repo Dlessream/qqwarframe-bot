@@ -12,10 +12,10 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from . import terms
+from . import terms, worldfallback
 from .cache import TTLCache
 from .net import HttpClient, HttpError
 
@@ -24,21 +24,9 @@ LOGGER = logging.getLogger("qqwarframe.worldstate")
 BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
-OFFICIAL_MISSIONS = {
-    "MT_EXTERMINATION": "Extermination", "MT_DEFENSE": "Defense",
-    "MT_SURVIVAL": "Survival", "MT_RESCUE": "Rescue",
-    "MT_TERRITORY": "Interception", "MT_ARTIFACT": "Excavation",
-    "MT_SABOTAGE": "Sabotage", "MT_CAPTURE": "Capture",
-    "MT_SPY": "Spy", "MT_MOBILE_DEFENSE": "Mobile Defense",
-    "MT_ASSASSINATION": "Assassination", "MT_EXCAVATE": "Excavation",
-    "MT_HIJACK": "Hijack", "MT_INTEL": "Spy",
-    "MT_ALCHEMY": "Alchemy", "MT_VOID_CASCADE": "Void Cascade",
-}
-
-VOID_TIERS = {
-    "VoidT1": "Lith", "VoidT2": "Meso", "VoidT3": "Neo",
-    "VoidT4": "Axi", "VoidT5": "Requiem", "VoidT6": "Omnia",
-}
+# 映射表放在 worldfallback 里（官方兜底源也用它），这里保留同名引用。
+OFFICIAL_MISSIONS = worldfallback.OFFICIAL_MISSIONS
+VOID_TIERS = worldfallback.VOID_TIERS
 
 
 class WorldStateError(Exception):
@@ -155,7 +143,74 @@ class WorldStateClient:
             retries=0,
             logger=LOGGER,
         )
+        # ------------------------------------------------ 官方兜底（直连可用）
+        # 注意：默认关闭；config.py 的 DEFAULTS 里是 True，正常经 load_config
+        # 读取的配置都会打开，直接构造 dict 的场景（含单元测试）保持原行为。
+        self.official_fallback = bool(config.get("official_fallback", False))
+        self.fallback_ttl = int(config.get("fallback_ttl_seconds", 30))
+        self.fallback_cooldown = int(config.get("fallback_cooldown_seconds", 600))
+        self.oracle_url = str(
+            config.get("oracle_url") or worldfallback.DEFAULT_ORACLE_URL)
+        self.oracle_http = HttpClient(
+            user_agent=config.get("user_agent", BROWSER_UA),
+            timeout=config.get("timeout_seconds", 12),
+            proxy=str(config.get("oracle_proxy") or "none"),
+            retries=0,
+            logger=LOGGER,
+        )
+        self._fallback: Optional[worldfallback.OfficialWorldState] = None
+        self._ws_down_until = 0.0
         self._nodes: Optional[Dict[str, Dict[str, str]]] = None
+        # 本次数据是否来自官方兜底（兜底源不含虚空风暴节点名）
+        self.using_fallback = False
+
+    # ---------------------------------------------------------------- 数据源
+    def _fallback_state(self) -> Dict[str, Any]:
+        """官方 CDN 拼出的 warframestat 同构文档。"""
+        if not self.official_fallback:
+            raise WorldStateError("世界状态接口不可用，且未启用官方兜底数据源。")
+        if self._fallback is None:
+            self._fallback = worldfallback.OfficialWorldState(
+                http=self.official_http,
+                nodes=self._load_nodes(),
+                oracle_http=self.oracle_http,
+                official_url=self.official_url,
+                oracle_url=self.oracle_url,
+                ttl=self.fallback_ttl,
+                logger=LOGGER,
+            )
+        try:
+            return self._fallback.state()
+        except worldfallback.FallbackError as exc:
+            raise WorldStateError(str(exc))
+
+    def _fallback_field(self, path: str, exc: Optional[HttpError] = None) -> Any:
+        try:
+            data = self._fallback_state()
+        except WorldStateError:
+            if exc is not None:
+                raise WorldStateError(self._friendly(exc))
+            raise
+        self.using_fallback = True
+        if not path:
+            return data
+        value = data.get(path)
+        if value is None:
+            reason = self._friendly(exc) if exc is not None else "接口不可用"
+            raise WorldStateError(
+                "%s官方 API 也没有这项数据（该功能需要 warframestat）。" % reason)
+        return value
+
+    def _mark_down(self, exc: HttpError) -> None:
+        self._ws_down_until = time.time() + max(30, self.fallback_cooldown)
+        LOGGER.warning("世界状态主源不可用（%s），%d 秒内直接走官方兜底",
+                       exc, max(30, self.fallback_cooldown))
+
+    def source_name(self) -> str:
+        """当前生效的数据源，用于日志与自检输出。"""
+        if self._ws_down_until and time.time() < self._ws_down_until:
+            return "official"
+        return "warframestat"
 
     def _get(self, path: str) -> Any:
         key = ("ws", path)
@@ -163,6 +218,8 @@ class WorldStateClient:
             key, lambda: self._get_uncached(path), self.cache_seconds)
 
     def _get_uncached(self, path: str) -> Any:
+        if self._ws_down_until and time.time() < self._ws_down_until:
+            return self._fallback_field(path)
         url = "%s/pc/%s" % (self.base_url, path)
         params = "?language=%s" % self.language if self.language else ""
         try:
@@ -173,16 +230,19 @@ class WorldStateClient:
                     return self.http.get_json(url)
                 except HttpError:
                     pass
+            if self.official_fallback:
+                self._mark_down(exc)
+                return self._fallback_field(path, exc)
             raise WorldStateError(self._friendly(exc))
         except Exception as exc:  # pragma: no cover - 防御
             raise WorldStateError("世界状态接口访问失败：%s" % exc)
 
     def _friendly(self, exc: HttpError) -> str:
         if exc.status == 403:
-            return "世界状态接口被 Cloudflare 拦截（403），请确认代理可用。"
+            return "世界状态接口被 Cloudflare 拦截（403），官方兜底源也不可用。"
         if exc.status == 0:
-            return "无法连接世界状态接口，请检查网络/代理。"
-        return "世界状态接口异常（HTTP %d）。" % exc.status
+            return "无法连接世界状态接口，官方兜底源也不可用。"
+        return "世界状态接口异常（HTTP %d），官方兜底源也不可用。" % exc.status
 
     def fetch(self, path: str) -> Any:
         """读取任意 warframestat 子路径（带短缓存）。"""
@@ -212,39 +272,7 @@ class WorldStateClient:
 
     def official_fissures(self) -> List[Dict[str, Any]]:
         data = self.official_http.get_json(self.official_url)
-        rows = data.get("ActiveMissions") if isinstance(data, dict) else None
-        if not isinstance(rows, list):
-            return []
-        nodes = self._load_nodes()
-        result = []
-        now = time.time()
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            end = self._official_expiry(row)
-            if end <= now:
-                continue
-            node_id = str(row.get("Node") or "")
-            node = nodes.get(node_id) or {}
-            node_name = terms.localize_node(str(node.get("name") or node_id))
-            mission_key = str(row.get("MissionType") or "")
-            mission = OFFICIAL_MISSIONS.get(mission_key, mission_key.replace("MT_", "").title())
-            tier = VOID_TIERS.get(str(row.get("Modifier") or ""), "—")
-            result.append({
-                "id": node_id,
-                "node": node_name,
-                "nodeKey": node_name,
-                "missionType": mission,
-                "enemy": terms.localize_faction(str(node.get("enemy") or "")),
-                "tier": tier,
-                "expiry": datetime.fromtimestamp(
-                    end, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
-                "isHard": bool(row.get("Hard")),
-                "isStorm": False,
-                "source": "official",
-            })
-        result.sort(key=lambda item: (item["isHard"], item["expiry"]))
-        return result
+        return worldfallback.official_fissures(data, self._load_nodes())
 
     def fissures(self) -> List[Dict[str, Any]]:
         """优先官方 ActiveMissions；失败/为空时回退 warframestat。"""

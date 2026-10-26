@@ -45,6 +45,9 @@ MISSIONS = {
     "Void Survival": "虚空生存", "Void Defense": "虚空防御",
     "Void Interception": "虚空拦截", "Void Mobile Defense": "虚空移动防御",
     "Railjack": "航道星舰", "Empyrean": "九重天",
+    "Exterminate": "歼灭", "Assassinate": "刺杀",
+    "Artifact": "挖掘", "Dual Defense": "双重防御",
+    "Survivor": "生存",
 }
 
 SYNDICATES = {
@@ -70,6 +73,19 @@ RESEARCH_TERMS = {
     "Bold Venture": "大胆冒险", "Alluring Arcocanids": "诱人弧蛛",
     "Fortified Foes": "强化敌人", "Postmortal Surges": "死后涌动",
     "Entanglement": "纠缠", "Commanding Culverins": "指挥重炮",
+    # 深层 / 时光科研的偏差与风险（官方 weekly 数据）
+    "Hostile Security": "敌对安保", "Sticky Fingers": "妙手空空",
+    "Tank Strong Armor": "重装强化", "Disruptive Sounds": "干扰音波",
+    "Techrot Conjunction": "科魔者汇合", "Void Aberration": "虚空畸变",
+    "Quicksand": "流沙", "Draining Residuals": "流失残留物",
+    "Explosive Crawlers": "爆炸爬行者", "Anti Material Weapons": "反器材武器",
+    "Magnetic Hounds": "磁性猎犬", "Accelerated Enemies": "加速敌人",
+    "Murmur Incursion": "低语者入侵", "Voidburst": "虚空爆发",
+    "Faction Swarm Scaldra": "炽蛇群袭", "Heavy Warfare": "重装战争",
+    "Anti Guard": "反护卫", "Decaying Flesh": "腐朽血肉",
+    "Time Dilation": "时间膨胀", "Starvation": "饥饿",
+    "Over Sensitive": "过度敏感", "Void Energy Overload": "虚空能量超载",
+    "Combo Count Chance": "连击计数几率", "Ability Lockout": "技能封锁",
 }
 
 RESOURCES = {
@@ -337,11 +353,13 @@ def localize_text(text: str) -> str:
     result = text
     for english, chinese in sorted(MISSIONS.items(), key=lambda item: -len(item[0])):
         result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)
+    # 科研词条要在派系/仙族之前替换，否则 "Techrot Conjunction" 会先被拆成
+    # 「科魔者 Conjunction」，整词就再也匹配不上。
+    for english, chinese in sorted(RESEARCH_TERMS.items(), key=lambda item: -len(item[0])):
+        result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)
     for english, chinese in sorted(FACTIONS.items(), key=lambda item: -len(item[0])):
         result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)
     for english, chinese in sorted(SYNDICATES.items(), key=lambda item: -len(item[0])):
-        result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)
-    for english, chinese in sorted(RESEARCH_TERMS.items(), key=lambda item: -len(item[0])):
         result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)
     for english, chinese in sorted(RESOURCES.items(), key=lambda item: -len(item[0])):
         result = re.sub(r"\b%s\b" % re.escape(english), chinese, result, flags=re.I)

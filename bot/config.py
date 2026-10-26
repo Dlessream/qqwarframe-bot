@@ -84,6 +84,12 @@ DEFAULTS: Dict[str, Any] = {
         "official_url": "https://api.warframe.com/cdn/worldState.php",
         "official_proxy": "none",
         "prefer_official_fissures": True,
+        # warframestat 被 Cloudflare 拦截时，用官方 CDN 拼出同结构数据
+        "official_fallback": True,
+        "fallback_ttl_seconds": 30,
+        "fallback_cooldown_seconds": 600,
+        "oracle_url": "https://oracle.browse.wf",
+        "oracle_proxy": "none",
         "user_agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/126.0.0.0 Safari/537.36"),
