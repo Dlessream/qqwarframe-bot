@@ -172,13 +172,18 @@ class ParseTest(unittest.TestCase):
 
     def test_help(self):
         self.assertEqual(self.router.parse("#帮助"), ("help", ""))
-        self.assertEqual(self.router.parse("#?"), ("help", ""))
+        # 帮助只认「帮助」：问号、菜单之类的词不再触发
+        self.assertIsNone(self.router.parse("#?"))
+        self.assertIsNone(self.router.parse("#？"))
+        self.assertIsNone(self.router.parse("#菜单"))
+        self.assertEqual(self.router.parse("#帮助我看看"), ("help", "我看看"))
 
     def test_fullwidth_prefix(self):
         self.assertEqual(self.router.parse("＃查 绝路"), ("query", "绝路"))
 
-    def test_bare_prefix_is_help(self):
-        self.assertEqual(self.router.parse("#"), ("help", ""))
+    def test_bare_prefix_is_ignored_now(self):
+        # 只发一个 # 不再回帮助卡片
+        self.assertIsNone(self.router.parse("#"))
 
     def test_unknown_command_is_query(self):
         self.assertEqual(self.router.parse("#绝路"), ("query", "绝路"))

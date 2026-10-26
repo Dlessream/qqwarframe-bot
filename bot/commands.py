@@ -67,11 +67,21 @@ COMMANDS: Dict[str, str] = {
     "更新": "update", "刷新": "update", "refresh": "update",
     "数据状态": "data_status", "缓存状态": "data_status", "状态": "data_status",
     "data": "data_status",
-    "帮助": "help", "help": "help", "菜单": "help", "指令": "help",
-    "命令": "help", "?": "help", "？": "help",
+    # 帮助只认「帮助」这一个词：问号、菜单、?、指令等一律不触发，
+    # 避免群里随手打一个 ? 就被机器人刷屏。
+    "帮助": "help",
 }
 
 COMMAND_ORDER = sorted(COMMANDS.keys(), key=len, reverse=True)
+
+# 曾经当作「帮助」的别名，现在一律忽略（既不回帮助，也不当成物品去查）
+IGNORED_WORDS = {"菜单", "指令", "命令", "help", "?", "？", "helpme"}
+
+
+def is_ignored(text: str) -> bool:
+    head = str(text or "").strip().split(None, 1)[0] if str(text or "").strip() else ""
+    return head.lower() in IGNORED_WORDS
+
 
 PLATFORM_ALIASES = {
     "pc": "pc", "steam": "pc", "电脑": "pc",
@@ -172,6 +182,9 @@ class CommandRouter:
         text = (text or "").strip()
         if not text:
             return None
+        if not re.search(r"[\w\u4e00-\u9fff]", text):
+            # 纯标点（? ？ 。 ！ 等）不当作命令或查询，群里打问号不该被刷屏。
+            return None
 
         prefix = ""
         for candidate in self.prefixes:
@@ -185,24 +198,29 @@ class CommandRouter:
             # 无前缀模式：只匹配已知命令，普通聊天不当作物品查询。
             parts = text.split(None, 1)
             head = parts[0]
-            if head in ("唤醒", "唤醒词"):
+            if head in ("唤醒", "唤醒词") or is_ignored(text):
                 return None
             if head.lower() in COMMANDS:
                 return (COMMANDS[head.lower()],
                         parts[1].strip() if len(parts) > 1 else "")
             for alias in COMMAND_ORDER:
+                if COMMANDS[alias] == "help":
+                    continue  # 帮助只认整词，避免「帮助我查…」这类句子触发
                 if (len(alias) >= 2 or not alias.isascii()) \
                         and text.startswith(alias) and len(text) > len(alias):
                     return (COMMANDS[alias], text[len(alias):].strip())
             return None
         if not text:
-            return ("help", "")
+            # 只发一个前缀（例如单独的 #）不再当作求助，直接忽略。
+            return None
 
         parts = text.split(None, 1)
         head = parts[0]
         tail = parts[1].strip() if len(parts) > 1 else ""
         if head in ("唤醒", "唤醒词"):
             # 明确废弃 #唤醒，不当作物品查询处理。
+            return None
+        if is_ignored(text):
             return None
         if head.lower() in COMMANDS:
             return (COMMANDS[head.lower()], tail)
