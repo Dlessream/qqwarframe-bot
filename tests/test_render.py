@@ -115,6 +115,19 @@ class RenderWikiTest(unittest.TestCase):
         self.assertIn("没有找到", text)
         self.assertIn("wiki.warframe.com", text)
 
+    def test_page_with_chinese_note(self):
+        page = WikiPage(title="Volt", extract="Volt is a Warframe.",
+                        url="https://wiki.warframe.com/w/Volt")
+        text = render_wiki("电男", page, [],
+                           note="中文「电男」→ 英文词条「Volt」")
+        self.assertIn("中文「电男」→ 英文词条「Volt」", text)
+        self.assertIn("Volt is a Warframe.", text)
+
+    def test_missing_with_note(self):
+        text = render_wiki("某词", None, [], note="中文「某词」→ 英文词条「X」")
+        self.assertIn("没有找到", text)
+        self.assertIn("英文词条「X」", text)
+
 
 class RenderMiscTest(unittest.TestCase):
     def test_candidates(self):

@@ -79,12 +79,16 @@ class FakeMarket:
 class FakeWiki:
     def __init__(self):
         self.calls = []
+        self.missing = []
+        # 模拟搜索兜底返回了不相干的词条
+        self.wrong_titles = {}
 
     def lookup(self, query, limit=3):
         self.calls.append(query)
-        if query == "空":
+        if query == "空" or query in self.missing:
             return None, []
-        return WikiPage(title="高斯", extract="高斯是一款以速度为主题的战甲。",
+        title = self.wrong_titles.get(query, query)
+        return WikiPage(title=title, extract="高斯是一款以速度为主题的战甲。",
                         url="https://warframe.huijiwiki.com/wiki/高斯"), []
 
 
@@ -270,6 +274,33 @@ class HandleTest(unittest.TestCase):
         self.assertIn("中文维基", replies[0])
         self.assertIn("速度为主题", replies[0])
         self.assertEqual(self.wiki.calls, ["高斯"])
+
+    def test_wiki_chinese_item_maps_to_english(self):
+        replies = texts(self.router.handle("#wiki 分裂膛室", self.ctx))
+        self.assertEqual(self.wiki.calls, ["Split Chamber"])
+        self.assertIn("中文「分裂膛室」→ 英文词条「Split Chamber」", replies[0])
+
+    def test_wiki_rejects_unrelated_search_hit(self):
+        # 「Rhino Set」被搜索兜底成「Rhino Animation Set」时应换下一个候选
+        self.wiki.wrong_titles = {"Rhino Set": "Rhino Animation Set"}
+        replies = texts(self.router.handle("#wiki 牛甲", self.ctx))
+        self.assertEqual(self.wiki.calls, ["Rhino Set", "Rhino"])
+        self.assertIn("英文词条「Rhino」", replies[0])
+        self.assertNotIn("Rhino Animation Set", replies[0])
+
+    def test_wiki_chinese_term_maps_to_english(self):
+        texts(self.router.handle("#wiki 赤毒要塞", self.ctx))
+        self.assertEqual(self.wiki.calls, ["Kuva Fortress"])
+
+    def test_wiki_english_query_is_not_rewritten(self):
+        texts(self.router.handle("#wiki Volt Prime", self.ctx))
+        self.assertEqual(self.wiki.calls, ["Volt Prime"])
+
+    def test_wiki_tries_stripped_set_title(self):
+        # “牛甲”是别名，先试 Rhino Set，维基没有该词条时退到 Rhino
+        self.wiki.missing = ["Rhino Set"]
+        texts(self.router.handle("#wiki 牛甲", self.ctx))
+        self.assertEqual(self.wiki.calls, ["Rhino Set", "Rhino"])
 
     def test_translate(self):
         replies = texts(self.router.handle("#翻译 分裂膛室", self.ctx))

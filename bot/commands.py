@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import present
 from . import ocr
+from . import zh2en
 from .alerts import AlertStore
 from .arbi import ArbiClient, ArbiError
 from .market import Item, MarketClient, MarketError, SearchHit
@@ -740,9 +741,27 @@ class CommandRouter:
     def _wiki(self, argument: str, ctx: Context) -> Reply:
         if not argument:
             return present.error_reply(
-                "用法：%swiki <关键词>\n例如：%swiki Volt" % (ctx.prefix, ctx.prefix))
+                "用法：%swiki <关键词>\n例如：%swiki Volt，也支持中文：%swiki 电男"
+                % (ctx.prefix, ctx.prefix, ctx.prefix))
+        # 英文维基只认英文词条：中文关键词先用术语表 + 物品索引换成英文名。
+        mapped = self._english_titles(argument)
+        titles = mapped or [argument]
+        page = None
+        hits: List = []
+        used = titles[0]
         try:
-            page, hits = self.wiki.lookup(argument, limit=3)
+            for title in titles:
+                found, found_hits = self.wiki.lookup(title, limit=3)
+                used = title
+                if found_hits:
+                    hits = found_hits
+                # 中文映射出的候选要核对词条名，避免「Volt Set」命中
+                # 「Volt Animation Set」这类搜索兜底结果。
+                if found is not None and (not mapped or zh2en.title_compatible(
+                        title, found.title)):
+                    page = found
+                    hits = found_hits or hits
+                    break
         except WikiError as exc:
             from urllib.parse import quote
             keyword = quote(argument)
@@ -753,8 +772,34 @@ class CommandRouter:
                 "· https://warframe.fandom.com/wiki/%s\n"
                 "可换一个能通过验证的代理（wiki.proxy），或稍后再试。"
                 % (exc, keyword, keyword))
+        note = ""
+        if page is not None:
+            if used and used.strip().lower() != argument.strip().lower():
+                note = "中文「%s」→ 英文词条「%s」" % (argument, used)
+        else:
+            used = titles[0]
         return present.wiki_reply(argument, page, hits,
-                                  translated=self._translate_wiki(page))
+                                  translated=self._translate_wiki(page),
+                                  note=note, english="" if page is not None else used)
+
+    def _english_titles(self, query: str) -> List[str]:
+        """中文关键词 → 英文维基候选词条名；纯英文查询返回空列表。"""
+        if not zh2en.has_cjk(query):
+            return []
+        try:
+            titles = zh2en.english_titles(query, item_lookup=self._wiki_lookup_items)
+        except Exception as exc:  # 映射失败不影响原始中文查询
+            self.log.warning("中文 Wiki 关键词映射失败（%s）：%s", query, exc)
+            return []
+        if titles:
+            self.log.info("中文 Wiki 关键词映射：%s → %s", query, " / ".join(titles[:3]))
+        return titles[:3]
+
+    def _wiki_lookup_items(self, query: str, limit: int = 3) -> List:
+        try:
+            return self.market.lookup(query, limit=limit)
+        except MarketError:
+            return []
 
     def _translate_wiki(self, page) -> str:
         if page is None or self.translator is None:

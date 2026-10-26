@@ -1007,25 +1007,33 @@ def worldstate_reply(data: dict) -> Reply:
 
 # ---------------------------------------------------------------------- 维基
 def wiki_reply(query: str, page: Optional[WikiPage],
-               hits: Sequence[WikiHit], translated: str = "") -> Reply:
-    text = render.render_wiki(query, page, hits, translated)
+               hits: Sequence[WikiHit], translated: str = "",
+               note: str = "", english: str = "") -> Reply:
+    text = render.render_wiki(query, page, hits, translated, note=note)
     if page is None:
+        body = "英文维基没有找到这个关键词。\n"
+        if english and english.strip().lower() != str(query or "").strip().lower():
+            body += "已按英文词条「%s」检索，仍然没有结果。\n" % english
+        body += "可以换英文名或更短的关键词，例如 Volt、Rubico、Riven Mod。"
         from urllib.parse import quote
         search_url = ("https://wiki.warframe.com/w/Special:Search?search="
-                      + quote(str(query or "")))
+                      + quote(str(english or query or "")))
         return Reply(
             text=text,
             image=lambda: imagecard.wiki_card(
-                "未找到：%s" % query,
-                "英文维基没有找到这个关键词。\n"
-                "可以换英文名或更短的关键词，例如 Volt、Rubico、Riven Mod。",
-                search_url, "英文维基 · wiki.warframe.com"))
+                "未找到：%s" % query, body, search_url,
+                "英文维基 · wiki.warframe.com"))
     label = render.wiki_label(page.url)
     footer = "%s · wiki.warframe.com" % label
     if translated:
         footer += " · 中文翻译"
+    if note:
+        footer += " · 中文检索"
+    body = translated or page.extract
+    if note:
+        body = note + "\n\n" + body
     return Reply(text=text, image=lambda: imagecard.wiki_card(
-        page.title, translated or page.extract, page.url, footer))
+        page.title, body, page.url, footer))
 
 
 # ---------------------------------------------------------------------- 提醒

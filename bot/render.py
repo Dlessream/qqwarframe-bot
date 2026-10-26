@@ -202,17 +202,23 @@ def wiki_label(url: str = "") -> str:
 
 
 def render_wiki(query: str, page: Optional[WikiPage],
-                hits: Sequence[WikiHit] = (), translated: str = "") -> str:
+                hits: Sequence[WikiHit] = (), translated: str = "",
+                note: str = "") -> str:
     if page is None:
         from urllib.parse import quote
         search = ("https://wiki.warframe.com/w/Special:Search?search="
                   + quote(str(query or "")))
-        return ("英文维基里没有找到“%s”。\n"
-                "· 试试英文关键词，例如 Volt、Rubico、Riven Mod\n"
-                "· 也可以直接搜索：%s" % (query, search))
+        lines = ["英文维基里没有找到“%s”。" % query]
+        if note:
+            lines.append("· " + note)
+        lines.extend(["· 试试英文关键词，例如 Volt、Rubico、Riven Mod",
+                      "· 也可以直接搜索：%s" % search])
+        return "\n".join(lines)
 
     label = wiki_label(page.url)
     lines = ["【%s】%s" % (page.title, label), ""]
+    if note:
+        lines.extend([note, ""])
     if translated:
         lines.extend(["中文翻译：", translated, "", "英文原文：", page.extract])
     else:
@@ -252,7 +258,7 @@ def render_help(prefix: str = "#") -> str:
         "%s提醒列表 / %s取消提醒 <编号|all>" % (prefix, prefix),
         "%s更新               立即刷新缓存数据" % prefix,
         "%s数据状态           各数据源更新时间" % prefix,
-        "%swiki <关键词>      英文维基" % prefix,
+        "%swiki <关键词>      英文维基（支持中文，如 电男）" % prefix,
         "%s翻译 <物品名>      中英双语对照" % prefix,
         "%s帮助               显示本菜单" % prefix,
         DIVIDER,
