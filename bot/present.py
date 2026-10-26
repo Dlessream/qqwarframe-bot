@@ -271,7 +271,8 @@ def baro_reply(trader: VoidTrader, index=None) -> Reply:
     for row in rows:
         lines.append("%s ｜ 杜卡德 %s ｜ 星币 %s" % tuple(row))
     if not rows:
-        lines.append("当前没有库存数据（商人未到访）。")
+        lines.append("商人已到访，但当前数据源没有库存清单。" if trader.active
+                     else "当前没有库存数据（商人未到访）。")
 
     return Reply(
         text="\n".join(lines),

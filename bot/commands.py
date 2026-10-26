@@ -541,8 +541,17 @@ class CommandRouter:
         arbitration = dict(state.get("arbitration") or {})
         if (arbitration.get("expired") or not arbitration.get("nodeKey")
                 or arbitration.get("nodeKey") == "SolNode000"):
-            # 详细仲裁由 #仲裁 做 arbi 轮换兜底；总览不触发额外网络请求。
+            # 官方兜底源没有仲裁字段，按 arbi.wf.wiki 轮换表补上
             arbitration = {"node": "暂无有效数据", "expiry": 0}
+            if self.arbi is not None:
+                try:
+                    current = self.arbi.current_node()
+                except Exception as exc:  # pragma: no cover - 防御
+                    self.log.warning("仲裁轮换查询失败：%s", exc)
+                    current = None
+                if current:
+                    node, expiry = current
+                    arbitration = {"node": node.display_name, "expiry": expiry}
         state = dict(state)
         state["arbitration"] = arbitration
         return present.worldstate_reply(state)

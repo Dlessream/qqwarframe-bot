@@ -610,8 +610,23 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | `official_url` | Warframe 官方 worldState | 裂缝等数据的官方备用源 |
 | `official_proxy` | `none` | 官方 API 默认直连（代理可能 403） |
 | `prefer_official_fissures` | true | 裂缝优先官方 ActiveMissions，失败回退 warframestat |
+| `official_fallback` | true | warframestat 不可用时，用官方 CDN 拼出同结构数据 |
+| `fallback_ttl_seconds` | 30 | 兜底数据缓存时间 |
+| `fallback_cooldown_seconds` | 600 | 主源失败后多少秒内直接走兜底（避免每次都等超时） |
+| `oracle_url` | `https://oracle.browse.wf` | 深层 / 时光科研的周常数据 |
+| `oracle_proxy` | `none` | 周常数据默认直连 |
 
 裂缝/钢铁裂缝会显示**全部当前有效条目**，不再截断前 15 条。官方源没有数据时自动回退 warframestat。
+
+**官方兜底（`official_fallback`）**：`api.warframestat.us` 对数据中心 IP 返回 Cloudflare 403，
+此时改用 `api.warframe.com/cdn/worldState.php`（直连可用）拼出同样结构的数据：
+
+- 奸商、突击、警报、入侵、赏金、裂缝、深层/时光科研都会照常显示；
+- 平原昼夜官方接口不含，按赏金到期时间本地推算（希图斯 100 分钟白天 / 50 分钟夜晚，
+  英择谛与其同步，福尔图娜固定 1600 秒循环），结果与 warframestat 一致；
+- 仲裁没有官方字段，自动按 arbi.wf.wiki 轮换表推算；
+- 钢铁侵袭、午夜电波、无尽回廊、执刑官、新闻、每日特惠、虚空风暴这几项官方接口不提供，
+  会明确显示「暂不可用」，不会伪造数据。
 
 ### 紫卡分析
 
