@@ -18,7 +18,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 from . import __version__, imagecard, ocr, present
 from .alerts import AlertStore
 from .aliases import AliasStore
-from .arbi import ArbiClient
+from .arbi import ArbiClient, ArbiError
 from .commands import CommandRouter, Context, strip_cq
 from .market import COMPONENT_LABELS, Item, MarketClient, MarketError
 from .net import HttpClient, HttpError
@@ -447,6 +447,32 @@ class BotApp:
             "alias_file": self.market.alias_file,
             "aliases": len(self.alias_store.load()),
         }
+
+    def arbi_snapshot(self) -> Dict[str, Any]:
+        """控制台仲裁评级页：节点 + 三种来源的评级。"""
+        if self.arbi is None:
+            return {"enabled": False, "nodes": [], "counts": {},
+                    "tiers": [], "message": "仲裁评级未启用（arbi.enabled）。"}
+        try:
+            snapshot = self.arbi.nodes_snapshot()
+        except ArbiError as exc:
+            return {"enabled": True, "nodes": [], "counts": {}, "tiers": [],
+                    "error": str(exc)}
+        current = ""
+        try:
+            node = self.arbi.current_node()
+            if node:
+                current = node[0].key
+        except Exception:
+            current = ""
+        snapshot["enabled"] = True
+        snapshot["current"] = current
+        return snapshot
+
+    def save_arbi_rating(self, key: str, tier: str) -> Dict[str, Any]:
+        if self.arbi is None:
+            raise ValueError("仲裁评级未启用（arbi.enabled）。")
+        return self.arbi.set_rating(key, tier)
 
     def alias_snapshot(self) -> Dict[str, Any]:
         index = None

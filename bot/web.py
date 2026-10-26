@@ -145,6 +145,18 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_snapshot()})
                     return
+                if path == "/api/arbi":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    try:
+                        payload = server.app.arbi_snapshot()
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, **payload})
+                    return
                 if path == "/api/alias-groups":
                     if not self._authorized():
                         self._unauthorized()
@@ -323,6 +335,22 @@ class AdminServer:
                 if parsed.path == "/api/data/refresh":
                     try:
                         result = server.app.refresh_market_data()
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/arbi":
+                    try:
+                        result = server.app.save_arbi_rating(
+                            str(data.get("key") or ""),
+                            str(data.get("tier") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
                     except Exception as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_GATEWAY)

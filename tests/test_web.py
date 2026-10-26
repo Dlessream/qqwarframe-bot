@@ -114,6 +114,26 @@ class FakeApp:
     def request_restart(self):
         self.restarted = True
 
+    def arbi_snapshot(self):
+        return {
+            "enabled": True,
+            "nodes": [{"key": "SolNode1", "name": "Callisto", "system": "木星",
+                       "mission": "拦截", "levels": "15 - 20",
+                       "community": "S", "manual": "", "local": "S",
+                       "tier": "S", "source": "community"}],
+            "counts": {"community": 1, "manual": 0, "local": 0, "none": 0},
+            "tiers": ["S", "A+", "A", "A-", "B", "C"],
+            "local_rating": True,
+            "ratings_file": "data/arbi_ratings.json",
+            "current": "SolNode1",
+        }
+
+    def save_arbi_rating(self, key, tier):
+        if not key:
+            raise ValueError("缺少节点编号。")
+        self.arbi_saved = (key, tier)
+        return {"ok": True, "key": key, "tier": tier or "S", "source": "manual"}
+
 
 class AdminServerTest(unittest.TestCase):
     def setUp(self):
@@ -142,6 +162,30 @@ class AdminServerTest(unittest.TestCase):
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read()
+
+    def test_arbi_get(self):
+        status, body = self.request(
+            "/api/arbi", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["nodes"][0]["key"], "SolNode1")
+        self.assertEqual(payload["current"], "SolNode1")
+        status, _ = self.request("/api/arbi")
+        self.assertEqual(status, 401)
+
+    def test_arbi_post(self):
+        status, body = self.request(
+            "/api/arbi", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"key": "SolNode1", "tier": "A"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.app.arbi_saved, ("SolNode1", "A"))
+        status, body = self.request(
+            "/api/arbi", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"key": "", "tier": "A"})
+        self.assertEqual(status, 400)
 
     def test_html(self):
         status, body = self.request("/")

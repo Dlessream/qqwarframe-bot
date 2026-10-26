@@ -312,6 +312,23 @@ a { color: inherit; text-decoration: none; }
   box-shadow: var(--shadow);
   font-size: 12px;
 }
+.arbi-list { max-height: 520px; overflow: auto; padding: 8px 22px 12px; }
+.arbi-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.arbi-row:last-child { border-bottom: 0; }
+.arbi-main { min-width: 0; }
+.arbi-name { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--text); }
+.arbi-name b { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arbi-name small { color: var(--muted); font-size: 10px; }
+.arbi-meta { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.arbi-tags { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.arbi-tag { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.arbi-tag.is-community { color: var(--gold); border-color: rgba(232,180,90,.5); }
+.arbi-tag.is-manual { color: #7fd8a0; border-color: rgba(127,216,160,.45); }
+.arbi-tag.is-local { color: #8fb8d8; border-color: rgba(143,184,216,.32); }
+.arbi-tag.is-current { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
+.arbi-select { height: 32px; min-width: 92px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: #070c13; font-size: 11px; outline: none; }
+.arbi-select:focus { border-color: rgba(232,180,90,.6); }
+.arbi-empty { padding: 14px 0; color: var(--muted); font-size: 11px; }
 
 @media (max-width: 840px) {
   .shell { width: calc(100% - 28px); padding-top: 30px; }
@@ -327,6 +344,8 @@ a { color: inherit; text-decoration: none; }
   .alias-group { grid-template-columns: 1fr auto; }
   .alias-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .alias-row { grid-template-columns: 1fr 1.6fr auto; }
+  .arbi-row { grid-template-columns: 1fr auto; }
+  .arbi-tags { justify-content: flex-start; }
   .alias-slug { display: none; }
   .card-main { gap: 20px; }
   .footer { flex-direction: column; }

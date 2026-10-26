@@ -109,6 +109,9 @@ DEFAULTS: Dict[str, Any] = {
         "retries": 1,
         "proxy": "http://127.0.0.1:10809",
         "cache_seconds": 21600,
+        # 社区梯队只覆盖十几个节点，其余按任务类型 + 等级本地推算
+        "local_rating": True,
+        "ratings_file": "data/arbi_ratings.json",
         "user_agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/126.0.0.0 Safari/537.36"),

@@ -17,6 +17,10 @@
     catalogLimit: 40,
     catalogOffset: 0,
     catalogQuery: "",
+    arbiNodes: [],
+    arbiTiers: [],
+    arbiQuery: "",
+    arbiCurrent: "",
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -264,6 +268,7 @@
     try {
       const status = await api("/api/status");
       render(status);
+      if (!state.arbiNodes.length) loadArbi();
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") {
         const pill = $("connPill");
@@ -631,6 +636,123 @@
     }
   }
 
+  async function loadArbi() {
+    try {
+      const data = await api("/api/arbi");
+      state.arbiNodes = data.nodes || [];
+      state.arbiTiers = data.tiers || [];
+      state.arbiCurrent = data.current || "";
+      renderArbi(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("arbiInfo", "读取仲裁节点失败：" + exc.message);
+      }
+    }
+  }
+
+  function arbiStatusLabel(node) {
+    if (node.source === "community") return "社区梯队 " + node.community;
+    if (node.source === "manual") return "人工评级 " + node.manual;
+    return "本地推算 " + node.local;
+  }
+
+  function renderArbi(data) {
+    const counts = data.counts || {};
+    const total = (data.nodes || []).length;
+    const info = [];
+    if (data.message) {
+      info.push(data.message);
+    } else if (data.error) {
+      info.push("仲裁数据不可用：" + data.error);
+    } else {
+      info.push("共 <b>" + total + "</b> 个节点");
+      info.push("社区 <b>" + Number(counts.community || 0) + "</b>");
+      info.push("人工 <b>" + Number(counts.manual || 0) + "</b>");
+      info.push("本地 <b>" + Number(counts.local || 0) + "</b>");
+      if (data.ratings_file) info.push("人工评级保存在 " + data.ratings_file);
+    }
+    $("arbiInfo").innerHTML = info.join(" · ");
+    setText("arbiCount", total ? total + " 个节点" : "");
+
+    const list = $("arbiList");
+    list.innerHTML = "";
+    const query = state.arbiQuery;
+    const nodes = (data.nodes || []).filter((node) => {
+      if (!query) return true;
+      const hay = [node.name, node.system, node.mission, node.key,
+        node.community, node.manual, node.local].join(" ").toLowerCase();
+      return hay.indexOf(query) >= 0;
+    });
+    if (!nodes.length) {
+      list.innerHTML = '<div class="arbi-empty">没有匹配的节点。</div>';
+      return;
+    }
+
+    nodes.forEach((node) => {
+      const row = document.createElement("div");
+      row.className = "arbi-row";
+
+      const main = document.createElement("div");
+      main.className = "arbi-main";
+      const name = document.createElement("div");
+      name.className = "arbi-name";
+      const title = document.createElement("b");
+      title.textContent = node.name || node.key;
+      title.title = node.key;
+      const system = document.createElement("small");
+      system.textContent = node.system || "—";
+      name.append(title, system);
+      const meta = document.createElement("div");
+      meta.className = "arbi-meta";
+      meta.textContent = [node.mission || "—", node.levels || "—",
+        "最终 " + (node.tier || "未评级")].join(" · ");
+      main.append(name, meta);
+
+      const tags = document.createElement("div");
+      tags.className = "arbi-tags";
+      if (state.arbiCurrent && node.key === state.arbiCurrent) {
+        const badge = document.createElement("span");
+        badge.className = "arbi-tag is-current";
+        badge.textContent = "轮换中";
+        tags.appendChild(badge);
+      }
+      const badge = document.createElement("span");
+      badge.className = "arbi-tag is-" + (node.source || "local");
+      badge.textContent = arbiStatusLabel(node);
+      tags.appendChild(badge);
+
+      const select = document.createElement("select");
+      select.className = "arbi-select";
+      const options = [{ value: "", label: "跟随默认" }].concat(
+        (data.tiers || []).map((tier) => ({ value: tier, label: tier })));
+      options.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.value;
+        option.textContent = item.label;
+        if ((node.manual || "") === item.value) option.selected = true;
+        select.appendChild(option);
+      });
+      select.disabled = !data.enabled;
+      select.addEventListener("change", async () => {
+        select.disabled = true;
+        try {
+          const result = await api("/api/arbi", {
+            method: "POST",
+            body: { key: node.key, tier: select.value },
+          });
+          toast("已保存：" + (result.text || node.name));
+          await loadArbi();
+        } catch (exc) {
+          if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+          select.disabled = false;
+        }
+      });
+
+      row.append(main, tags, select);
+      list.appendChild(row);
+    });
+  }
+
   async function refreshData() {
     const button = $("dataRefresh");
     button.disabled = true;
@@ -673,6 +795,14 @@
       loadAliases();
     });
     $("dataRefresh").addEventListener("click", refreshData);
+    $("arbiRefresh").addEventListener("click", loadArbi);
+    $("arbiFilterBtn").addEventListener("click", () => {
+      state.arbiQuery = $("arbiFilter").value.trim().toLowerCase();
+      loadArbi();
+    });
+    $("arbiFilter").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") $("arbiFilterBtn").click();
+    });
     $("aliasTarget").addEventListener("keydown", (event) => {
       if (event.key === "Enter") searchItems();
     });

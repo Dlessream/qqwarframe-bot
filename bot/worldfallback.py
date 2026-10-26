@@ -27,7 +27,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from . import terms
+from . import bounties, terms
 
 LOGGER = logging.getLogger("qqwarframe.worldfallback")
 
@@ -250,15 +250,13 @@ def _challenge_title(path: Any) -> str:
 
 
 def _bounty_label(job: Dict[str, Any]) -> str:
-    """不同档位的赏金任务类型相同，补上敌人等级以便区分。"""
+    """任务类型 + 官方目标名，例如「歼灭 · 宰杀敌人」。
+
+    以前这里把等级拼进名字（歼灭 5-15）来区分档位，卡片上又有单独的
+    等级列，等于同一信息写两遍；现在补的是真正的目标名，等级交给展示层。
+    """
     kind = _bounty_kind(job.get("jobType"))
-    low = int(job.get("minEnemyLevel") or 0)
-    high = int(job.get("maxEnemyLevel") or 0)
-    if not high:
-        return kind
-    if low and low != high:
-        return "%s %d-%d" % (kind, low, high)
-    return "%s %d" % (kind, high)
+    return bounties.label(job.get("jobType"), kind)
 
 
 def _reward(reward: Any) -> Dict[str, Any]:

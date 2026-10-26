@@ -17,7 +17,7 @@ class WorldPresentTest(unittest.TestCase):
         reply = present.alerts_reply(raw)
         self.assertIn("世界警报", reply.text)
         self.assertIn("Nimus", reply.text)
-        self.assertIn("3xFieldron", reply.text)
+        self.assertIn("3 个 Fieldron", reply.text)
 
     def test_cycles(self):
         reply = present.cycles_reply(

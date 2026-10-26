@@ -1,0 +1,229 @@
+{
+  "jobs": {
+    "eidolon/jobs/assassinatebountyass": {
+      "en": "Assassinate the Commander",
+      "zh": "刺杀指挥官"
+    },
+    "eidolon/jobs/assassinatebountycap": {
+      "en": "Capture the New Grineer Commander",
+      "zh": "捕获新克隆尼指挥官"
+    },
+    "eidolon/jobs/attritionbountycap": {
+      "en": "Capture Their Leader",
+      "zh": "捕获敌方领袖"
+    },
+    "eidolon/jobs/attritionbountyext": {
+      "en": "Cull the Enemy",
+      "zh": "宰杀敌人"
+    },
+    "eidolon/jobs/attritionbountylib": {
+      "en": "Weaken the Grineer Foothold",
+      "zh": "削弱克隆尼的据点"
+    },
+    "eidolon/jobs/attritionbountysab": {
+      "en": "Sabotage the Enemy Supply Lines",
+      "zh": "破坏克隆尼的补给线"
+    },
+    "eidolon/jobs/capturebountycapone": {
+      "en": "Capture the Grineer Commander",
+      "zh": "捕获克隆尼指挥官"
+    },
+    "eidolon/jobs/capturebountycaptwo": {
+      "en": "Spy Catcher",
+      "zh": "间谍捕手"
+    },
+    "eidolon/jobs/events/ghoulalertbountyass": {
+      "en": "Eliminate A Ghoul Alpha",
+      "zh": "消灭食尸鬼首领"
+    },
+    "eidolon/jobs/events/ghoulalertbountyext": {
+      "en": "Wipe out Ghoul Burial Grounds",
+      "zh": "清剿食尸鬼墓地"
+    },
+    "eidolon/jobs/events/ghoulalertbountyhunt": {
+      "en": "Purge a Massive Ghoul Burial Site",
+      "zh": "净化大型食尸鬼葬地"
+    },
+    "eidolon/jobs/events/ghoulalertbountyres": {
+      "en": "Rescue the Ghoul Defector",
+      "zh": "营救食尸鬼叛逃者"
+    },
+    "eidolon/jobs/events/infestedplainsbounty": {
+      "en": "瘟疫之星",
+      "zh": "瘟疫之星"
+    },
+    "eidolon/jobs/narmer/assassinatebountyass": {
+      "en": "Rise and Fall (Narmer)",
+      "zh": "兴衰（合一众）"
+    },
+    "eidolon/jobs/narmer/attritionbountyext": {
+      "en": "For the Unum (Narmer)",
+      "zh": "为了乌努母神（合一众）"
+    },
+    "eidolon/jobs/narmer/attritionbountylib": {
+      "en": "Bring Them Home (Narmer)",
+      "zh": "带他们回家（合一众）"
+    },
+    "eidolon/jobs/reclamationbountycache": {
+      "en": "Find the Hidden Artifact",
+      "zh": "寻找隐藏神器"
+    },
+    "eidolon/jobs/reclamationbountycap": {
+      "en": "Capture the Grineer Agent",
+      "zh": "捕获克隆尼特工"
+    },
+    "eidolon/jobs/reclamationbountytheft": {
+      "en": "Reclaim the Stolen Artifact",
+      "zh": "取回被盗的器物"
+    },
+    "eidolon/jobs/rescuebountyresc": {
+      "en": "Search and Rescue",
+      "zh": "搜索与救援"
+    },
+    "eidolon/jobs/sabotagebountysab": {
+      "en": "Sabotage Bounty",
+      "zh": "破坏原型机"
+    },
+    "infestedmicroplanet/jobs/deimosareadefensebounty": {
+      "en": "Reclaim What's Ours",
+      "zh": "夺回属于我们的东西"
+    },
+    "infestedmicroplanet/jobs/deimosassassinatebounty": {
+      "en": "Cleanse the Land",
+      "zh": "净化土地"
+    },
+    "infestedmicroplanet/jobs/deimoscrpsurvivorbounty": {
+      "en": "For Science!",
+      "zh": "为了科学！"
+    },
+    "infestedmicroplanet/jobs/deimosendlessexcavatebounty": {
+      "en": "Strip Mining (Endless)",
+      "zh": "露天开采（无尽）"
+    },
+    "infestedmicroplanet/jobs/deimosendlesspurifybounty": {
+      "en": "Anomaly Retrieval (Endless)",
+      "zh": "异常回收（无尽）"
+    },
+    "infestedmicroplanet/jobs/deimosexcavatebounty": {
+      "en": "Core Samples",
+      "zh": "核心样本"
+    },
+    "infestedmicroplanet/jobs/deimosgrnsurvivorbounty": {
+      "en": "Brute Force",
+      "zh": "暴力破解"
+    },
+    "infestedmicroplanet/jobs/deimoskeypiecesbounty": {
+      "en": "Salvage",
+      "zh": "回收"
+    },
+    "infestedmicroplanet/jobs/deimospurifybounty": {
+      "en": "Anomaly Retrieval",
+      "zh": "异常回收"
+    },
+    "venus/jobs/narmer/narmervenusculljobassassinate": {
+      "en": "Master's Voice (Narmer)",
+      "zh": "主人的声音（合一众）"
+    },
+    "venus/jobs/narmer/narmervenusculljobexterminate": {
+      "en": "Crush the Cult (Narmer)",
+      "zh": "粉碎教团（合一众）"
+    },
+    "venus/jobs/narmer/narmervenustheftjobexcavation": {
+      "en": "Digging for Narmer (Narmer)",
+      "zh": "为合一众挖掘（合一众）"
+    },
+    "venus/jobs/venusartifactjobambush": {
+      "en": "Courier Ambush",
+      "zh": "信使伏击"
+    },
+    "venus/jobs/venusartifactjobexcavation": {
+      "en": "Archaeology",
+      "zh": "考古"
+    },
+    "venus/jobs/venusartifactjobrecovery": {
+      "en": "Blood Relics",
+      "zh": "血之遗物"
+    },
+    "venus/jobs/venuschaosjobassassinate": {
+      "en": "Scorched Earth",
+      "zh": "焦土"
+    },
+    "venus/jobs/venuschaosjobexcavation": {
+      "en": "Bury Them",
+      "zh": "埋葬他们"
+    },
+    "venus/jobs/venusculljobassassinate": {
+      "en": "Network Collapse",
+      "zh": "网络崩溃"
+    },
+    "venus/jobs/venusculljobexterminate": {
+      "en": "Hunter-Killer",
+      "zh": "猎杀者"
+    },
+    "venus/jobs/venusculljobresource": {
+      "en": "Distract and Divert",
+      "zh": "声东击西"
+    },
+    "venus/jobs/venushelpingjobcaches": {
+      "en": "Seems Legit",
+      "zh": "看起来很靠谱"
+    },
+    "venus/jobs/venushelpingjobresource": {
+      "en": "Dirt Unit",
+      "zh": "脏活部门"
+    },
+    "venus/jobs/venushelpingjobspy": {
+      "en": "Dog Boards",
+      "zh": "滑板情报"
+    },
+    "venus/jobs/venusinteljobrecovery": {
+      "en": "Proof of Life",
+      "zh": "生存证明"
+    },
+    "venus/jobs/venusinteljobresource": {
+      "en": "Operational Intelligence",
+      "zh": "作战情报"
+    },
+    "venus/jobs/venusinteljobspy": {
+      "en": "Financial Liberation",
+      "zh": "财务解放"
+    },
+    "venus/jobs/venuspreservationjobdefense": {
+      "en": "Picket Duty",
+      "zh": "哨戒任务"
+    },
+    "venus/jobs/venuspreservationjobrecovery": {
+      "en": "Protect the Innocent",
+      "zh": "保护无辜者"
+    },
+    "venus/jobs/venuspreservationjobresource": {
+      "en": "Trash Their Traps",
+      "zh": "破坏他们的陷阱"
+    },
+    "venus/jobs/venusspyjobspy": {
+      "en": "Agent Down",
+      "zh": "特工倒下"
+    },
+    "venus/jobs/venustheftjobambush": {
+      "en": "Software Subterfuge",
+      "zh": "软件诡计"
+    },
+    "venus/jobs/venustheftjobexcavation": {
+      "en": "Resource Theft",
+      "zh": "窃取资源"
+    },
+    "venus/jobs/venustheftjobresource": {
+      "en": "Tax the Taxmen",
+      "zh": "向税务官征税"
+    },
+    "venus/jobs/venuswetworkjobassassinate": {
+      "en": "Served Cold",
+      "zh": "冷盘复仇"
+    },
+    "venus/jobs/venuswetworkjobspy": {
+      "en": "Falling Star",
+      "zh": "陨落之星"
+    }
+  },
+  "note": "官方 jobType 路径（小写，去掉 /Lotus/Types/Gameplay/） → 赏金目标名；英文取自 WFCD languages.json，中文按游戏内文案。"
+}

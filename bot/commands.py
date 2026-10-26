@@ -578,7 +578,7 @@ class CommandRouter:
         if self.arbi is None:
             return present.error_reply("仲裁评级未启用。")
         entries = self.arbi.today()
-        return present.arbitration_schedule_reply(entries, "今日仲裁")
+        return present.arbitration_schedule_reply(entries)
 
     def _effective_arbitration(self, argument: str, ctx: Context) -> Reply:
         if self.arbi is None:
@@ -608,6 +608,7 @@ class CommandRouter:
             return present.error_reply(str(exc))
 
         rating = None
+        rating_source = ""
         node = None
         note = ""
         if self.arbi is not None:
@@ -626,10 +627,12 @@ class CommandRouter:
                         )
                         node = site_node
                         rating = self.arbi.rating(site_node.key)
+                        rating_source = self.arbi.rating_source(site_node.key)
                         note = "Warframe 官方 API 暂无有效数据，按 arbi.wf.wiki 轮换推算"
                 else:
                     node = self.arbi.node(arbitration.node_key)
                     rating = self.arbi.rating(arbitration.node_key)
+                    rating_source = self.arbi.rating_source(arbitration.node_key)
             except ArbiError as exc:
                 note = "评级数据暂不可用：%s" % exc
 
@@ -637,7 +640,8 @@ class CommandRouter:
              or arbitration.node == "SolNode000") and node is None):
             return present.error_reply("当前没有有效的仲裁数据。")
         return present.arbitration_reply(arbitration, rating=rating,
-                                         node=node, note=note)
+                                         node=node, note=note,
+                                         rating_source=rating_source)
 
     def _arbi_tiers(self, argument: str, ctx: Context) -> Reply:
         if self.arbi is None:
@@ -654,7 +658,9 @@ class CommandRouter:
                 current_key = current[0].key
         except Exception:
             pass
-        return present.arbitration_tiers_reply(data, current_key)
+        include_local = str(argument or "").strip() in ("本地", "local", "全部", "推演")
+        return present.arbitration_tiers_reply(data, current_key,
+                                               include_local=include_local)
 
     # ------------------------------------------------------------------ 提醒
     def _add_alert(self, argument: str, ctx: Context) -> Reply:

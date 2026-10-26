@@ -529,6 +529,9 @@ class FakeArbi:
     def rating(self, key):
         return self.data_obj.rating(key)
 
+    def rating_source(self, key):
+        return self.data_obj.resolve(key)[1]
+
     def node(self, key):
         return self.data_obj.nodes.get(key)
 

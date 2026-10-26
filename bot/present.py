@@ -316,18 +316,34 @@ def _rating_color(rating: str):
     return imagecard.MUTED
 
 
+def _arbi_mission(text) -> str:
+    """arbi 节点表里偶尔带英文派系前缀（INFESTED 资源回收）。"""
+    raw = str(text or "")
+    if raw.upper().startswith("INFESTED "):
+        return "感染者" + raw[len("INFESTED "):]
+    return raw
+
+
 def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
-                      node=None, note: str = "") -> Reply:
+                      node=None, note: str = "",
+                      rating_source: str = "") -> Reply:
+    tier = rating or ""
+    source_label = {"community": "社区梯队", "manual": "人工评级",
+                    "local": "本地推算"}.get(rating_source, "")
+    rating_text = tier
+    if tier and source_label:
+        rating_text = "%s（%s）" % (tier, source_label)
     subtitle = "剩余 %s" % countdown(arbitration.end)
-    if rating:
-        subtitle += " ｜ 评级 %s" % rating
+    if rating_text:
+        subtitle += " ｜ 评级 %s" % rating_text
     name = node.display_name if node is not None else (arbitration.node or "—")
-    mission = node.mission if node is not None else (arbitration.mission or "—")
+    mission = (_arbi_mission(node.mission) if node is not None
+               else (arbitration.mission or "—"))
     enemy = node.faction if node is not None else (arbitration.enemy or "—")
     enemy = terms.localize_faction(str(enemy))
     system = node.system if node is not None else "—"
     level = node.level_text if node is not None else "—"
-    rows = [[name, system, mission, enemy, level, rating or "—"]]
+    rows = [[name, system, mission, enemy, level, tier or "—"]]
 
     lines = ["【仲裁】", subtitle, "节点：%s" % name]
     if node is not None and node.system:
@@ -336,8 +352,10 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
     lines.append("敌人：%s" % enemy)
     if node is not None and node.max_level:
         lines.append("等级：%s" % node.level_text)
-    if rating:
-        lines.append("评级：%s" % rating)
+    if rating_text:
+        lines.append("评级：%s" % rating_text)
+    if rating_source == "local":
+        lines.append("说明：该节点不在社区梯队里，评级由任务类型与敌人等级推算。")
     if note:
         lines.append(note)
 
@@ -349,49 +367,85 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
         image=lambda: imagecard.build_table(
             "仲裁任务", subtitle,
             ["节点", "星球", "类型", "敌人", "等级", "评级"], rows,
-            footer, accent=_rating_color(rating or ""),
-            chip="仲裁 %s" % rating if rating else "仲裁",
+            footer, accent=_rating_color(tier),
+            chip="仲裁 %s" % tier if tier else "仲裁",
             note=note,
-            ratios=[2.0, 0.8, 1.0, 1.0, 0.8, 0.7],
-            highlights=[[_rating_color(rating or ""), None, None, None, None,
-                         _rating_color(rating or "")]]))
+            ratios=[2.0, 0.8, 1.0, 1.0, 0.8, 0.6],
+            highlights=[[_rating_color(tier), None, None, None, None,
+                         _rating_color(tier)]]))
 
 
-def arbitration_tiers_reply(data, current_key: str = "") -> Reply:
+def arbitration_tiers_reply(data, current_key: str = "",
+                            include_local: bool = False) -> Reply:
+    """仲裁评级总表：社区梯队 + 人工评级；include_local 时附本地推算。"""
     rows = []
     highlights = []
-    lines = ["【仲裁评级】"]
+    counts = data.counts()
     current = data.nodes.get(current_key) if current_key else None
-    for tier, nodes in data.groups():
-        lines.append("%s：%s" % (tier, "；".join(
-            "%s（%s）%s" % (node.name, node.system, node.mission)
-            for node in nodes)))
-        for node in nodes:
-            rows.append([tier, node.name, node.system, node.mission,
-                         node.level_text])
-            if current_key and node.key == current_key:
-                highlights.append([imagecard.GOLD] * 5)
-            else:
-                highlights.append([_rating_color(tier), None, None, None, None])
+    lines = ["【仲裁评级】"]
 
-    subtitle = "共 %d 个已评级节点" % data.rated_count
+    header = "社区梯队 %d 个" % counts.get("community", 0)
+    if counts.get("manual"):
+        header += " ｜ 人工 %d 个" % counts["manual"]
+    if data.use_local:
+        header += " ｜ 本地推算 %d 个" % counts.get("local", 0)
+    lines.append(header)
+    lines.append("优先级：社区梯队 > 人工评级 > 本地推算")
+
     if current is not None:
-        subtitle += " ｜ 当前 %s" % current.display_name
         lines.insert(1, "当前：%s · %s · 评级 %s" % (
-            current.display_name, current.mission,
-            data.rating(current.key)))
-    lines.append("未评级节点：%d 个（未列出）" % (
-        len(data.nodes) - data.rated_count))
-    lines.append("数据源：https://arbi.wf.wiki/")
+            current.display_name, _arbi_mission(current.mission),
+            data.rating_label(current.key)))
 
+    groups = data.groups()
+    if not include_local and data.use_local:
+        local_groups = data.local_groups()
+        if local_groups:
+            local_total = sum(len(nodes) for _tier, nodes in local_groups)
+            lines.append("另有 %d 个节点只有本地推算评级，"
+                         "输入「仲裁评级 本地」查看。" % local_total)
+    if include_local:
+        groups = groups + data.local_groups()
+
+    limit = 40 if include_local else 200
+    truncated = 0
+    for tier, nodes in groups:
+        for node in nodes:
+            _tier, source = data.resolve(node.key)
+            label = {"community": "社区", "manual": "人工",
+                     "local": "本地"}.get(source, "—")
+            if len(rows) >= limit:
+                truncated += 1
+                continue
+            rows.append([tier, node.name, node.system,
+                         _arbi_mission(node.mission), node.level_text, label])
+            if current_key and node.key == current_key:
+                highlights.append([imagecard.GOLD] * 6)
+            else:
+                highlights.append([_rating_color(tier), None, None, None,
+                                   None, None])
+        lines.append("%s：%s" % (tier, "；".join(
+            "%s（%s）%s" % (node.name, node.system,
+                            _arbi_mission(node.mission))
+            for node in nodes)))
+
+    if not rows:
+        return Reply(text="还没有任何仲裁评级数据。")
+    if truncated:
+        lines.append("卡片只列前 %d 个节点，其余 %d 个在控制台查看。" % (
+            limit, truncated))
+
+    subtitle = "共 %d 个节点 · 社区 %d / 人工 %d / 本地 %d" % (
+        len(data.nodes), counts.get("community", 0), counts.get("manual", 0),
+        counts.get("local", 0))
+    footer = "数据 arbi.wf.wiki · 本地推算取自任务类型与敌人等级"
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.build_table(
             "仲裁评级", subtitle,
-            ["梯队", "节点", "星球", "任务", "等级"], rows,
-            "数据 arbi.wf.wiki · 未评级节点未列出",
-            accent=imagecard.GOLD, chip="评级",
-            ratios=[0.6, 1.7, 0.8, 1.2, 0.8],
+            ["梯队", "节点", "星球", "任务", "等级", "来源"], rows,
+            footer, accent=imagecard.GOLD, chip="评级",
+            ratios=[0.5, 1.6, 0.7, 1.0, 0.8, 0.6],
             highlights=highlights))
 
 
@@ -658,24 +712,27 @@ def archon_reply(raw) -> Reply:
         ratios=[2.0, 1.2, 0.8], accent=imagecard.GOLD)
 
 
-def arbitration_schedule_reply(entries, title: str = "今日仲裁",
+def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 小时）",
                                empty: str = "") -> Reply:
     rows = []
     highlights = []
     lines = []
-    for start, end, node, tier in entries[:20]:
+    for start, end, node, tier in entries[:24]:
         when = time.strftime("%m-%d %H:%M", time.localtime(start))
-        rows.append([when, node.display_name, node.mission, tier])
-        lines.append("%s %s · %s · %s" % (
-            when, node.display_name, node.mission, tier))
+        left = countdown(end)
+        rows.append([when, left, node.display_name,
+                     _arbi_mission(node.mission), tier])
+        lines.append("%s（%s）%s · %s · %s" % (
+            when, left, node.display_name, _arbi_mission(node.mission), tier))
         color = _rating_color(tier)
-        highlights.append([None, None, None, color])
+        highlights.append([None, None, None, None, color])
     if not rows:
-        return Reply(text=empty or "今天没有更多仲裁。")
+        return Reply(text=empty or "未来 24 小时没有仲裁。")
     return _world_reply(
-        title, "按 arbi.wf.wiki 轮换表", ["时间", "节点", "任务", "评级"], rows,
+        title, "按 arbi.wf.wiki 轮换表 · 已过时的不列出",
+        ["时间", "剩余", "节点", "任务", "评级"], rows,
         "数据 arbi.wf.wiki · 轮换表", "仲裁",
-        text_lines=lines, ratios=[1.0, 1.8, 0.9, 0.6],
+        text_lines=lines, ratios=[1.0, 0.8, 1.6, 0.9, 0.5],
         accent=imagecard.GOLD, note="时间按本机时区显示。")
 
 
@@ -978,7 +1035,7 @@ def bounties_reply(raw) -> Reply:
         if not jobs:
             if name in BOUNTY_ORDER:
                 rows.append(["%s · %s" % (terms.localize_syndicate(name), location),
-                             "暂无可接赏金", "—", "—"])
+                             "暂无可接赏金", "—", "—", "—"])
             continue
         for job in jobs:
             title = terms.localize_bounty(
@@ -997,6 +1054,7 @@ def bounties_reply(raw) -> Reply:
             rows.append([
                 "%s · %s" % (terms.localize_syndicate(name), location),
                 title,
+                _bounty_level(job),
                 "、".join(rewards) or "—",
                 countdown(parse_timestamp(job.get("expiry"))),
             ])
@@ -1005,9 +1063,10 @@ def bounties_reply(raw) -> Reply:
         return _world_reply("赏金", "当前没有可接赏金", [], [],
                             "数据 世界状态聚合源", "赏金")
     return _world_reply(
-        "赏金", "各据点可接的赏金", ["NPC / 地点", "任务", "奖励", "剩余"], rows,
+        "赏金", "各据点可接的赏金",
+        ["NPC / 地点", "任务", "等级", "奖励", "剩余"], rows,
         "数据 世界状态聚合源", "赏金",
-        ratios=[1.5, 1.8, 1.7, 0.8], accent=imagecard.GREEN)
+        ratios=[1.5, 1.9, 0.6, 1.5, 0.7], accent=imagecard.GREEN)
 
 
 def worldstate_reply(data: dict) -> Reply:

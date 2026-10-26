@@ -163,6 +163,25 @@
       </details>
     </section>
 
+    <section class="panel arbi-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">仲裁评级</span>
+          <span class="panel-sub">社区梯队 &gt; 人工评级 &gt; 本地推算（任务类型 + 敌人等级）</span>
+        </div>
+        <button id="arbiRefresh" class="btn btn-ghost btn-sm" type="button">刷新列表</button>
+      </div>
+      <div class="source-strip">
+        <span id="arbiInfo">正在读取仲裁节点…</span>
+        <span id="arbiCount" class="source-count"></span>
+      </div>
+      <div class="alias-tools">
+        <input id="arbiFilter" class="input" type="text" placeholder="筛选节点 / 星球 / 任务，例如 生存、土星">
+        <button id="arbiFilterBtn" class="btn btn-ghost btn-sm" type="button">筛选</button>
+      </div>
+      <div id="arbiList" class="arbi-list"></div>
+    </section>
+
     <section class="panel logs-panel">
       <div class="panel-head">
         <div>

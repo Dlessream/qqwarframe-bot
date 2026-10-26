@@ -5,18 +5,22 @@
   /data/arbys.schedule.v2.json   仲裁轮换表（用于官方 API 过期时兜底）
 
 只读解析，不执行页面脚本。
+
+梯队优先级：社区梯队 > 人工评级（控制台填的）> 本地推算（arbirate）。
+社区梯队只覆盖十几个热门节点，其余靠后两级补上，所以任何节点都能给出评级。
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import terms
+from . import arbirate, terms
 from .net import HttpClient, HttpError
 
 LOGGER = logging.getLogger("qqwarframe.arbi")
@@ -39,6 +43,7 @@ class ArbiNode:
     faction: str
     min_level: int = 0
     max_level: int = 0
+    mission_type: str = ""
 
     @property
     def display_name(self) -> str:
@@ -53,24 +58,99 @@ class ArbiNode:
         return "—"
 
 
+RATING_SOURCE_LABEL = {
+    "community": "社区梯队",
+    "manual": "人工评级",
+    "local": "本地推算",
+}
+
+
 @dataclass
 class ArbiData:
     nodes: Dict[str, ArbiNode]
     tiers: Dict[str, str]
     order: List[str]
+    # 控制台填的人工评级与是否启用本地推算，由 ArbiClient 注入
+    overrides: Dict[str, str] = field(default_factory=dict)
+    use_local: bool = True
+
+    def community_tier(self, key: str) -> str:
+        return self.tiers.get(key, "")
 
     def rating(self, key: str) -> str:
-        return self.tiers.get(key, "未评级")
+        """社区 > 人工 > 本地推算；都没有才算未评级。"""
+        tier, _source = self.resolve(key)
+        return tier or "未评级"
+
+    def resolve(self, key: str) -> Tuple[str, str]:
+        """返回 (梯队, 来源)。来源为 community / manual / local / 空。"""
+        community = self.tiers.get(key, "")
+        if community:
+            return community, "community"
+        manual = self.overrides.get(key, "")
+        if manual:
+            return manual, "manual"
+        if self.use_local:
+            node = self.nodes.get(key)
+            local = arbirate.local_rating(node)
+            if local:
+                return local, "local"
+        return "", ""
+
+    def rating_label(self, key: str) -> str:
+        """给卡片用的完整写法：A+（本地推算）。"""
+        tier, source = self.resolve(key)
+        if not tier:
+            return "未评级"
+        label = RATING_SOURCE_LABEL.get(source, "")
+        return "%s（%s）" % (tier, label) if label else tier
 
     @property
     def rated_count(self) -> int:
         return len(self.tiers)
 
+    def rated(self) -> Dict[str, str]:
+        """社区梯队 + 人工评级（权威来源，不含本地推算）。"""
+        merged = dict(self.overrides)
+        merged.update(self.tiers)
+        return merged
+
+    def counts(self) -> Dict[str, int]:
+        result = {"community": 0, "manual": 0, "local": 0, "none": 0}
+        for key in self.nodes:
+            _tier, source = self.resolve(key)
+            result[source or "none"] = result.get(source or "none", 0) + 1
+        return result
+
+    def orders(self) -> List[str]:
+        order = [tier for tier in self.order if tier]
+        for tier in arbirate.TIER_ORDER:
+            if tier not in order:
+                order.append(tier)
+        return order
+
     def groups(self) -> List[Tuple[str, List[ArbiNode]]]:
+        """按社区梯队 / 人工评级分组（本地推算不混进来）。"""
+        rated = self.rated()
         result = []
-        for tier in self.order:
-            nodes = [self.nodes[key] for key, value in self.tiers.items()
+        for tier in self.orders():
+            nodes = [self.nodes[key] for key, value in rated.items()
                      if value == tier and key in self.nodes]
+            if nodes:
+                nodes.sort(key=lambda node: node.name.lower())
+                result.append((tier, nodes))
+        return result
+
+    def local_groups(self) -> List[Tuple[str, List[ArbiNode]]]:
+        """只按本地推算分组：社区和人工都没收录的节点。"""
+        rows = []
+        for key, node in self.nodes.items():
+            tier, source = self.resolve(key)
+            if source == "local" and tier:
+                rows.append((tier, node))
+        result = []
+        for tier in self.orders():
+            nodes = [node for value, node in rows if value == tier]
             if nodes:
                 nodes.sort(key=lambda node: node.name.lower())
                 result.append((tier, nodes))
@@ -95,6 +175,7 @@ def parse_data(tier_raw: Dict[str, Any],
             faction=_clean(row.get("factionNameZh")),
             min_level=int(row.get("minEnemyLevel") or 0),
             max_level=int(row.get("maxEnemyLevel") or 0),
+            mission_type=_clean(row.get("missionType")),
         )
     tiers: Dict[str, str] = {}
     for tier, keys in (tier_raw.get("tierBuckets") or {}).items():
@@ -125,6 +206,59 @@ class ArbiClient:
         self._data_at = 0.0
         self._schedule: Optional[Dict[str, Any]] = None
         self._schedule_at = 0.0
+        self.ratings_file = str(config.get("ratings_file", "data/arbi_ratings.json"))
+        self.use_local = bool(config.get("local_rating", True))
+        self._overrides: Dict[str, str] = {}
+        self._overrides_at = -1.0
+
+    # ------------------------------------------------------------------ 人工评级
+    def overrides(self) -> Dict[str, str]:
+        """读控制台填的人工评级；文件改过才重新读。"""
+        try:
+            stamp = os.path.getmtime(self.ratings_file)
+        except OSError:
+            stamp = -1.0
+        with self._lock:
+            if stamp == self._overrides_at:
+                return dict(self._overrides)
+        mapping = arbirate.load_overrides(self.ratings_file)
+        with self._lock:
+            self._overrides = mapping
+            self._overrides_at = stamp
+        return dict(mapping)
+
+    def set_rating(self, key: str, tier: str) -> Dict[str, Any]:
+        """写一个人工评级；tier 传空表示删掉这条。"""
+        key = str(key or "").strip()
+        if not key:
+            raise ValueError("缺少节点编号。")
+        mapping = self.overrides()
+        if key not in self.data().nodes and not tier:
+            raise ValueError("未知节点：%s" % key)
+        tier = arbirate.normalize_tier(tier)
+        if tier:
+            mapping[key] = tier
+        else:
+            mapping.pop(key, None)
+        arbirate.save_overrides(self.ratings_file, mapping)
+        with self._lock:
+            self._overrides = dict(mapping)
+            self._overrides_at = -1.0
+            if self._data is not None:
+                self._data.overrides = dict(mapping)
+        node = self.data().nodes.get(key)
+        return {
+            "ok": True,
+            "key": key,
+            "tier": self.data().rating(key),
+            "source": self.data().resolve(key)[1],
+            "name": node.name if node else "",
+            "text": "%s → %s" % (node.name if node else key,
+                                 self.data().rating_label(key)),
+        }
+
+    def clear_rating(self, key: str) -> Dict[str, Any]:
+        return self.set_rating(key, "")
 
     # ------------------------------------------------------------------ HTTP
     def _get_json(self, path: str) -> Dict[str, Any]:
@@ -138,15 +272,23 @@ class ArbiClient:
 
     # ------------------------------------------------------------------ 数据
     def data(self, force: bool = False) -> ArbiData:
+        cached = None
         with self._lock:
             if (not force and self._data is not None
                     and time.time() - self._data_at < self.cache_seconds):
-                return self._data
+                cached = self._data
+        # overrides() 自己会加锁，不能在上面的 with 里调用（Lock 不可重入）
+        overrides = self.overrides()
+        if cached is not None:
+            cached.overrides = overrides
+            return cached
         tier_raw = self._get_json("/data/tierlist.default.json")
         nodes_raw = self._get_json("/data/arbys.nodes.zh.json")
         data = parse_data(tier_raw, nodes_raw)
         if not data.nodes:
             raise ArbiError("arbi.wf.wiki 节点数据为空。")
+        data.overrides = overrides
+        data.use_local = self.use_local
         with self._lock:
             self._data = data
             self._data_at = time.time()
@@ -165,8 +307,28 @@ class ArbiClient:
     def rating(self, key: str) -> str:
         return self.data().rating(key)
 
+    def rating_label(self, key: str) -> str:
+        return self.data().rating_label(key)
+
+    def rating_source(self, key: str) -> str:
+        """community / manual / local / 空。"""
+        return self.data().resolve(key)[1]
+
     def groups(self) -> List[Tuple[str, List[ArbiNode]]]:
         return self.data().groups()
+
+    def nodes_snapshot(self) -> Dict[str, Any]:
+        """控制台用的节点列表：社区 / 人工 / 本地 / 最终都给出。"""
+        data = self.data()
+        rows = arbirate.summarize(list(data.nodes.values()),
+                                  data.overrides, data.tiers)
+        return {
+            "nodes": rows,
+            "counts": data.counts(),
+            "tiers": arbirate.TIER_ORDER,
+            "local_rating": data.use_local,
+            "ratings_file": self.ratings_file,
+        }
 
     # ------------------------------------------------------------------ 轮换
     def _schedule_data(self) -> Dict[str, Any]:
@@ -236,11 +398,9 @@ class ArbiClient:
 
     def today(self, now: Optional[float] = None
               ) -> List[Tuple[float, float, ArbiNode, str]]:
+        """今日仲裁：从现在起 24 小时内的轮换，已经过时的不再列出。"""
         now = time.time() if now is None else now
-        local = time.localtime(now)
-        day_start = time.mktime((local.tm_year, local.tm_mon, local.tm_mday,
-                                 0, 0, 0, local.tm_wday, local.tm_yday, -1))
-        return self.schedule_entries(max(now - 1800, day_start), day_start + 86400)
+        return self.schedule_entries(now, now + 86400)
 
     def effective(self, now: Optional[float] = None, hours: int = 24
                   ) -> List[Tuple[float, float, ArbiNode, str]]:

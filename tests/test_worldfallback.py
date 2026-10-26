@@ -172,9 +172,10 @@ class BuildStateTest(unittest.TestCase):
         rows = self.source.state()["syndicateMissions"]
         names = [row["syndicate"] for row in rows]
         self.assertEqual(names, ["Ostrons", "Solaris United"])
-        self.assertEqual(rows[0]["jobs"][0]["type"], "破坏 5-15")
+        self.assertEqual(rows[0]["jobs"][0]["type"], "破坏克隆尼的补给线")
         self.assertEqual(rows[0]["jobs"][0]["enemyLevels"], [5, 15])
-        self.assertEqual(rows[1]["jobs"][0]["type"], "捕获 10-30")
+        # 福尔图娜这条 jobType 不在官方目标表里，只回退到任务类型
+        self.assertEqual(rows[1]["jobs"][0]["type"], "捕获")
 
     def test_archimedeas(self):
         rows = self.source.state()["archimedeas"]

@@ -24,19 +24,19 @@ NODES = {
         "SolNode1": {"nodeKey": "SolNode1", "nameZh": "Callisto",
                      "systemNameZh": "木星", "missionNameZh": "拦截",
                      "factionNameZh": "Corpus", "minEnemyLevel": 15,
-                     "maxEnemyLevel": 20},
+                     "maxEnemyLevel": 20, "missionType": "MT_TERRITORY"},
         "SolNode2": {"nodeKey": "SolNode2", "nameZh": "Everest",
                      "systemNameZh": "地球", "missionNameZh": "挖掘",
                      "factionNameZh": "Grineer", "minEnemyLevel": 1,
-                     "maxEnemyLevel": 6},
+                     "maxEnemyLevel": 6, "missionType": "MT_EXCAVATE"},
         "SolNode3": {"nodeKey": "SolNode3", "nameZh": "Rhea",
                      "systemNameZh": "土星", "missionNameZh": "拦截",
                      "factionNameZh": "Grineer", "minEnemyLevel": 21,
-                     "maxEnemyLevel": 26},
+                     "maxEnemyLevel": 26, "missionType": "MT_TERRITORY"},
         "SolNode4": {"nodeKey": "SolNode4", "nameZh": "Mithra",
                      "systemNameZh": "虚空", "missionNameZh": "生存",
                      "factionNameZh": "Orokin", "minEnemyLevel": 40,
-                     "maxEnemyLevel": 45},
+                     "maxEnemyLevel": 45, "missionType": "MT_SURVIVAL"},
     },
 }
 
@@ -70,6 +70,9 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(len(data.nodes), 4)
         self.assertEqual(data.rated_count, 3)
         self.assertEqual(data.rating("SolNode1"), "S")
+        # 社区梯队没收录的节点，按任务类型 + 等级本地推算
+        self.assertEqual(data.resolve("SolNode4"), ("S", "local"))
+        data.use_local = False
         self.assertEqual(data.rating("SolNode4"), "未评级")
         self.assertEqual([tier for tier, _ in data.groups()],
                          ["S", "A+", "C"])
@@ -115,7 +118,8 @@ class ClientTest(unittest.TestCase):
     def test_effective(self):
         client = self.make_client()
         entries = client.effective(now=3600, hours=3)
-        self.assertEqual([entry[3] for entry in entries], ["S", "A+"])
+        # SolNode4 现在有本地推算评级（生存），也会出现在高效仲裁里
+        self.assertEqual([entry[3] for entry in entries], ["S", "S", "A+"])
 
     def test_find_node(self):
         client = self.make_client()
@@ -126,7 +130,10 @@ class ClientTest(unittest.TestCase):
     def test_rating(self):
         client = self.make_client()
         self.assertEqual(client.rating("SolNode1"), "S")
-        self.assertEqual(client.rating("SolNode4"), "未评级")
+        self.assertEqual(client.rating_source("SolNode1"), "community")
+        self.assertEqual(client.rating("SolNode4"), "S")
+        self.assertEqual(client.rating_source("SolNode4"), "local")
+        self.assertEqual(client.rating_label("SolNode4"), "S（本地推算）")
 
     def test_refresh(self):
         client = self.make_client()
