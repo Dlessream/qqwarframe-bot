@@ -31,10 +31,11 @@ class DataUpdater:
                  logger: Optional[logging.Logger] = None,
                  cache_config: Optional[Dict[str, Any]] = None,
                  caches: Optional[list] = None,
-                 arbi=None):
+                 arbi=None, board=None):
         self.market = market
         self.riven = riven
         self.arbi = arbi
+        self.board = board
         self.log = logger or LOGGER
         self.cache_config = cache_config or {}
         self.caches = list(caches or [])
@@ -180,6 +181,7 @@ class DataUpdater:
         lines.append("市场物品：%s" % self._market_status())
         lines.append("紫卡武器：%s" % self._riven_status())
         lines.append("仲裁评级：%s" % self._arbi_status())
+        lines.append("价格榜：%s" % self._board_status())
         lines.append("世界状态 / 维基：每次查询实时获取")
         if self.cache_config.get("enabled", True):
             lines.append("短缓存：订单 %ss / 行情 %ss / 世界状态 %ss / 维基 %ss" % (
@@ -215,3 +217,23 @@ class DataUpdater:
                 self.arbi.data().rated_count, format_age(age))
         except Exception as exc:
             return "读取失败：%s" % exc
+
+    def _board_status(self) -> str:
+        if self.board is None:
+            return "未启用"
+        try:
+            status = self.board.status()
+        except Exception as exc:
+            return "读取失败：%s" % exc
+        junk = status.get("junk") or {}
+        frames = status.get("frames") or {}
+        riven = status.get("riven") or {}
+        text = "垃圾 %d/%d ｜ 战甲 %d/%d ｜ 零洗紫卡 %d/%d" % (
+            junk.get("ready", 0), junk.get("total", 0),
+            frames.get("ready", 0), frames.get("total", 0),
+            riven.get("ready", 0), riven.get("total", 0))
+        if not status.get("running"):
+            text += "（扫描已停止）"
+        if status.get("banned"):
+            text += "（被限流，%d 秒后继续）" % int(status["banned"])
+        return text

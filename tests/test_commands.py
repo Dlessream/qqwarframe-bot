@@ -137,6 +137,11 @@ class FakeRiven:
     def __init__(self):
         self.queries = []
 
+    def weapons(self):
+        return {"soma": RivenWeapon(
+            slug="soma", name="索玛", name_en="Soma", riven_type="rifle",
+            group="primary", disposition=1.2, mastery_rank=6)}
+
     def find(self, item):
         self.queries.append(item.slug)
         return RivenWeapon(
@@ -563,6 +568,115 @@ class ArbitrationCommandTest(unittest.TestCase):
         replies = router.handle("#仲裁", self.ctx)
         self.assertIn("Everest", replies[0].text)
         self.assertIn("推算", replies[0].text)
+
+
+class FakeBoard:
+    """价格榜假数据：命令层只读快照。"""
+
+    def __init__(self, ready=True, interval=1.0):
+        self.interval = interval
+        self.ready = ready
+        self.rarities = (100, 45)
+
+    def item_name(self, slug):
+        return {"ash_prime_systems_blueprint": "Ash Prime 系统蓝图",
+                "loki_prime_systems_blueprint": "Loki Prime 系统蓝图",
+                "saryn_prime_set": "Saryn Prime 一套"}.get(slug, slug.replace("_", " "))
+
+    def junk_stats(self, ducats):
+        prices = [7, 25] if self.ready else []
+        return {
+            "ducats": ducats, "label": "金垃圾", "ready": len(prices),
+            "total": 2, "min": prices[0] if prices else 0,
+            "median": prices[len(prices) // 2] if prices else 0,
+            "updated": 0.0, "orders": 2,
+        }
+
+    def junk_quotes(self, ducats):
+        if not self.ready:
+            return []
+        from bot.board import BoardQuote
+        return [BoardQuote("ash_prime_systems_blueprint", 7, 6, 1, 0.0, ducats),
+                BoardQuote("loki_prime_systems_blueprint", 25, 20, 1, 0.0, ducats)]
+
+    def junk_coverage(self, ducats):
+        return (2, 2) if self.ready else (0, 2)
+
+    def coverage(self, kind):
+        return (2, 2) if self.ready else (0, 2)
+
+    def frame_coverage(self):
+        return (2, 2) if self.ready else (0, 2)
+
+    def riven_coverage(self):
+        return (1, 1) if self.ready else (0, 1)
+
+    def frame_quotes(self):
+        if not self.ready:
+            return []
+        from bot.board import BoardQuote
+        return [BoardQuote("saryn_prime_set", 260, 240, 1, 0.0),
+                BoardQuote("ash_prime_set", 120, 110, 1, 0.0)]
+
+    def riven_quotes(self):
+        if not self.ready:
+            return []
+        from bot.board import RivenQuote
+        return [RivenQuote("soma", 5000, True, "Alice",
+                           ("暴击几率 +161.1%", "多重射击 +98.1%"), "", 0.0)]
+
+
+class BoardCommandTest(unittest.TestCase):
+    def setUp(self):
+        self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
+
+    def router(self, board):
+        router, _market, _wiki = make_router()
+        router.board = board
+        return router
+
+    def test_parse_new_commands(self):
+        router = self.router(FakeBoard())
+        self.assertEqual(router.parse("#金垃圾")[0], "junk_gold")
+        self.assertEqual(router.parse("#银垃圾")[0], "junk_silver")
+        self.assertEqual(router.parse("#铜垃圾")[0], "junk_bronze")
+        self.assertEqual(router.parse("#垃圾")[0], "junk_overview")
+        self.assertEqual(router.parse("#战甲榜")[0], "frame_rank")
+        self.assertEqual(router.parse("#紫卡榜")[0], "riven_rank")
+        # 不带武器名的紫卡 = 零洗紫卡榜
+        self.assertEqual(router.parse("#紫卡"), ("riven", ""))
+
+    def test_junk_reply(self):
+        reply = self.router(FakeBoard()).handle("#金垃圾", self.ctx)[0]
+        self.assertIn("金垃圾", reply.text)
+        self.assertIn("7p", reply.text)
+        self.assertIn("Ash Prime 系统蓝图", reply.text)
+        self.assertTrue(reply.has_image)
+
+    def test_junk_overview(self):
+        reply = self.router(FakeBoard()).handle("#垃圾", self.ctx)[0]
+        self.assertIn("Prime 垃圾行情", reply.text)
+        self.assertIn("金垃圾", reply.text)
+
+    def test_frame_rank(self):
+        reply = self.router(FakeBoard()).handle("#战甲榜", self.ctx)[0]
+        self.assertIn("Saryn Prime 一套", reply.text)
+        self.assertIn("260p", reply.text)
+
+    def test_riven_rank_without_argument(self):
+        router = self.router(FakeBoard())
+        router.riven = FakeRiven()
+        reply = router.handle("#紫卡", self.ctx)[0]
+        self.assertIn("零洗紫卡", reply.text)
+        self.assertIn("5000p", reply.text)
+
+    def test_scanning_hint_when_empty(self):
+        reply = self.router(FakeBoard(ready=False)).handle("#银垃圾", self.ctx)[0]
+        self.assertIn("后台扫描", reply.text)
+
+    def test_disabled_without_board(self):
+        reply = self.router(None).handle("#金垃圾", self.ctx)[0]
+        self.assertIn("未启用", reply.text)
 
 
 class RivenImageOnlyTest(unittest.TestCase):

@@ -5,6 +5,8 @@ data/items_cache.json.tmp
 data/alerts.json
 data/alerts.json.tmp
 data/arbi_ratings.json
+data/board_cache.json
+data/board_cache.json.tmp
 logs/
 *.log
 preview_*.png

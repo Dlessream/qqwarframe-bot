@@ -149,5 +149,25 @@
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     "local_rating": true,
     "ratings_file": "data/arbi_ratings.json"
+  },
+  "board": {
+    "enabled": true,
+    "cache_file": "data/board_cache.json",
+    "request_interval": 5.0,
+    "max_request_interval": 20.0,
+    "junk_rarities": [
+      100,
+      45
+    ],
+    "junk_seconds": 14400,
+    "frame_seconds": 14400,
+    "riven_seconds": 28800,
+    "max_riven_price": 50000,
+    "junk_scan": true,
+    "riven_scan": true,
+    "ban_seconds": 180,
+    "window_seconds": 300,
+    "max_requests_per_window": 35,
+    "save_every": 25
   }
 }

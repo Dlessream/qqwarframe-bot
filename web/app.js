@@ -102,6 +102,18 @@
     return "未知";
   }
 
+  function boardText(board) {
+    if (!board || board.enabled === false) return "未启用";
+    const junk = board.junk || {};
+    const frames = board.frames || {};
+    const riven = board.riven || {};
+    let text = "垃圾 " + Number(junk.ready || 0) + "/" + Number(junk.total || 0) +
+      " ｜ 战甲 " + Number(frames.ready || 0) + "/" + Number(frames.total || 0) +
+      " ｜ 紫卡 " + Number(riven.ready || 0) + "/" + Number(riven.total || 0);
+    if (board.banned) text += "（限流 " + Math.ceil(board.banned) + "s）";
+    return text;
+  }
+
   function render(status) {
     state.status = status;
     const conn = status.onebot || {};
@@ -113,6 +125,7 @@
     setText("itemCount", Number(status.market && status.market.items || 0).toLocaleString("zh-CN"));
     setText("rivenCount", Number(status.riven && status.riven.weapons || 0).toLocaleString("zh-CN"));
     setText("lastUpdate", status.updater && status.updater.last_run ? formatTime(status.updater.last_run) : "尚未运行");
+    setText("boardState", boardText(status.board));
     setText("alertCount", status.alerts == null ? "—" : status.alerts);
     const groups = status.groups || {};
     setText("groupPolicy", "白 " + Number((groups.whitelist || []).length) +

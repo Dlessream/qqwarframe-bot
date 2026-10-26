@@ -80,6 +80,7 @@ class RivenWeapon:
     group: str
     disposition: float
     mastery_rank: int
+    disposition_raw: float = 0.0
 
     @property
     def disposition_label(self) -> str:
@@ -118,6 +119,8 @@ class RivenClient:
         self._lock = threading.Lock()
         self._weapons: Optional[Dict[str, RivenWeapon]] = None
         self._weapons_at = 0.0
+        self._attributes: Optional[Dict[str, str]] = None
+        self._attributes_at = 0.0
 
     # ------------------------------------------------------------------ 武器表
     def weapons(self, ttl: int = 43200) -> Dict[str, RivenWeapon]:
@@ -140,6 +143,7 @@ class RivenClient:
                 slug = str(row.get("slug") or "")
                 if not slug:
                     continue
+                raw_disposition = float(row.get("disposition") or 0)
                 result[slug] = RivenWeapon(
                     slug=slug,
                     name=str(localized.get("name") or english.get("name") or slug),
@@ -148,8 +152,9 @@ class RivenClient:
                     group=str(row.get("group") or ""),
                     disposition=(self.disposition_override
                                  if self.disposition_override is not None
-                                 else float(row.get("disposition") or 0)),
+                                 else raw_disposition),
                     mastery_rank=int(row.get("reqMasteryRank") or 0),
+                    disposition_raw=raw_disposition,
                 )
             self._weapons = result
             self._weapons_at = time.time()
@@ -158,6 +163,43 @@ class RivenClient:
     def refresh(self) -> int:
         """强制刷新紫卡武器表（后台自动更新用）。"""
         return len(self.weapons(ttl=0))
+
+    def attributes(self, ttl: int = 43200) -> Dict[str, str]:
+        """紫卡词条 slug -> 中文名（官方 /v2/riven/attributes）。
+
+        接口拿不到时退回内置 ATTRIBUTE_NAMES，界面上不会出现生 slug。
+        """
+        with self._lock:
+            if self._attributes is not None and time.time() - self._attributes_at < ttl:
+                return self._attributes
+        names: Dict[str, str] = dict(ATTRIBUTE_NAMES)
+        try:
+            data = self.market._get("/v2/riven/attributes")
+        except (HttpError, MarketError) as exc:
+            self.log.info("拉取紫卡词条表失败，使用内置字典：%s", exc)
+            with self._lock:
+                self._attributes = names
+                self._attributes_at = time.time()
+            return names
+        rows = data.get("data") if isinstance(data, dict) else None
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            slug = str(row.get("slug") or "")
+            if not slug:
+                continue
+            i18n = row.get("i18n") or {}
+            localized = i18n.get(self.market.language) or i18n.get("zh-hans") or {}
+            english = i18n.get("en") or {}
+            label = str(localized.get("name") or "").strip()
+            if label:
+                names[slug] = label
+            elif slug not in names:
+                names[slug] = str(english.get("name") or slug.replace("_", " "))
+        with self._lock:
+            self._attributes = names
+            self._attributes_at = time.time()
+        return names
 
     def cache_age(self) -> float:
         return max(0.0, time.time() - self._weapons_at) if self._weapons_at else -1.0

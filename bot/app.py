@@ -19,6 +19,7 @@ from . import __version__, imagecard, ocr, present
 from .alerts import AlertStore
 from .aliases import AliasStore
 from .arbi import ArbiClient, ArbiError
+from .board import BoardClient
 from .commands import CommandRouter, Context, strip_cq
 from .market import COMPONENT_LABELS, Item, MarketClient, MarketError
 from .net import HttpClient, HttpError
@@ -94,6 +95,10 @@ class BotApp:
         self.arbi = (ArbiClient(arbi_cfg, logger=self.log)
                      if arbi_cfg.get("enabled", True) else None)
 
+        board_cfg = config.get("board", {})
+        self.board = (BoardClient(self.market, self.riven, board_cfg, logger=self.log)
+                      if board_cfg.get("enabled", True) else None)
+
         world_cfg = config.get("worldstate", {})
         self.worldstate = (WorldStateClient(world_cfg, cache_config=config.get("cache", {}))
                            if world_cfg.get("enabled", True) else None)
@@ -105,7 +110,7 @@ class BotApp:
             self.market, self.riven,
             config.get("auto_update", {}), logger=self.log,
             cache_config=config.get("cache", {}), caches=caches,
-            arbi=self.arbi)
+            arbi=self.arbi, board=self.board)
 
         alert_cfg = config.get("alerts", {})
         self.alerts: Optional[AlertStore] = None
@@ -118,7 +123,7 @@ class BotApp:
             self.market, self.wiki, config, logger=self.log,
             riven=self.riven, worldstate=self.worldstate, alerts=self.alerts,
             arbi=self.arbi, updater=self.updater,
-            translator=self.translator)
+            translator=self.translator, board=self.board)
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
                                      logger=self.log)
@@ -155,6 +160,8 @@ class BotApp:
             thread.start()
         if self.updater is not None:
             self.updater.start()
+        if self.board is not None:
+            self.board.start()
         if self.alerts is not None:
             self._alert_thread = threading.Thread(target=self._alert_loop,
                                                   name="alerts", daemon=True)
@@ -173,6 +180,8 @@ class BotApp:
         self.update_checker.stop()
         if self.updater is not None:
             self.updater.stop()
+        if self.board is not None:
+            self.board.stop()
         self.onebot.close()
         self.log.info("机器人已停止")
 
@@ -212,6 +221,8 @@ class BotApp:
             "riven": {
                 "weapons": self.riven.weapon_count() if self.riven is not None else 0,
             },
+            "board": (self.board.status() if self.board is not None
+                      else {"enabled": False}),
             "updater": {
                 "last_run": self.updater.last_run if self.updater else 0,
                 "last_duration": self.updater.last_duration if self.updater else 0,

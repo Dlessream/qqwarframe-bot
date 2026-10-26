@@ -1204,6 +1204,176 @@ def alert_fired_reply(item: Item, order: Order, alert: Alert) -> Reply:
             ratios=[2, 1, 1]))
 
 
+# ---------------------------------------------------------------------- 价格榜
+def junk_label(ducats: int) -> str:
+    labels = {100: "金垃圾", 45: "银垃圾", 15: "铜垃圾", 65: "假金垃圾", 25: "假银垃圾"}
+    return labels.get(int(ducats), "垃圾")
+
+
+def _fresh(updated: float) -> str:
+    if not updated:
+        return "未更新"
+    seconds = max(0.0, time.time() - updated)
+    if seconds < 90:
+        return "刚刚更新"
+    if seconds < 3600:
+        return "%d 分钟前更新" % int(seconds // 60)
+    return "%.1f 小时前更新" % (seconds / 3600)
+
+
+def junk_reply(ducats: int, quotes: Sequence, stats: dict, name_of,
+               limit: int = 10, platform: str = "PC") -> Reply:
+    """金/银/铜垃圾行情卡。"""
+    label = stats.get("label") or "垃圾"
+    min_price = stats.get("min") or 0
+    median = stats.get("median") or 0
+    group_price = min_price * 6
+    lines = [
+        "【%s】杜卡特 %d" % (label, ducats),
+        "已扫描 %d 件 ｜ 最低 %dp ｜ 中位 %dp ｜ 一组 6 个约 %dp" % (
+            stats.get("ready", 0), min_price, median, group_price),
+        "",
+    ]
+    rows = []
+    for index, quote in enumerate(list(quotes)[:limit], 1):
+        name = name_of(quote.slug)
+        lines.append("%d. %s  %dp（%d 单）" % (index, name, quote.price, quote.orders))
+        ratio = "%.1f" % (ducats / quote.price) if quote.price > 0 else "—"
+        rows.append([
+            "%d" % index,
+            name,
+            "%dp" % quote.price,
+            ratio,
+            "%d" % quote.orders,
+        ])
+    if not rows:
+        lines.append("还没有拿到这一档的报价，稍后再试。")
+
+    note = "%s=杜卡特 %d 的 Prime 部件；一组 6 个按最低价估算。" % (label, ducats)
+    total = stats.get("total") or 0
+    if total and stats.get("ready", 0) < total:
+        note += " 已扫描 %d/%d 件。" % (stats.get("ready", 0), total)
+    subtitle = "最低 %dp ｜ 中位 %dp ｜ 一组约 %dp ｜ %d 件样本" % (
+        min_price, median, group_price, stats.get("ready", 0))
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "%s · %d 杜卡特" % (label, ducats), subtitle,
+            ["#", "部件", "最低在售", "杜卡特/白金", "挂单"], rows,
+            "数据 warframe market · %s ｜ %s" % (platform, _fresh(stats.get("updated", 0))),
+            accent=imagecard.GOLD if ducats >= 100 else imagecard.CYAN,
+            chip=label, note=note,
+            highlights=[[None, None, imagecard.GOLD, imagecard.CYAN, None]] * len(rows),
+            ratios=[0.4, 3.6, 1.1, 1.3, 0.8],
+            aligns=["right", "left", "right", "right", "right"]))
+
+
+def junk_overview_reply(groups: Sequence[dict], platform: str = "PC") -> Reply:
+    """金/银/铜垃圾一览。"""
+    lines = ["【Prime 垃圾行情】按杜卡特档位"]
+    rows = []
+    highlights = []
+    for group in groups:
+        min_price = group.get("min") or 0
+        median = group.get("median") or 0
+        lines.append("%s（%d）：最低 %dp ｜ 中位 %dp ｜ 一组约 %dp ｜ %d 件" % (
+            group.get("label"), group.get("ducats", 0), min_price, median,
+            min_price * 6, group.get("ready", 0)))
+        rows.append([
+            "%s" % group.get("label"),
+            "%d" % group.get("ducats", 0),
+            "%dp" % min_price if min_price else "—",
+            "%dp" % (min_price * 6) if min_price else "—",
+            "%dp" % median if median else "—",
+            "%d" % group.get("ready", 0),
+        ])
+        highlights.append([
+            imagecard.GOLD if group.get("ducats", 0) >= 100 else None,
+            None, imagecard.GOLD, imagecard.CYAN, None, None,
+        ])
+    updated = max((group.get("updated") or 0 for group in groups), default=0.0)
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "Prime 垃圾行情", "金 / 银 / 铜垃圾的当前地板价",
+            ["档位", "杜卡特", "最低在售", "一组 6 个", "中位", "样本"], rows,
+            "数据 warframe market · %s ｜ %s" % (platform, _fresh(updated)),
+            accent=imagecard.GOLD, chip="垃圾",
+            note="金垃圾=100 杜卡特、银垃圾=45、铜垃圾=15；假金 65 / 假银 25 也一并统计。",
+            highlights=highlights,
+            ratios=[1.4, 0.8, 1.2, 1.2, 1.0, 0.8],
+            aligns=["left", "right", "right", "right", "right", "right"]))
+
+
+def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
+                     limit: int = 15, platform: str = "PC") -> Reply:
+    """Prime 战甲价格榜（高 → 低）。"""
+    rows = []
+    lines = ["【Prime 战甲价格榜】按最低在售从高到低"]
+    for index, quote in enumerate(list(quotes)[:limit], 1):
+        name = name_of(quote.slug)
+        lines.append("%d. %s  %dp（收 %dp）" % (
+            index, name, quote.price, quote.buy))
+        rows.append([
+            "%d" % index,
+            name,
+            "%dp" % quote.price,
+            "%dp" % quote.buy if quote.buy else "—",
+        ])
+    if not rows:
+        lines.append("还没有拿到战甲报价，稍后再试。")
+    ready, total = coverage if coverage else (0, 0)
+    updated = max((quote.updated for quote in quotes), default=0.0)
+    note = "战甲榜按 Prime 整套最低在售排序；已扫描 %d/%d 套，排名随扫描继续更新。" % (
+        ready, total)
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "Prime 战甲价格榜", "最低在售从高到低 ｜ %d/%d 套已扫描" % (ready, total),
+            ["#", "战甲", "最低在售", "最高收价"], rows,
+            "数据 warframe market · %s ｜ %s" % (platform, _fresh(updated)),
+            accent=imagecard.CYAN, chip="战甲",
+            note=note,
+            highlights=[[None, None, imagecard.GOLD, imagecard.GREEN]] * len(rows),
+            ratios=[0.5, 3.6, 1.2, 1.2],
+            aligns=["right", "left", "right", "right"]))
+
+
+def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
+                     limit: int = 12) -> Reply:
+    """最贵零洗紫卡榜（高 → 低）。"""
+    rows = []
+    lines = ["【零洗紫卡价格榜】按当前最高价从高到低"]
+    for index, quote in enumerate(list(quotes)[:limit], 1):
+        attrs = " / ".join(quote.attributes[:3]) or "未洗词条"
+        lines.append("%d. %s  %dp（%s）· %s · %s" % (
+            index, name_of(quote.slug), quote.price,
+            "一口价" if quote.buyout else "起拍价", attrs, quote.seller))
+        rows.append([
+            "%d" % index,
+            name_of(quote.slug),
+            "%dp" % quote.price,
+            " / ".join(quote.attributes[:2]) or "未洗词条",
+        ])
+    if not rows:
+        lines.append("还没有拿到零洗紫卡报价，稍后再试。")
+    ready, total = coverage if coverage else (0, 0)
+    updated = max((quote.updated for quote in quotes), default=0.0)
+    note = ("零洗 = re_rolls 0；已扫描 %d/%d 把武器，取每把武器最贵的零洗拍卖再全局排序。"
+            % (ready, total))
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "零洗紫卡价格榜", "每把武器取最贵零洗，再全局从高到低 ｜ %d/%d 把" % (ready, total),
+            ["#", "武器", "价格", "词条"], rows,
+            "数据 warframe market · %s" % _fresh(updated),
+            accent=imagecard.PURPLE, chip="紫卡",
+            note=note,
+            highlights=[[None, None, imagecard.PURPLE, None]] * len(rows),
+            ratios=[0.4, 1.7, 1.0, 3.9],
+            aligns=["right", "left", "right", "left"]))
+
+
 def help_reply(prefix: str) -> Reply:
     return Reply(text=render.render_help(prefix),
                  image=lambda: imagecard.help_card(prefix))

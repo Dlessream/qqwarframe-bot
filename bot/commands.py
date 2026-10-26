@@ -37,6 +37,16 @@ COMMANDS: Dict[str, str] = {
     "mod": "mod", "mods": "mod", "卡片": "mod", "卡": "mod", "模组": "mod",
     "拆件": "set", "拆卖": "set", "拆": "set", "套装": "set", "parts": "set",
     "紫卡": "riven", "riven": "riven", "zk": "riven",
+    "紫卡榜": "riven_rank", "紫卡排行": "riven_rank", "紫卡排名": "riven_rank",
+    "零洗紫卡": "riven_rank", "最贵紫卡": "riven_rank", "紫卡价格榜": "riven_rank",
+    "金垃圾": "junk_gold", "金垃圾行情": "junk_gold", "goldjunk": "junk_gold",
+    "银垃圾": "junk_silver", "银垃圾行情": "junk_silver", "silverjunk": "junk_silver",
+    "铜垃圾": "junk_bronze", "铜垃圾行情": "junk_bronze",
+    "假金垃圾": "junk_fake_gold", "假银垃圾": "junk_fake_silver",
+    "垃圾": "junk_overview", "垃圾行情": "junk_overview",
+    "prime垃圾": "junk_overview", "junk": "junk_overview",
+    "战甲榜": "frame_rank", "战甲排行": "frame_rank", "战甲排名": "frame_rank",
+    "战甲价格榜": "frame_rank", "最贵战甲": "frame_rank", "framrank": "frame_rank",
     "紫卡分析": "riven_analysis", "紫卡测评": "riven_analysis",
     "分析": "riven_analysis", "紫卡图片": "riven_analysis",
     "rivenanalysis": "riven_analysis", "zkfx": "riven_analysis",
@@ -157,7 +167,8 @@ class CommandRouter:
                  alerts: Optional[AlertStore] = None,
                  arbi: Optional[ArbiClient] = None,
                  updater: Optional[DataUpdater] = None,
-                 translator=None):
+                 translator=None,
+                 board=None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
@@ -175,6 +186,7 @@ class CommandRouter:
         self.alerts = alerts
         self.arbi = arbi
         self.updater = updater
+        self.board = board
 
     # ------------------------------------------------------------------ 解析
     def parse(self, text: str,
@@ -260,6 +272,22 @@ class CommandRouter:
                 return [self._set(argument, ctx)]
             if command == "riven":
                 return [self._riven(argument, ctx)]
+            if command == "riven_rank":
+                return [self._riven_rank(ctx)]
+            if command == "frame_rank":
+                return [self._frame_rank(ctx)]
+            if command == "junk_gold":
+                return [self._junk(100, ctx)]
+            if command == "junk_silver":
+                return [self._junk(45, ctx)]
+            if command == "junk_bronze":
+                return [self._junk(15, ctx)]
+            if command == "junk_fake_gold":
+                return [self._junk(65, ctx)]
+            if command == "junk_fake_silver":
+                return [self._junk(25, ctx)]
+            if command == "junk_overview":
+                return [self._junk_overview(ctx)]
             if command == "riven_analysis":
                 return [self._riven_analysis(argument, ctx)]
             if command == "update":
@@ -449,8 +477,8 @@ class CommandRouter:
         argument, platform = split_platform(argument)
         platform = platform or self.default_platform
         if not argument:
-            return present.error_reply(
-                "用法：%s紫卡 <武器名> [平台]\n例如：%s紫卡 绝路" % (ctx.prefix, ctx.prefix))
+            # 不带武器名时给「最贵零洗紫卡榜」，比原来的用法提示更有用。
+            return self._riven_rank(ctx)
         if self.riven is None:
             return present.error_reply("紫卡功能未启用。")
 
@@ -468,6 +496,78 @@ class CommandRouter:
 
         auctions, note = self.riven.auctions(weapon.slug, limit=5)
         return present.riven_reply(weapon, auctions, note, platform)
+
+    # ------------------------------------------------------------------ 价格榜（后台快照）
+    def _scanning_reply(self, label: str, ready: int, total: int) -> Reply:
+        if not total:
+            return present.error_reply(
+                "%s 数据还没就绪：物品索引尚未加载完成，稍后几秒再试。" % label)
+        interval = float(getattr(self.board, "interval", 1.0) or 1.0)
+        minutes = max(1, int((total - ready) * interval / 60) + 1)
+        return present.error_reply(
+            "%s 数据正在后台扫描（%d/%d），约 %d 分钟后可用；到时候再发一次就行，"
+            "之后都是秒回。" % (label, ready, total, minutes))
+
+    def _junk(self, ducats: int, ctx: Context) -> Reply:
+        if self.board is None:
+            return present.error_reply("垃圾行情未启用（board.enabled = false）。")
+        stats = self.board.junk_stats(ducats)
+        if not stats.get("ready"):
+            rarities = list(getattr(self.board, "rarities", (100, 45)))
+            if ducats not in rarities:
+                return present.error_reply(
+                    "%s 目前不在扫描范围（board.junk_rarities = %s）。\n"
+                    "需要的话把这个档位的杜卡特数加进配置即可。"
+                    % (present.junk_label(ducats), rarities))
+            ready, total = self.board.junk_coverage(ducats)
+            return self._scanning_reply(stats.get("label") or "垃圾", ready, total)
+        quotes = self.board.junk_quotes(ducats)
+        return present.junk_reply(
+            ducats, quotes, stats, self.board.item_name,
+            platform=present.platform_label(self.default_platform))
+
+    def _junk_overview(self, ctx: Context) -> Reply:
+        if self.board is None:
+            return present.error_reply("垃圾行情未启用（board.enabled = false）。")
+        rarities = list(getattr(self.board, "rarities", (100, 45)))
+        groups = [self.board.junk_stats(ducats) for ducats in rarities]
+        if not any(group.get("ready") for group in groups):
+            ready, total = self.board.coverage("junk")
+            return self._scanning_reply("垃圾行情", ready, total)
+        return present.junk_overview_reply(
+            groups, present.platform_label(self.default_platform))
+
+    def _frame_rank(self, ctx: Context) -> Reply:
+        if self.board is None:
+            return present.error_reply("战甲榜未启用（board.enabled = false）。")
+        quotes = self.board.frame_quotes()
+        ready, total = self.board.frame_coverage()
+        if not quotes:
+            return self._scanning_reply("Prime 战甲榜", ready, total)
+        return present.frame_rank_reply(
+            quotes, self.board.item_name, (ready, total),
+            platform=present.platform_label(self.default_platform))
+
+    def _riven_rank(self, ctx: Context) -> Reply:
+        if self.board is None:
+            return present.error_reply("紫卡榜未启用（board.enabled = false）。")
+        quotes = self.board.riven_quotes()
+        ready, total = self.board.riven_coverage()
+        if not quotes:
+            return self._scanning_reply("零洗紫卡榜", ready, total)
+
+        def name_of(slug: str) -> str:
+            weapon = None
+            if self.riven is not None:
+                try:
+                    weapon = self.riven.weapons().get(slug)
+                except Exception:  # 武器表拉取失败不影响榜单
+                    weapon = None
+            if weapon is not None and weapon.name:
+                return weapon.name
+            return str(slug).replace("_", " ")
+
+        return present.riven_rank_reply(quotes, name_of, (ready, total))
 
     def _riven_analysis(self, argument: str, ctx: Context) -> Reply:
         if self.riven is None:
