@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import List, Optional, Sequence
 
-from . import imagecard, render, terms
+from . import autotrans, conquest, imagecard, render, terms
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
 from .replies import Reply
@@ -279,7 +279,7 @@ def baro_reply(trader: VoidTrader, index=None) -> Reply:
         image=lambda: imagecard.build_table(
             "Baro Ki'Teer · 虚空商人", subtitle,
             ["物品", "杜卡德", "星币"], rows,
-            "数据 warframestat.us · 游戏内售价",
+            "数据 世界状态聚合源 · 游戏内售价",
             accent=imagecard.PURPLE, chip="奸商",
             note="价格为游戏内售价，实际以游戏内为准。",
             ratios=[2.6, 1, 1], aligns=["left", "right", "right"]))
@@ -299,7 +299,7 @@ def sortie_reply(sortie: Sortie) -> Reply:
         image=lambda: imagecard.build_table(
             "每日突击", subtitle,
             ["任务", "节点", "修饰"], rows,
-            "数据 warframestat.us · 每日刷新",
+            "数据 世界状态聚合源 · 每日刷新",
             accent=imagecard.CYAN, chip="突击",
             ratios=[1.2, 1.6, 2.2]))
 
@@ -341,7 +341,7 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
     if note:
         lines.append(note)
 
-    footer = "数据 warframestat.us"
+    footer = "数据 世界状态聚合源"
     if rating or node is not None:
         footer += " + arbi.wf.wiki"
     return Reply(
@@ -406,11 +406,13 @@ def _reward_text(reward) -> str:
     parts = []
     for item in _as_list(reward.get("items"))[:2]:
         if isinstance(item, dict):
-            parts.append(str(item.get("type") or item.get("item") or "?"))
+            parts.append(terms.localize_reward(
+                str(item.get("type") or item.get("item") or "?")))
     for item in _as_list(reward.get("countedItems"))[:2]:
         if isinstance(item, dict):
             count = item.get("count") or 1
-            parts.append("%sx%s" % (count, item.get("type") or "?"))
+            parts.append("%s 个 %s" % (count, terms.localize_reward(
+                str(item.get("type") or "?"))))
     if reward.get("credits"):
         parts.append("%s 星币" % _format_int(reward.get("credits")))
     return " + ".join(parts) or "—"
@@ -453,11 +455,11 @@ def alerts_reply(raw) -> Reply:
             countdown(parse_timestamp(alert.get("expiry"))),
         ])
     if not rows:
-        return _world_reply("世界警报", "当前没有活跃警报", [], [], "数据 warframestat.us", "ALERT")
+        return _world_reply("世界警报", "当前没有活跃警报", [], [], "数据 世界状态聚合源", "ALERT")
     return _world_reply(
         "世界警报", "共 %d 条" % len(rows),
         ["节点", "任务", "敌人", "奖励", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "警报",
+        "数据 世界状态聚合源", "警报",
         ratios=[1.8, 1.0, 0.9, 1.8, 0.9])
 
 
@@ -474,11 +476,11 @@ def invasions_reply(raw) -> Reply:
             _reward_text(attacker.get("reward")),
         ])
     if not rows:
-        return _world_reply("入侵", "当前没有入侵", [], [], "数据 warframestat.us", "入侵")
+        return _world_reply("入侵", "当前没有入侵", [], [], "数据 世界状态聚合源", "入侵")
     return _world_reply(
         "入侵", "共 %d 条" % len(rows),
         ["节点", "进攻", "防守", "进度", "奖励"], rows,
-        "数据 warframestat.us · 世界状态", "入侵",
+        "数据 世界状态聚合源", "入侵",
         ratios=[2.0, 0.9, 0.9, 0.8, 1.6])
 
 
@@ -488,26 +490,41 @@ def steel_path_reply(raw) -> Reply:
     reward = raw.get("currentReward") or {}
     incursions = raw.get("incursions") or {}
     rows = [
-        ["当前奖励", str(reward.get("name") or "—"),
+        ["当前奖励", terms.localize_reward(str(reward.get("name") or "—")),
          "%s 精华" % reward.get("cost") if reward.get("cost") else "—"],
         ["侵袭周期", "本日", countdown(parse_timestamp(incursions.get("expiry")))],
         ["轮换", "%d 项" % len(_as_list(raw.get("rotation"))),
          countdown(parse_timestamp(raw.get("expiry")))],
     ]
     return _world_reply(
-        "钢铁侵袭", "Teshin 钢铁之路", ["项目", "内容", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "STEEL",
+        "钢铁侵袭", "泰辛 · 钢铁之路", ["项目", "内容", "剩余"], rows,
+        "数据 世界状态聚合源", "STEEL",
         ratios=[1.0, 2.0, 1.2], accent=imagecard.CYAN)
+
+
+def _auto_translate(values: Sequence[str], budget: float = 3.0) -> List[str]:
+    """把英文短句批量换成中文，整体限时，避免因接口慢拖住回复。"""
+    deadline = time.time() + budget
+    result = []
+    for value in values:
+        text = str(value or "")
+        if time.time() > deadline:
+            result.append(text)
+            continue
+        result.append(autotrans.to_chinese(text))
+    return result
 
 
 def nightwave_reply(raw) -> Reply:
     if not isinstance(raw, dict):
         raw = {}
+    items = _as_list(raw.get("activeChallenges"))[:12]
+    titles = _auto_translate([str(item.get("title") or "—") for item in items])
     rows = []
-    for item in _as_list(raw.get("activeChallenges"))[:12]:
+    for item, title in zip(items, titles):
         rows.append([
             "每日" if item.get("isDaily") else "每周",
-            str(item.get("title") or "—"),
+            title,
             "%s 声望" % _format_int(item.get("reputation")),
             countdown(parse_timestamp(item.get("expiry"))),
         ])
@@ -515,7 +532,7 @@ def nightwave_reply(raw) -> Reply:
         "午夜电波", "第 %s 季 · %d 个挑战" % (
             raw.get("season") or "?", len(rows)),
         ["类型", "挑战", "声望", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "电波",
+        "数据 世界状态聚合源", "电波",
         ratios=[0.8, 2.2, 0.9, 0.9], accent=imagecard.PURPLE)
 
 
@@ -548,7 +565,7 @@ def cycles_reply(cetus=None, vallis=None, cambion=None) -> Reply:
     return _world_reply(
         "平原轮换", "希图斯 / 福尔图娜 / 英择谛",
         ["地点", "状态", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "平原",
+        "数据 世界状态聚合源", "平原",
         ratios=[1.6, 1.0, 1.0], accent=imagecard.CYAN)
 
 
@@ -563,43 +580,49 @@ def deals_reply(raw) -> Reply:
             countdown(parse_timestamp(deal.get("expiry"))),
         ])
     if not rows:
-        return _world_reply("今日特惠", "当前没有特惠", [], [], "数据 warframestat.us", "特惠")
+        return _world_reply("今日特惠", "当前没有特惠", [], [], "数据 世界状态聚合源", "特惠")
     return _world_reply(
         "今日特惠", "每日商店折扣", ["物品", "原价", "现价", "折扣", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "特惠",
+        "数据 世界状态聚合源", "特惠",
         ratios=[1.8, 0.8, 0.8, 0.7, 0.9], accent=imagecard.GOLD)
 
 
 def news_reply(raw) -> Reply:
+    items = _as_list(raw)[:10]
+    messages = _auto_translate([
+        terms.localize_phrase(str(item.get("message") or "—")) for item in items])
     rows = []
     text_lines = []
-    for item in _as_list(raw)[:10]:
-        message = terms.localize_phrase(str(item.get("message") or "—"))
+    for item, message in zip(items, messages):
         rows.append([message[:36], str(item.get("date") or "")[:10]])
         text_lines.append(message)
     return _world_reply(
         "新闻", "官方新闻与公告", ["标题", "日期"], rows,
-        "数据 warframestat.us · 世界状态", "NEWS",
+        "数据 世界状态聚合源", "NEWS",
         text_lines=text_lines, ratios=[2.4, 0.8], accent=imagecard.CYAN)
 
 
 def events_reply(raw) -> Reply:
+    items = _as_list(raw)[:10]
+    labels = _auto_translate([
+        terms.localize_phrase(
+            str(event.get("description") or event.get("tooltip") or "—"))
+        for event in items])
     rows = []
-    for event in _as_list(raw)[:10]:
+    for event, label in zip(items, labels):
         score = "%s / %s" % (event.get("currentScore", 0), event.get("maximumScore", 0))
         rows.append([
-            terms.localize_phrase(
-                str(event.get("description") or event.get("tooltip") or "—"))[:32],
+            label[:32],
             terms.localize_text(terms.localize_node(
                 str(event.get("node") or "—"))),
             score,
             countdown(parse_timestamp(event.get("expiry"))),
         ])
     if not rows:
-        return _world_reply("活动", "当前没有活动", [], [], "数据 warframestat.us", "活动")
+        return _world_reply("活动", "当前没有活动", [], [], "数据 世界状态聚合源", "活动")
     return _world_reply(
         "活动", "当前进行中的活动", ["活动", "节点", "进度", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "活动",
+        "数据 世界状态聚合源", "活动",
         ratios=[2.0, 1.2, 0.9, 0.9], accent=imagecard.PURPLE)
 
 
@@ -613,7 +636,7 @@ def circuit_reply(raw) -> Reply:
     return _world_reply(
         "无尽回廊", "本周灵化 · %s" % _state_label(raw.get("state")),
         ["模式", "可选"], rows,
-        "数据 warframestat.us · 世界状态", "回廊",
+        "数据 世界状态聚合源", "回廊",
         ratios=[0.8, 2.8], accent=imagecard.PURPLE)
 
 
@@ -631,7 +654,7 @@ def archon_reply(raw) -> Reply:
         "执刑官猎杀", "%s · %s" % (
             raw.get("boss") or "—", terms.localize_faction(str(raw.get("faction") or "—"))),
         ["节点", "任务", "类型"], rows,
-        "数据 warframestat.us · 世界状态", "执刑官",
+        "数据 世界状态聚合源", "执刑官",
         ratios=[2.0, 1.2, 0.8], accent=imagecard.GOLD)
 
 
@@ -656,46 +679,91 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁",
         accent=imagecard.GOLD, note="时间按本机时区显示。")
 
 
+def _conquest_entry(group: str, key: str, kind: str, raw) -> dict:
+    """一条科研词条：优先按内部代号查官方中文名与说明。"""
+    payload = raw if isinstance(raw, dict) else {}
+    english = str(payload.get("name") or "")
+    info = conquest.describe(group, key, kind, english)
+    name = info.get("name") or terms.localize_text(english) or "—"
+    return {"name": name, "desc": info.get("desc") or ""}
+
+
 def research_reply(items, label: str = "科研") -> Reply:
-    rows = []
-    text_lines = []
+    """科研推送：任务编号 + 偏差/风险（名称+说明）+ 全局变量。"""
+    sections = []
+    text_parts: List[str] = []
     for item in items:
-        research = terms.localize_research(str(item.get("typeKey") or ""))
-        for mission in _as_list(item.get("missions")):
-            deviation = terms.localize_text(
-                str((mission.get("deviation") or {}).get("name") or "—"))
-            risks = "、".join(
-                terms.localize_text(str(risk.get("name") or ""))
-                for risk in _as_list(mission.get("risks"))[:2])
-            rows.append([
-                research,
-                terms.localize_mission(str(mission.get("missionType") or "—")),
-                terms.localize_faction(str(mission.get("faction") or "—")),
-                deviation,
-                risks or "—",
-            ])
-            text_lines.append("%s / %s / %s / %s" % (
-                research,
-                terms.localize_mission(str(mission.get("missionType") or "—")),
-                terms.localize_faction(str(mission.get("faction") or "—")),
-                deviation))
-    if not rows:
+        if not isinstance(item, dict):
+            continue
+        type_key = str(item.get("typeKey") or "")
+        kind = str(item.get("kind") or conquest.kind_of(type_key))
+        section_label = conquest.label_of(type_key) or label
+        remaining = ""
+        expiry = parse_timestamp(item.get("expiry"))
+        if expiry:
+            remaining = "剩余 " + countdown(expiry)
+        lines = ["【%s】本周任务 · 偏差 / 风险 / 全局变量" % section_label]
+        if remaining:
+            lines.append(remaining)
+        missions = []
+        for index, mission in enumerate(_as_list(item.get("missions")), 1):
+            if not isinstance(mission, dict):
+                continue
+            mission_name = (conquest.mission_type(
+                str(mission.get("missionTypeKey") or ""))
+                or terms.localize_mission(str(mission.get("missionType") or "—")))
+            deviation = _conquest_entry(
+                "variants", str(mission.get("variantKey") or ""), kind,
+                mission.get("deviation"))
+            risks = []
+            keys = _as_list(mission.get("conditionKeys"))
+            for position, raw in enumerate(_as_list(mission.get("risks"))):
+                key = str(keys[position]) if position < len(keys) else ""
+                risks.append(_conquest_entry("risks", key, "", raw))
+            missions.append({"index": index, "name": mission_name,
+                             "deviation": deviation, "risks": risks})
+            lines.append("")
+            lines.append("%d. %s" % (index, mission_name))
+            lines.append(_entry_line("偏差", deviation))
+            for risk in risks:
+                lines.append(_entry_line("风险", risk))
+
+        variables = []
+        keys = _as_list(item.get("personalKeys"))
+        for position, raw in enumerate(_as_list(item.get("personalModifiers"))):
+            key = str(keys[position]) if position < len(keys) else ""
+            variables.append(_conquest_entry("personal", key, "", raw))
+        if variables:
+            lines.append("")
+            lines.append("全局变量")
+            for variable in variables:
+                lines.append(_entry_line("", variable, bullet="·"))
+        text_parts.extend(lines)
+        sections.append({"label": section_label, "remaining": remaining,
+                         "missions": missions, "variables": variables})
+
+    if not sections:
         return Reply(text="当前没有可用的%s数据。" % label)
-    modifiers = []
-    for item in items:
-        for value in item.get("personalModifiers") or []:
-            if isinstance(value, dict):
-                modifiers.append(terms.localize_text(
-                    str(value.get("name") or value.get("key") or "")))
-            else:
-                modifiers.append(str(value))
-    return _world_reply(
-        label, "本周科研任务与个人修正",
-        ["类型", "任务", "敌人", "偏差", "风险"], rows,
-        "数据 warframestat.us · 科研", "科研",
-        text_lines=text_lines, ratios=[0.8, 0.9, 0.9, 1.2, 1.8],
-        accent=imagecard.PURPLE,
-        note=("个人修正：" + "、".join(modifiers[:8])) if modifiers else "")
+
+    single = len(sections) == 1
+    title = sections[0]["label"] if single else label
+    subtitle = "本周任务 · 偏差 / 风险 / 全局变量"
+    chip = sections[0]["remaining"] if single else ""
+    footer = "数据 oracle.browse.wf · 官方中文字典"
+    return Reply(
+        text="\n".join(text_parts),
+        image=lambda: imagecard.research_card(
+            title, subtitle, sections, footer,
+            accent=imagecard.PURPLE, chip=chip))
+
+
+def _entry_line(tag: str, entry: dict, bullet: str = "") -> str:
+    name = entry.get("name") or "—"
+    desc = entry.get("desc") or ""
+    prefix = ("%s " % bullet) if bullet else "  "
+    head = ("%s%s · %s" % (prefix, tag, name)) if tag else ("%s%s" % (prefix, name))
+    return "%s\n      %s" % (head, desc) if desc else head
+
 
 
 def _json_table(raw, hard: bool = False) -> list:
@@ -728,11 +796,11 @@ def storms_reply(raw) -> Reply:
         lines.append("%s / %s / %s / %s" % (tier, mission, node, enemy))
     if not rows:
         return _world_reply("虚空风暴", "当前没有活跃的风暴裂缝", [], [],
-                            "数据 warframestat.us", "风暴")
+                            "数据 世界状态聚合源", "风暴")
     return _world_reply(
-        "虚空风暴", "九重天 Railjack 风暴裂缝 · %d 条" % len(rows),
+        "虚空风暴", "九重天风暴裂缝 · %d 条" % len(rows),
         ["遗物", "任务", "节点", "敌人", "剩余"], rows,
-        "数据 warframestat.us · 虚空风暴", "风暴",
+        "数据 世界状态聚合源 · 虚空风暴", "风暴",
         text_lines=lines, ratios=[0.7, 0.8, 2.8, 0.6, 0.8],
         accent=imagecard.CYAN)
 
@@ -759,7 +827,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
     title = "钢铁裂缝" if hard else "裂缝"
     source = ("数据 Warframe 官方 · 世界状态"
               if any(row.get("source") == "official" for row in items)
-              else "数据 warframestat.us · 世界状态")
+              else "数据 世界状态聚合源")
     return _world_reply(
         title, "当前 %d 条%s" % (
             len(items), "钢铁之路" if hard else ""),
@@ -859,7 +927,7 @@ def cetus_reply(cycle, raw) -> Reply:
         "希图斯赏金", "当前 %s · 剩余 %s ｜ 7 档赏金 + 帐篷 A/B/C" % (
             state, time_left),
         ["档位", "任务", "等级", "奖励", "剩余"], rows,
-        "数据 warframestat.us · 希图斯", "希图斯",
+        "数据 世界状态聚合源 · 希图斯", "希图斯",
         text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 1.0, 0.8],
         accent=imagecard.GREEN,
         note="帐篷 A/B/C 各 3 个任务；赏金按当前 Ostrons 任务顺序显示。")
@@ -935,10 +1003,10 @@ def bounties_reply(raw) -> Reply:
     rows = rows[:30]
     if not rows:
         return _world_reply("赏金", "当前没有可接赏金", [], [],
-                            "数据 warframestat.us", "赏金")
+                            "数据 世界状态聚合源", "赏金")
     return _world_reply(
-        "赏金", "各大 NPC 可接赏金", ["NPC / 地点", "任务", "奖励", "剩余"], rows,
-        "数据 warframestat.us · 世界状态", "赏金",
+        "赏金", "各据点可接的赏金", ["NPC / 地点", "任务", "奖励", "剩余"], rows,
+        "数据 世界状态聚合源", "赏金",
         ratios=[1.5, 1.8, 1.7, 0.8], accent=imagecard.GREEN)
 
 
@@ -978,7 +1046,7 @@ def worldstate_reply(data: dict) -> Reply:
          countdown(parse_timestamp(arbitration.get("expiry")))],
         ["警报", "%d 条" % len(alerts), "—"],
         ["入侵", "%d 条" % len(invasions), "—"],
-        count_row("钢铁侵袭", "steelPath", "—", terms.localize_text(
+        count_row("钢铁侵袭", "steelPath", "—", terms.localize_reward(
             str((steel.get("currentReward") or {}).get("name") or "—"))),
         count_row("电波", "nightwave", "—", "第 %s 季 · %d 个挑战" % (
             nightwave.get("season") or "?", len(nightwave.get("activeChallenges") or []))),
@@ -996,12 +1064,12 @@ def worldstate_reply(data: dict) -> Reply:
         count_row("活动", "events", "—", "%d 个" % len(events)),
     ]
     source = ("数据 Warframe 官方 · 世界状态" if data.get("source") == "official"
-              else "数据 warframestat.us · 世界状态")
+              else "数据 世界状态聚合源")
     return _world_reply(
-        "世界状态", "Warframe 全量状态总览", ["模块", "状态", "剩余"], rows,
+        "世界状态", "星际战甲 · 全量状态总览", ["模块", "状态", "剩余"], rows,
         source, "WORLD",
         ratios=[1.1, 2.0, 1.0], accent=imagecard.GOLD,
-        note=("标「暂不可用」的模块官方接口不提供，需要代理访问 warframestat"
+        note=("标「暂不可用」的模块官方接口不提供，需要经第三方数据站访问"
               if data.get("source") == "official" else ""))
 
 

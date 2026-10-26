@@ -28,7 +28,9 @@ napcat/
 deploy/vless.txt
 
 # 本地 GitHub 工具与凭据（禁止提交）
-tools/
+tools/*
+# 但科研词条字典的生成脚本要跟着代码走，方便以后复现
+!tools/build_conquest_dict.py
 .ghconfig/
 .github_token
 .gitconfig

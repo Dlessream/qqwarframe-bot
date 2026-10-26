@@ -910,6 +910,132 @@ def help_card(prefix: str = "#") -> bytes:
         note="名称支持中文、英文、slug 和常用外号；结果优先以图片发送。")
 
 
+# ---------------------------------------------------------------------- 科研卡
+def _tag_chip(draw, x: int, y: int, text: str, color) -> int:
+    font = _font(13, bold=True)
+    width, height = _tsize(draw, text, font)
+    _rrect(draw, (x, y, x + width + 16, y + height + 10), 6,
+           fill=PANEL_LIGHT, outline=color)
+    draw.text((x + 8, y + 4), text, font=font, fill=color)
+    return width + 16
+
+
+def _research_rows(draw, mission, right: int):
+    """把一个任务块排版成 (标签, 名称, 说明行, 名称起点x, 标签宽度)。"""
+    name_font = _font(17, bold=True)
+    desc_font = _font(15)
+    chip_font = _font(13, bold=True)
+    label_x = PAD + 74
+    rows = []
+    deviation = mission.get("deviation") or {}
+    raw = [("偏差", GOLD, deviation.get("name") or "—",
+            deviation.get("desc") or "")]
+    for risk in mission.get("risks") or []:
+        raw.append(("风险", RED, risk.get("name") or "—",
+                    risk.get("desc") or ""))
+    for label, color, name, desc in raw:
+        chip_width = _tsize(draw, label, chip_font)[0] + 16
+        name_x = label_x + chip_width + 12
+        name_text = _fit(draw, name, name_font, right - name_x)
+        lines = (_wrap(draw, desc, desc_font, right - name_x, max_lines=3)
+                 if desc else [])
+        rows.append((label, color, name_text, lines, chip_width))
+    return rows
+
+
+def research_card(title: str, subtitle: str, sections: Sequence[Dict],
+                  footer: str, accent=PURPLE, chip: str = "",
+                  note: str = "") -> bytes:
+    """科研卡：任务编号 + 偏差/风险名称与说明 + 全局变量。"""
+    height = 2800
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    y = _header(draw, title, subtitle, chip, accent)
+    y += 6
+
+    right = WIDTH - PAD - 18
+    name_font = _font(20, bold=True)
+    desc_font = _font(15)
+    num_font = _font(17, bold=True)
+
+    for section in sections or []:
+        label = str(section.get("label") or "")
+        remaining = str(section.get("remaining") or "")
+        if label and label != title:
+            draw.rectangle([PAD, y + 5, PAD + 4, y + 25], fill=accent)
+            draw.text((PAD + 14, y), label, font=_font(20, bold=True), fill=TEXT)
+            if remaining:
+                chip_width, _ = _tsize(draw, remaining, _font(14, bold=True))
+                _chip(draw, WIDTH - PAD - chip_width - 22, y - 2, remaining, accent)
+            y += 38
+            _divider(draw, y - 8)
+
+        for mission in section.get("missions") or []:
+            rows = _research_rows(draw, mission, right)
+            block_height = 34 + 10
+            for _label, _color, _name, lines, _width in rows:
+                block_height += 24 + len(lines) * 21 + 6
+            block_height += 12
+            _rrect(draw, (PAD, y, WIDTH - PAD, y + block_height), 12,
+                   fill=PANEL)
+            draw.rectangle([PAD, y + 12, PAD + 5, y + block_height - 12],
+                           fill=accent)
+            # 编号圆 + 任务名
+            cx = PAD + 34
+            draw.ellipse([cx - 15, y + 12, cx + 15, y + 42], outline=accent, width=2)
+            number = str(mission.get("index") or "")
+            number_w, number_h = _tsize(draw, number, num_font)
+            draw.text((cx - number_w / 2, y + 27 - number_h / 2 - 2), number,
+                      font=num_font, fill=accent)
+            mission_name = _fit(draw, str(mission.get("name") or "—"), name_font,
+                                right - (PAD + 58))
+            draw.text((PAD + 58, y + 15), mission_name, font=name_font, fill=TEXT)
+
+            row_y = y + 56
+            for label_text, color, name_text, lines, chip_width in rows:
+                _tag_chip(draw, PAD + 74, row_y, label_text, color)
+                name_x = PAD + 74 + chip_width + 12
+                draw.text((name_x, row_y + 2), name_text,
+                          font=_font(17, bold=True), fill=TEXT)
+                line_y = row_y + 28
+                for line in lines:
+                    draw.text((name_x, line_y), line, font=desc_font, fill=MUTED)
+                    line_y += 21
+                row_y += 24 + len(lines) * 21 + 6
+            y += block_height + 10
+
+        variables = section.get("variables") or []
+        if variables:
+            draw.text((PAD, y + 4), "全局变量", font=_font(19, bold=True), fill=TEXT)
+            y += 34
+            for item in variables:
+                name_text = str(item.get("name") or "—")
+                desc = str(item.get("desc") or "")
+                draw.ellipse([PAD + 6, y + 8, PAD + 12, y + 14], fill=accent)
+                draw.text((PAD + 22, y), name_text, font=_font(16, bold=True),
+                          fill=TEXT)
+                name_width, _ = _tsize(draw, name_text, _font(16, bold=True))
+                text_x = PAD + 22 + name_width + 10
+                lines = _wrap(draw, desc, desc_font, right - text_x,
+                              max_lines=2) if desc else []
+                if not lines:
+                    y += 26
+                    continue
+                draw.text((text_x, y + 2), lines[0], font=desc_font, fill=MUTED)
+                for extra in lines[1:]:
+                    y += 21
+                    draw.text((text_x, y + 2), extra, font=desc_font, fill=MUTED)
+                y += 26
+            y += 6
+
+    if note:
+        draw.text((PAD, y + 2), _fit(draw, note, _font(14), WIDTH - 2 * PAD),
+                  font=_font(14), fill=MUTED)
+        y += 26
+    y = _footer(draw, y + 10, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
 def build_table(title: str, subtitle: str, headers: Sequence[str],
                 rows: Sequence[Sequence[str]], footer: str, accent=GOLD,
                 chip: str = "", note: str = "",

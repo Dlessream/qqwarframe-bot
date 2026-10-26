@@ -81,6 +81,8 @@
     "oracle_proxy": "none",
     "relay": "",
     "supplement_seconds": 300,
+    "supplement_file": "data/worldstate_supplement.json",
+    "supplement_stale_seconds": 21600,
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
   },
   "image": {

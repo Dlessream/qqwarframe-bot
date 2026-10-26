@@ -244,7 +244,7 @@ class ClientFallbackTest(unittest.TestCase):
         client = self.make()
         with self.assertRaises(WorldStateError) as ctx:
             client.fetch("steelPath")
-        self.assertIn("warframestat", str(ctx.exception))
+        self.assertIn("第三方数据站", str(ctx.exception))
 
     def test_fallback_failure_returns_friendly_error(self):
         client = self.make()

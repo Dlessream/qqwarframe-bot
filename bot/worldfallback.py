@@ -682,9 +682,11 @@ class OfficialWorldState:
             return []
         expiry = _iso(float(weekly.get("expiry") or 0))
         result = []
-        for key, type_key, variables in (
-                ("labConquestMissions", "C T_ L A B", "labConquestFrameVariables"),
-                ("hexConquestMissions", "C T_ H E X", "hexConquestFrameVariables")):
+        for key, type_key, variables, kind in (
+                ("labConquestMissions", "C T_ L A B",
+                 "labConquestFrameVariables", "LabConquest"),
+                ("hexConquestMissions", "C T_ H E X",
+                 "hexConquestFrameVariables", "HexConquest")):
             missions = weekly.get(key) or []
             if not isinstance(missions, list) or not missions:
                 continue
@@ -692,19 +694,28 @@ class OfficialWorldState:
             for mission in missions:
                 if not isinstance(mission, dict):
                     continue
+                variant = str(mission.get("variant") or "")
+                conditions = [str(value) for value in
+                              mission.get("conditions") or []]
                 rows.append({
                     "missionType": _humanize(mission.get("type")),
+                    "missionTypeKey": str(mission.get("type") or ""),
                     "faction": "",
-                    "deviation": {"name": _humanize(mission.get("variant"))},
-                    "risks": [{"name": _humanize(value)}
-                              for value in mission.get("conditions") or []],
+                    # 内部代号（HostileSecurity 之类）与游戏内名字并不一致，
+                    # 展示层统一用它查官方中文名与说明。
+                    "variantKey": variant,
+                    "deviation": {"name": _humanize(variant)},
+                    "conditionKeys": conditions,
+                    "risks": [{"name": _humanize(value)} for value in conditions],
                 })
+            personal = [str(value) for value in weekly.get(variables) or []]
             result.append({
                 "typeKey": type_key,
+                "kind": kind,
                 "expiry": expiry,
                 "missions": rows,
-                "personalModifiers": [
-                    {"name": _humanize(value)}
-                    for value in weekly.get(variables) or []],
+                "personalKeys": personal,
+                "personalModifiers": [{"name": _humanize(value)}
+                                      for value in personal],
             })
         return result

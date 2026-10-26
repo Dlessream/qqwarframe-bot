@@ -35,7 +35,7 @@ MISSIONS = {
     "Interception": "拦截", "Assassination": "刺杀", "Excavation": "挖掘",
     "Defection": "叛逃", "Disruption": "中断", "Void Flood": "虚空洪流",
     "Void Cascade": "虚空瀑流", "Void Armageddon": "虚空末日",
-    "Alchemy": "炼金", "Mirror Defense": "镜像防御", "Ascension": "升天",
+    "Alchemy": "元素转换", "Mirror Defense": "镜像防御", "Ascension": "升天",
     "Free Roam": "开放地形", "Bounty": "赏金", "Conclave": "武形秘仪",
     "Sanctuary Onslaught": "圣殿突袭", "Elite Sanctuary Onslaught": "精英圣殿突袭",
     "Hive": "蜂巢", "Infested Salvage": "感染者回收", "Pursuit": "追击",
@@ -46,7 +46,9 @@ MISSIONS = {
     "Void Interception": "虚空拦截", "Void Mobile Defense": "虚空移动防御",
     "Railjack": "航道星舰", "Empyrean": "九重天",
     "Exterminate": "歼灭", "Assassinate": "刺杀",
-    "Artifact": "挖掘", "Dual Defense": "双重防御",
+    "Artifact": "中断", "Dual Defense": "镜像防御",
+    "Legacyte Harvest": "传承种捕获", "Hell-Scrub": "地狱净化",
+    "Stage Defense": "舞台防御", "Tank Assassination": "坦克刺杀",
     "Survivor": "生存",
 }
 
@@ -189,6 +191,14 @@ REWARD_TERMS = {
     "Cetus Wisp": "希图斯幽魂",
     "Breath Of The Eidolon": "夜灵之息",
     "5X Breath Of The Eidolon": "5 个夜灵之息",
+    "Rifle Riven Mod": "步枪裂罅模组",
+    "Pistol Riven Mod": "手枪裂罅模组",
+    "Melee Riven Mod": "近战裂罅模组",
+    "Shotgun Riven Mod": "霰弹枪裂罅模组",
+    "Riven Mod": "裂罅模组",
+    "Riven Sliver": "裂罅碎银",
+    "Steel Essence": "钢铁精华",
+    "Road To Tau Event Resource": "「通往 Tau 之路」活动资源",
     "2X Cetus Wisp": "2 个希图斯幽魂",
 }
 
@@ -272,7 +282,22 @@ BOSSES = {
 
 
 def localize_mission(text: str) -> str:
-    return MISSIONS.get(text, text)
+    """任务类型 → 中文（大小写不敏感，官方偶尔给 ASSAULT 这种全大写）。"""
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    if raw in MISSIONS:
+        return MISSIONS[raw]
+    lowered = raw.lower()
+    for english, chinese in MISSIONS.items():
+        if english.lower() == lowered:
+            return chinese
+    # 驼峰/下划线写法兜底：ArtifactMission → Artifact
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", raw.replace("_", " "))
+    for english, chinese in MISSIONS.items():
+        if english.lower() == spaced.lower():
+            return chinese
+    return raw
 
 
 def localize_faction(text: str) -> str:

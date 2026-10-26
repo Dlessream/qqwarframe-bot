@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from . import terms, worldfallback
+from . import t2s, terms, worldfallback
 from .cache import TTLCache
 from .net import HttpClient, HttpError
 
@@ -171,6 +171,13 @@ class WorldStateClient:
         if self.relay and not self.relay.endswith("/"):
             self.relay += "/"
         self.supplement_seconds = int(config.get("supplement_seconds", 300))
+        # 中转经常抽风（限流/超时），把最近一次成功的数据落盘，
+        # 之后取不到就先用这份旧数据顶着，避免整块模块变「暂不可用」。
+        self.supplement_file = str(
+            config.get("supplement_file")
+            or os.path.join("data", "worldstate_supplement.json"))
+        self.supplement_stale = int(
+            config.get("supplement_stale_seconds", 21600))
 
     # ---------------------------------------------------------------- 数据源
     def _fallback_state(self) -> Dict[str, Any]:
@@ -220,9 +227,53 @@ class WorldStateClient:
         try:
             data = self._fetch_json(target)
         except Exception as exc:
+            stale = self._read_supplement()
+            if stale:
+                LOGGER.warning("中转数据源不可用（%s），改用 %s的快照",
+                               exc, self._supplement_age_text())
+                return stale
             LOGGER.warning("中转数据源不可用（%s），跳过低频模块补齐", exc)
             return {}
+        if isinstance(data, dict) and data:
+            self._write_supplement(data)
+            return data
+        return self._read_supplement()
+
+    # ------------------------------------------------------ 中转快照（落盘）
+    def _read_supplement(self) -> Dict[str, Any]:
+        """读取上一次成功抓到的中转文档；过期或损坏时返回空。"""
+        path = self.supplement_file
+        try:
+            if time.time() - os.stat(path).st_mtime > self.supplement_stale:
+                return {}
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return {}
+        data = payload.get("data") if isinstance(payload, dict) else None
         return data if isinstance(data, dict) else {}
+
+    def _write_supplement(self, data: Dict[str, Any]) -> None:
+        path = self.supplement_file
+        try:
+            directory = os.path.dirname(path)
+            if directory and not os.path.isdir(directory):
+                os.makedirs(directory, exist_ok=True)
+            temp = path + ".tmp"
+            with open(temp, "w", encoding="utf-8") as handle:
+                json.dump({"saved": time.time(), "data": data}, handle)
+            os.replace(temp, path)
+        except Exception as exc:
+            LOGGER.debug("写入中转快照失败：%s", exc)
+
+    def _supplement_age_text(self) -> str:
+        try:
+            minutes = int((time.time() - os.stat(self.supplement_file).st_mtime) / 60)
+        except Exception:
+            return "上次"
+        if minutes < 120:
+            return "%d 分钟前" % max(1, minutes)
+        return "%d 小时前" % (minutes // 60)
 
     def _supplement(self) -> Dict[str, Any]:
         """warframestat 全量文档（带较长缓存，只用于补齐）。"""
@@ -236,6 +287,8 @@ class WorldStateClient:
         extra = self._supplement()
         if not extra:
             return
+        # 中转的 zh 语系是繁体（防禦 / 殲滅），统一转成简体再合并。
+        extra = t2s.convert_obj(extra)
         for key in ("steelPath", "duviriCycle", "archonHunt", "news",
                     "events", "dailyDeals", "arbitration"):
             if not state.get(key) and extra.get(key):
@@ -269,7 +322,7 @@ class WorldStateClient:
         if value is None:
             reason = self._friendly(exc) if exc is not None else "接口不可用"
             raise WorldStateError(
-                "%s官方 API 也没有这项数据（该功能需要 warframestat）。" % reason)
+                "%s官方 API 也没有这项数据（这项数据要经第三方数据站获取）。" % reason)
         return value
 
     def _mark_down(self, exc: HttpError) -> None:

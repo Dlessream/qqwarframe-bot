@@ -1,0 +1,538 @@
+{
+ "englishIndex": {
+  "abbreviated abilities": "缩短技能",
+  "ability overload": "技能超载",
+  "adaptive aberrations": "适应异变",
+  "alchemical invulnerability": "炼金难侵",
+  "alluring arcocanids": "迷人弧犬",
+  "ammo deficit": "弹药亏空",
+  "ammo scarcity": "弹药枯竭",
+  "angelic cohort": "天使同行",
+  "arcade automata": "自动街机",
+  "artillery beacons": "炮击信标",
+  "balloonfest": "气球嘉年华",
+  "barbed glyphs": "带刺钥符",
+  "beyond the wall": "墙壁之外",
+  "bold venture": "激进冒险",
+  "bolstered belligerents": "强化好战",
+  "cache crash": "破坏补给",
+  "close quarters": "短兵相接",
+  "commanding culverins": "指挥型重型炮兵",
+  "competitive streak": "竞争优势",
+  "concussive drain": "震荡耗能",
+  "conductive": "导电侵袭",
+  "constricted": "能量缩减",
+  "coordinated front": "协调阵线",
+  "corrupted flesh": "腐朽之躯",
+  "damage link": "伤害链接",
+  "delayed supply": "延迟供应",
+  "dense fog": "浓雾",
+  "devil's bargain": "恶魔契约",
+  "disruptive sounds": "破坏之音",
+  "double demolishers": "双重爆破",
+  "dropped guard": "超宏衰减",
+  "dull blades": "钝重兵刃",
+  "elemental potency": "元素效力",
+  "energy exhaustion": "能量枯竭",
+  "engorged gruzzlings": "暴食贪囤",
+  "entanglement": "牵连",
+  "eroding senses": "侵蚀感官",
+  "excessive explosives": "过量炸药",
+  "eximus amphors": "卓越者元素瓶",
+  "eximus reinforcements": "卓越支援",
+  "explosive potential": "易爆潜能",
+  "exposure curse": "显露之诅",
+  "finality": "终局",
+  "fissure cascade": "裂缝激增",
+  "foggy fall": "浓雾之秋",
+  "fortified foes": "坚不可摧",
+  "fractured armor": "破损护甲",
+  "framecurse syndrome": "咒甲减益",
+  "gear embargo": "携带装备限制",
+  "glyph inflation": "浮印膨胀",
+  "glyph trap": "浮印陷阱",
+  "growth hormones": "生长激素",
+  "hazardous areas": "危险区域",
+  "hazardous goods": "高危物资",
+  "heavy warfare": "重装作战",
+  "hold your breath": "屏住呼吸",
+  "hostile regeneration": "敌军复生",
+  "hostile support": "敌意支援",
+  "hypersensitive": "过敏受体",
+  "it's alive": "它是活的",
+  "jade spirits": "翠玉之灵",
+  "knifestep syndrome": "如履刀尖",
+  "lethargic shields": "嗜睡护盾",
+  "miasmite mash": "自爆虫浆",
+  "miasmite swarm": "自爆虫群",
+  "mitosis": "有丝分裂",
+  "myopic munitions": "短视弹药",
+  "necramech influx": "殁世机甲激增",
+  "noise suppression": "噪音抑制",
+  "parallel evolution": "平行进化",
+  "parasitic towers": "寄生装置塔",
+  "permanent injury": "永久损伤",
+  "pile-on": "科腐围攻",
+  "postmortal surges": "死后冲击",
+  "powerless": "技能禁用",
+  "proportional resistance": "等比增防",
+  "radioactive breakdown": "辐化御敌",
+  "ranged engagements": "远程交战",
+  "reinforcements": "支援",
+  "relentless tide": "无情肢潮",
+  "sanguine syndrome": "血色减益",
+  "scaldra speed run": "炽蛇军竞速",
+  "sealed armor": "密闭装甲",
+  "secondary wounds": "二次伤害",
+  "sporogenesis": "孢子增殖",
+  "techrot speed run": "科腐者竞速",
+  "terminal velocity": "致命速率",
+  "the fragmented two": "双重接肢",
+  "thermian plating": "热熔装甲板",
+  "thick ice": "厚冰",
+  "toxic tank": "剧毒坦克",
+  "transference distortion": "传识失真",
+  "undersupplied": "补给短缺",
+  "unified purpose": "统一目标",
+  "untreatable": "无法治愈",
+  "vamp rock": "吸血摇滚",
+  "vampyric liminus": "吸血界影",
+  "vampyric syndrome": "吸血减益"
+ },
+ "labels": {
+  "HexConquest": "时光科研",
+  "LabConquest": "深层科研"
+ },
+ "missionTypes": {
+  "Alchemy": "元素转换",
+  "Artifact": "中断",
+  "Assassination": "刺杀",
+  "Capture": "捕获",
+  "Defection": "变节",
+  "Defense": "防御",
+  "Disruption": "中断",
+  "DualDefense": "镜像防御",
+  "Excavation": "挖掘",
+  "Exterminate": "歼灭",
+  "HellScrub": "地狱净化",
+  "Hijack": "劫持",
+  "Interception": "拦截",
+  "LegacyteHarvest": "传承种捕获",
+  "MirrorDefense": "镜像防御",
+  "MobileDefense": "移动防御",
+  "Rescue": "救援",
+  "Sabotage": "破坏",
+  "Spy": "间谍",
+  "StageDefense": "舞台防御",
+  "Survival": "生存",
+  "TankAssassination": "坦克刺杀",
+  "VoidFlood": "虚空洪流"
+ },
+ "personal": {
+  "AbilityLockout": {
+   "desc": "小队击杀 50 名敌人前，所有技能均被禁止使用。",
+   "name": "技能禁用"
+  },
+  "AntiGuard": {
+   "desc": "战甲和友军超宏防护获取量减少 75%",
+   "name": "超宏衰减"
+  },
+  "Armorless": {
+   "desc": "施放技能会使护甲降低 10%，持续 10 秒。",
+   "name": "破损护甲"
+  },
+  "ComboCountChance": {
+   "desc": "近战连击数几率减少 50%",
+   "name": "钝重兵刃"
+  },
+  "Conductive": {
+   "desc": "每隔几秒就会受到 电击伤害。",
+   "name": "导电侵袭"
+  },
+  "ContactDamage": {
+   "desc": "每次受到伤害时，获得 1 层 穿刺异常状态。",
+   "name": "二次伤害"
+  },
+  "DamageMomentum": {
+   "desc": "静止不动时无法造成伤害。",
+   "name": "致命速率"
+  },
+  "DecayingFlesh": {
+   "desc": "受到生命值伤害时还会扣减最大生命上限",
+   "name": "永久损伤"
+  },
+  "EnergyStarved": {
+   "desc": "最大能量值减少 75%",
+   "name": "能量缩减"
+  },
+  "Exhaustion": {
+   "desc": "周围 10 米范围内的所有敌人使你每秒丢失 2 能量。",
+   "name": "能量枯竭"
+  },
+  "ExposureCurse": {
+   "desc": "护盾被移除。",
+   "name": "显露之诅"
+  },
+  "Framecurse": {
+   "desc": "激活一项技能会对你造成 50 伤害。",
+   "name": "咒甲减益"
+  },
+  "Gearless": {
+   "desc": "无法使用携带装备轮盘。",
+   "name": "携带装备限制"
+  },
+  "Knifestep": {
+   "desc": "移动时损失 2 点生命值。跳跃会暂停效果。",
+   "name": "如履刀尖"
+  },
+  "MaxAmmo": {
+   "desc": "所有武器的弹药最大值减少 75%",
+   "name": "补给短缺"
+  },
+  "OperatorLockout": {
+   "desc": "无法传识到指挥官或漂泊者。",
+   "name": "传识失真"
+  },
+  "OverSensitive": {
+   "desc": "负面异常状态的持续时间增加到三倍",
+   "name": "过敏受体"
+  },
+  "Sanguine": {
+   "desc": "每当你受到伤害时，还会陷入 切割异常状态。",
+   "name": "血色减益"
+  },
+  "ScarcityCurse": {
+   "desc": "弹药逐渐耗尽。电池武器充能缓慢。",
+   "name": "弹药枯竭"
+  },
+  "ShieldDelay": {
+   "desc": "护盾充能延迟增加 500%。",
+   "name": "嗜睡护盾"
+  },
+  "Starvation": {
+   "desc": "通过掉落和道具恢复的弹药减少 75%。",
+   "name": "弹药亏空"
+  },
+  "TimeDilation": {
+   "desc": "技能持续时间减少 50%。",
+   "name": "缩短技能"
+  },
+  "Vampyri": {
+   "desc": "每秒流失生命值。击杀敌人可恢复生命值。",
+   "name": "吸血减益"
+  },
+  "VitalEnergy": {
+   "desc": "每当生命值受到伤害，也会消耗最大能量的 5%。",
+   "name": "震荡耗能"
+  },
+  "VoidEnergyOverload": {
+   "desc": "使用技能将在附近打开一道虚空裂隙",
+   "name": "技能超载"
+  },
+  "Withering": {
+   "desc": "拾取无法提供治疗，并且无法拾取生命球。",
+   "name": "无法治愈"
+  }
+ },
+ "risks": {
+  "AcceleratedEnemies": {
+   "desc": "敌人造成的伤害 -15%，受到的伤害 +15% ，但移动速度、攻击速度和射速 +15%。",
+   "name": "激进冒险"
+  },
+  "AntiMaterialWeapons": {
+   "desc": "暴戾重型炮兵装备的武器对超宏防护和殁世机甲造成 5 倍的伤害。",
+   "name": "指挥型重型炮兵"
+  },
+  "ArcadeAutomata": {
+   "desc": "敌人的枪械发射巨大且缓慢移动的球体，而不是他们平常的弹药。",
+   "name": "自动街机"
+  },
+  "ArtilleryBeacons": {
+   "desc": "炽蛇军敌人被击杀时会掉落炮击信标召唤轰炸。",
+   "name": "炮击信标"
+  },
+  "BalloonFest": {
+   "desc": "炽蛇军前哨气球数量更多，攻击和移动速度更快。",
+   "name": "气球嘉年华"
+  },
+  "CompetitionSpillover": {
+   "desc": "在整个任务过程中，阿米尔和碧的“对战”模式将产生随机负面惩罚。",
+   "name": "竞争优势"
+  },
+  "Deflectors": {
+   "desc": "可能会出现守护者卓越者敌人，包括守护者卓越者殁世机甲。",
+   "name": "坚不可摧"
+  },
+  "DrainingResiduals": {
+   "desc": "敌人被击杀时 4 米范围内的友军会牺牲 50% 的弹药效率以换取 +25% 的射速。",
+   "name": "恶魔契约"
+  },
+  "EfervonFog": {
+   "desc": "艾弗旺气体覆盖整个关卡。敌人可能会掉落提供短暂缓解的过滤器。",
+   "name": "浓雾"
+  },
+  "EmpoweredEnemies": {
+   "desc": "敌人的生命值和护盾增加 100%，每拥有一个小队成员额外增加 50%，最多 300%。卓越者单位的部署更加频繁。",
+   "name": "等比增防"
+  },
+  "EnemyElementalEnhancement": {
+   "desc": "敌人造成 +100% 元素伤害，并对元素伤害有 +85% 抗性。",
+   "name": "元素效力"
+  },
+  "ExplosiveCrawlers": {
+   "desc": "爆裂断肢取代蹒跚断肢。",
+   "name": "易爆潜能"
+  },
+  "ExplosiveSummer": {
+   "desc": "所有补给箱都被炸药桶替换。",
+   "name": "过量炸药"
+  },
+  "FactionSwarm_Scaldra": {
+   "desc": "所有敌人被炽蛇军取代，并且移动的更快。",
+   "name": "炽蛇军竞速"
+  },
+  "FactionSwarm_Techrot": {
+   "desc": "所有敌人被科腐者取代，并且移动的更快。",
+   "name": "科腐者竞速"
+  },
+  "FallFog": {
+   "desc": "迷雾限制了整个任务区的视野。",
+   "name": "浓雾之秋"
+  },
+  "HeavyWarfare": {
+   "desc": "敌人受到的非重型武器伤害减少 95%。敌人会掉落重型弹药包，重型武器召回时间减少至 5 秒。",
+   "name": "重装作战"
+  },
+  "HostileOvergrowth": {
+   "desc": "在地下，如果玩家停止移动，敌方增生物就会发起攻击。",
+   "name": "它是活的"
+  },
+  "InfectedTechrot": {
+   "desc": "科腐者敌人被注入艾弗旺并随时间推移受到伤害。他们被击杀后会爆炸并留下致命的艾弗旺。",
+   "name": "腐朽之躯"
+  },
+  "JadeSpring": {
+   "desc": "翠玉之灵徘徊在该区域。如果玩家靠近，它们就会追逐玩家并转变为翠玉光束。",
+   "name": "翠玉之灵"
+  },
+  "MagneticHounds": {
+   "desc": "当暴戾弧犬发起攻击时，它们会将战甲拉向自己。",
+   "name": "迷人弧犬"
+  },
+  "MeleeOnlyEnemies": {
+   "desc": "只出现近战攻击的敌人。",
+   "name": "短兵相接"
+  },
+  "MiasmiteHive": {
+   "desc": "在任务过程中，科腐者自爆虫会从阴影中蜂拥而出。",
+   "name": "自爆虫群"
+  },
+  "MurmurIncursion": {
+   "desc": "低语者敌人加入炽蛇军和科腐者阵营。",
+   "name": "墙壁之外"
+  },
+  "PointBlank": {
+   "desc": "玩家距离敌人 15 米以内时，敌人才会受到伤害。",
+   "name": "短视弹药"
+  },
+  "Quicksand": {
+   "desc": "被击杀敌人 4 米范围内的友军， 移动速度和跑酷速度会降低。",
+   "name": "牵连"
+  },
+  "RangedOnlyEnemies": {
+   "desc": "只出现远程攻击的敌人。",
+   "name": "远程交战"
+  },
+  "RegeneratingEnemies": {
+   "desc": "敌人的生命值会缓慢恢复。",
+   "name": "敌军复生"
+  },
+  "RestrictedConsumables": {
+   "desc": "消耗品有 30 秒冷却时间。魅影，待命舰员以及曲翼枪械除外。",
+   "name": "延迟供应"
+  },
+  "RestrictedRespawns": {
+   "desc": "禁用自我复活。濒死的玩家只能通过击杀嘲讽低语来复活。死亡的玩家无法继续进行连续任务。",
+   "name": "终局"
+  },
+  "SentientAdaptation": {
+   "desc": "敌人受到元素伤害时产生相应的抗性。如果在 5 秒内没有受到该元素伤害，则抗性会消失。",
+   "name": "适应异变"
+  },
+  "ShieldedFoes": {
+   "desc": "所有敌人获得相当于他们最大生命值 50% 的超宏防护。",
+   "name": "强化好战"
+  },
+  "Vanquisher": {
+   "desc": "部署额外的卓越者敌人。",
+   "name": "卓越支援"
+  },
+  "VoidAberration": {
+   "desc": "行动缓慢且不死的双衍王境界影，能从过于接近的友军身上吸取生命和能量。",
+   "name": "吸血界影"
+  },
+  "Voidburst": {
+   "desc": "被击杀的敌人会爆发出虚空能量。",
+   "name": "死后冲击"
+  },
+  "WinterFrost": {
+   "desc": "极寒卓越者护罩的耐久度是正常值的 30 倍。",
+   "name": "厚冰"
+  }
+ },
+ "source": "https://oracle.browse.wf/dicts/zh.json",
+ "variants": {
+  "HexConquest": {
+   "ChemicalNoise": {
+    "desc": "无人机在弗莱尔上方飞行，向他喷射艾弗旺气体。",
+    "name": "噪音抑制"
+   },
+   "ContaminationZone": {
+    "desc": "整个区域会随着玩家停留时间的延长而造成 毒素伤害，地狱净化器附近区域除外。有些敌人可能会掉落过滤器，可用于创造额外稳定的临时安全区。",
+    "name": "屏住呼吸"
+   },
+   "DisruptiveSounds": {
+    "desc": "弗莱尔会创造一个力场，干扰玩家的技能，同时消耗能量以增强弗莱尔的生命值。当没有玩家在范围内时，弗莱尔会缓慢失去生命值。",
+    "name": "吸血摇滚"
+   },
+   "DoubleTroubleLegacyte": {
+    "desc": "每轮产生两个传承种，需要两倍的捕获次数才能成功。",
+    "name": "有丝分裂"
+   },
+   "EscalateImmediately": {
+    "desc": "任务开始时，触发打开补给箱的负面效果，一旦打开就会加剧。未能打开补给箱会导致完成任务所需的击杀数翻倍。",
+    "name": "破坏补给"
+   },
+   "ExplosiveEnergy": {
+    "desc": "敌人死亡时掉落的自爆虫会立即冲向弗莱尔。",
+    "name": "自爆虫浆"
+   },
+   "FortifiedFoes": {
+    "desc": "非弱点命中对敌人造成的伤害降低 95%。",
+    "name": "密闭装甲"
+   },
+   "GestatingTumors": {
+    "desc": "地狱净化器附近会出现科腐者肿瘤，每个活跃的肿瘤都会增加维生系统衰减的速度。",
+    "name": "孢子增殖"
+   },
+   "HighScalingLegacyte": {
+    "desc": "每一代传承种都更加强大，但同时也需要更长的时间来逃脱。",
+    "name": "生长激素"
+   },
+   "HostileSecurity": {
+    "desc": "弗莱尔在自身周围发出一个干扰力场，干扰技能并消耗能量。如果范围内没有玩家，弗莱尔将流失生命值。他会根据范围内的玩家数量获得生命值。",
+    "name": "破坏之音"
+   },
+   "MutatedEnemies": {
+    "desc": "随着传承种进化，其他在场敌人也将获得新技能。",
+    "name": "平行进化"
+   },
+   "TankReinforcements": {
+    "desc": "战斗过程中会有敌方援军抵达，首先是炽蛇军，然后是科腐者。",
+    "name": "支援"
+   },
+   "TankStrongArmor": {
+    "desc": "只有热熔火箭弹才能对坦克造成伤害。携带热熔火箭炮的增援部队将在战斗中持续出现。",
+    "name": "热熔装甲板"
+   },
+   "TankSuperToxic": {
+    "desc": "坦克拥有 毒素光环，留下 毒素尾迹，并且所有的攻击会造成 毒素伤害。",
+    "name": "剧毒坦克"
+   },
+   "TechrotConjunction": {
+    "desc": "科腐者敌人会尝试近战攻击地狱净化器，接触后将其引爆，并使净化器污染增加 33%。",
+    "name": "科腐围攻"
+   }
+  },
+  "LabConquest": {
+   "AlchemicalShields": {
+    "desc": "有 10% 敌人装备了不可穿透的元素屏障，只有对应元素的元素瓶才能摧毁屏障。",
+    "name": "炼金难侵"
+   },
+   "DoubleTrouble": {
+    "desc": "两台爆破型殁世机甲会攻击任意导管，但它们的生命值降低。",
+    "name": "双重爆破"
+   },
+   "DuoAssassination": {
+    "desc": "在最终战斗中对战两个接肢怪。",
+    "name": "双重接肢"
+   },
+   "EnemyLink": {
+    "desc": "相距 10 米内的敌人形成一个伤害链接群体。任何对单个成员造成的伤害都会平均分摊到整个群体。",
+    "name": "伤害链接"
+   },
+   "EnvironmentalSystem": {
+    "desc": "激活维生装置塔以为你的小队清除危险区域。",
+    "name": "危险区域"
+   },
+   "EximusGrenadiers": {
+    "desc": "卓越者敌人必定掉落元素瓶，但只有他们会掉落元素瓶。",
+    "name": "卓越者元素瓶"
+   },
+   "FortifiedFoes": {
+    "desc": "非弱点命中对敌人造成的伤害降低 90%。",
+    "name": "密闭装甲"
+   },
+   "FragileNodes": {
+    "desc": "敌人可以瞄准并摧毁导管。",
+    "name": "统一目标"
+   },
+   "GrowingIncursion": {
+    "desc": "裂缝在任务中形成，使得敌人的等级每 10 秒提升 1 级。消灭它们以防止等级增加。",
+    "name": "裂缝激增"
+   },
+   "HarshWords": {
+    "desc": "每个浮印在被收集时都会造成少量伤害。",
+    "name": "带刺钥符"
+   },
+   "HostileSecurity": {
+    "desc": "魔耳和魔瞳随着时间逐渐受损，收集所需的荧音浮印可暂停损伤并对它们进行部分修复。",
+    "name": "侵蚀感官"
+   },
+   "HungryPillars": {
+    "desc": "所有敌人都是无敌的，只有在受到辐射异常状态影响时才会受到伤害。辐射柱体随机出现并造成 辐射异常状态。",
+    "name": "辐化御敌"
+   },
+   "InfiniteTide": {
+    "desc": "断肢潮不会停止攻击。",
+    "name": "无情肢潮"
+   },
+   "LostInTranslation": {
+    "desc": "安全系统需要两倍的荧音浮印才能激活。",
+    "name": "浮印膨胀"
+   },
+   "MisguidedInstructions": {
+    "desc": "某些荧音浮印附有传送门陷阱，接触它时会被传送到 250 米以外的地方。传送门显性后持续 45 秒。",
+    "name": "浮印陷阱"
+   },
+   "NecramechActivation": {
+    "desc": "殁世机甲出现的频率更高。",
+    "name": "殁世机甲激增"
+   },
+   "NecramechLockout": {
+    "desc": "禁用维生装置塔运送系统。每 90 秒生成殁世机甲，击杀时掉落 6 个维生模块。",
+    "name": "敌意支援"
+   },
+   "Reinforcements": {
+    "desc": "卓越者敌人出现并支援断肢潮和最终的接肢怪。",
+    "name": "协调阵线"
+   },
+   "SameTeam": {
+    "desc": "虚空天使与最终的接肢怪并肩作战。",
+    "name": "天使同行"
+   },
+   "StickyFingers": {
+    "desc": "所有贪囤断肢都是卓越者。",
+    "name": "暴食贪囤"
+   },
+   "UnpoweredCapsules": {
+    "desc": "维生装置塔只有在其 15 米范围内杀死 20 名敌人后才会激活。",
+    "name": "寄生装置塔"
+   },
+   "VolatileGrenades": {
+    "desc": "携带元素瓶时会受到与之对应的元素伤害。",
+    "name": "高危物资"
+   }
+  }
+ }
+}
