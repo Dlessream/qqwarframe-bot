@@ -503,10 +503,22 @@ class CommandRouter:
             return present.error_reply(
                 "%s 数据还没就绪：物品索引尚未加载完成，稍后几秒再试。" % label)
         interval = float(getattr(self.board, "interval", 1.0) or 1.0)
-        minutes = max(1, int((total - ready) * interval / 60) + 1)
+        pending = max(0, total - ready)
+        # 三张榜共用一条扫描队列，报出全量积压的耗时更接近真实等待。
+        try:
+            status = self.board.status() or {}
+        except Exception:  # noqa: BLE001 - 状态取不到就按本档估算
+            status = {}
+        backlog = 0
+        for kind in ("junk", "frames", "riven"):
+            block = status.get(kind) or {}
+            backlog += max(0, int(block.get("total") or 0)
+                           - int(block.get("ready") or 0))
+        pending = max(pending, backlog)
+        minutes = max(1, int(pending * interval / 60) + 1)
         return present.error_reply(
-            "%s 数据正在后台扫描（%d/%d），约 %d 分钟后可用；到时候再发一次就行，"
-            "之后都是秒回。" % (label, ready, total, minutes))
+            "%s 数据正在后台扫描（%d/%d），三张榜共用一条队列，全部扫完约 %d 分钟；"
+            "到时候再发一次就行，之后都是秒回。" % (label, ready, total, minutes))
 
     def _junk(self, ducats: int, ctx: Context) -> Reply:
         if self.board is None:
