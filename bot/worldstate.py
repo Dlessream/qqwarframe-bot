@@ -163,6 +163,14 @@ class WorldStateClient:
         self._nodes: Optional[Dict[str, Dict[str, str]]] = None
         # 本次数据是否来自官方兜底（兜底源不含虚空风暴节点名）
         self.using_fallback = False
+        # ------------------------------------------------ 中转（补齐官方缺失模块）
+        # warframestat 对 IDC IP 返回 403，但可以经公开中转（如 r.jina.ai）取到。
+        # 该数据常有数十分钟延迟，因此只用于补齐官方接口没有的模块，
+        # 实时性要求高的内容（周期、突击、裂缝、奸商）仍以官方源为准。
+        self.relay = str(config.get("relay") or "").strip()
+        if self.relay and not self.relay.endswith("/"):
+            self.relay += "/"
+        self.supplement_seconds = int(config.get("supplement_seconds", 300))
 
     # ---------------------------------------------------------------- 数据源
     def _fallback_state(self) -> Dict[str, Any]:
@@ -180,9 +188,72 @@ class WorldStateClient:
                 logger=LOGGER,
             )
         try:
-            return self._fallback.state()
+            state = self._fallback.state()
         except worldfallback.FallbackError as exc:
             raise WorldStateError(str(exc))
+        self._merge_supplement(state)
+        return state
+
+    # ------------------------------------------------------------ 中转补齐
+    def _fetch_json(self, target: str) -> Any:
+        """按是否配置中转前缀读取 JSON。"""
+        if not self.relay:
+            return self.http.get_json(target)
+        text = self.http.get_text(self.relay + target,
+                                  headers={"X-Return-Format": "text"})
+        start = -1
+        for token in ("{", "["):
+            index = text.find(token)
+            if index >= 0 and (start < 0 or index < start):
+                start = index
+        if start < 0:
+            raise HttpError("中转返回的内容不是 JSON：%s" % text[:120], url=target)
+        try:
+            return json.loads(text[start:])
+        except ValueError as exc:
+            raise HttpError("中转返回的 JSON 解析失败：%s" % exc, url=target)
+
+    def _supplement_uncached(self) -> Dict[str, Any]:
+        if not self.relay:
+            return {}
+        target = "%s/pc/zh" % self.base_url
+        try:
+            data = self._fetch_json(target)
+        except Exception as exc:
+            LOGGER.warning("中转数据源不可用（%s），跳过低频模块补齐", exc)
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _supplement(self) -> Dict[str, Any]:
+        """warframestat 全量文档（带较长缓存，只用于补齐）。"""
+        if not self.relay:
+            return {}
+        return self.cache.get_or_set(
+            ("supplement",), self._supplement_uncached, self.supplement_seconds)
+
+    def _merge_supplement(self, state: Dict[str, Any]) -> None:
+        """用中转文档补齐官方接口缺失的模块（只填空缺，不覆盖官方实时数据）。"""
+        extra = self._supplement()
+        if not extra:
+            return
+        for key in ("steelPath", "duviriCycle", "archonHunt", "news",
+                    "events", "dailyDeals", "arbitration"):
+            if not state.get(key) and extra.get(key):
+                state[key] = extra[key]
+        # 电波：官方只有挑战内部路径，中转有正式标题与声望，优先用中转的
+        relay_nightwave = extra.get("nightwave")
+        if isinstance(relay_nightwave, dict):
+            relay_titled = any(
+                str(row.get("title") or "").strip()
+                for row in (relay_nightwave.get("activeChallenges") or [])
+                if isinstance(row, dict))
+            if relay_titled or not state.get("nightwave"):
+                state["nightwave"] = relay_nightwave
+        if not state.get("voidStorms") and extra.get("fissures"):
+            storms = [row for row in extra["fissures"]
+                      if isinstance(row, dict) and row.get("isStorm")]
+            if storms:
+                state["voidStorms"] = storms
 
     def _fallback_field(self, path: str, exc: Optional[HttpError] = None) -> Any:
         try:
@@ -286,6 +357,19 @@ class WorldStateClient:
                 LOGGER.warning("官方裂缝源失败，回退 warframestat：%s", exc)
         data = self.fetch("fissures")
         return data if isinstance(data, list) else []
+
+    def void_storms(self) -> List[Dict[str, Any]]:
+        """虚空风暴：官方 VoidStorms 实时数据，缺口用中转补齐。"""
+        try:
+            state = self._fallback_state()
+        except WorldStateError:
+            state = {}
+        storms = state.get("voidStorms") or []
+        if storms:
+            return storms
+        extra = self._supplement()
+        return [row for row in (extra.get("fissures") or [])
+                if isinstance(row, dict) and row.get("isStorm")]
 
     # ------------------------------------------------------------------ 奸商
     def void_trader(self) -> VoidTrader:

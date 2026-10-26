@@ -90,6 +90,11 @@ DEFAULTS: Dict[str, Any] = {
         "fallback_cooldown_seconds": 600,
         "oracle_url": "https://oracle.browse.wf",
         "oracle_proxy": "none",
+        # warframestat 对 IDC IP 一律 403，但可经公开中转（r.jina.ai）取到；
+        # 该数据常有数十分钟延迟，只用于补齐官方接口没有的模块。
+        # 留空表示不启用中转。注意中转本身可能需要代理。
+        "relay": "",
+        "supplement_seconds": 300,
         "user_agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/126.0.0.0 Safari/537.36"),

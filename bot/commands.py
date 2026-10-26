@@ -286,12 +286,11 @@ class CommandRouter:
                 return [present.fissures_reply(self.worldstate.fissures(),
                                                hard=True)]
             if command == "storms":
-                fissures = self._ws("fissures")
-                if getattr(self.worldstate, "using_fallback", False):
-                    raise CommandError(
-                        "官方接口不含虚空风暴的节点信息，"
-                        "该功能需要代理访问 warframestat。")
-                return [present.storms_reply(fissures)]
+                # 官方 VoidStorms 有节点与光体等级，任务类型取节点表；
+                # 中转可用时优先用 warframestat 的完整风暴列表。
+                if hasattr(self.worldstate, "void_storms"):
+                    return [present.storms_reply(self.worldstate.void_storms())]
+                return [present.storms_reply(self._ws("fissures"))]
             if command == "bounties":
                 return [present.bounties_reply(self._ws("syndicateMissions"))]
             if command == "cetus":

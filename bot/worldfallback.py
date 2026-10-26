@@ -53,6 +53,11 @@ VOID_TIERS = {
     "VoidT4": "Axi", "VoidT5": "Requiem", "VoidT6": "Omnia",
 }
 
+# 虚空风暴按遗物等级排序（与 present.storms_reply 的 tierNum 对应）
+VOID_TIER_ORDER = {
+    "Lith": 1, "Meso": 2, "Neo": 3, "Axi": 4, "Requiem": 5, "Omnia": 6,
+}
+
 FACTIONS = {
     "FC_GRINEER": "Grineer", "FC_CORPUS": "Corpus",
     "FC_INFESTATION": "Infested", "FC_OROKIN": "Corrupted",
@@ -224,6 +229,26 @@ def _bounty_kind(job_type: Any) -> str:
     return "赏金"
 
 
+_challenge_title_cache: Dict[str, str] = {}
+
+
+def _challenge_title(path: Any) -> str:
+    """把 /Lotus/Types/Challenges/Seasons/Daily/SeasonDailyTwoForOne 还原成可读标题。"""
+    raw = str(path or "").strip()
+    cached = _challenge_title_cache.get(raw)
+    if cached is not None:
+        return cached
+    tail = raw.split("/")[-1] or "挑战"
+    for prefix in ("SeasonNightwave", "SeasonElite", "SeasonDaily",
+                   "SeasonWeekly", "Season"):
+        if tail.startswith(prefix):
+            tail = tail[len(prefix):]
+            break
+    title = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", tail).strip() or tail or "挑战"
+    _challenge_title_cache[raw] = title
+    return title
+
+
 def _bounty_label(job: Dict[str, Any]) -> str:
     """不同档位的赏金任务类型相同，补上敌人等级以便区分。"""
     kind = _bounty_kind(job.get("jobType"))
@@ -335,6 +360,45 @@ def official_fissures(data: Dict[str, Any],
     return result
 
 
+def official_void_storms(data: Dict[str, Any],
+                         nodes: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """VoidStorms → warframestat storms 结构（九重天风暴裂缝）。
+
+    官方条目只有节点和光体等级，任务类型取自节点表（Skirmish/Volatile/Orphix）。
+    """
+    rows = data.get("VoidStorms") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return []
+    result = []
+    now = time.time()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        end = _ms(row.get("Expiry")) / 1000.0
+        if end <= now:
+            continue
+        node_id = str(row.get("Node") or "")
+        node = nodes.get(node_id) or {}
+        node_name = str(node.get("name") or _node_name(nodes, node_id))
+        tier = VOID_TIERS.get(str(row.get("ActiveMissionTier") or ""), "—")
+        result.append({
+            "id": str((row.get("_id") or {}).get("$oid") or node_id),
+            "node": node_name,
+            "nodeKey": node_name,
+            "missionType": str(node.get("type") or "Skirmish"),
+            # 保留英文阵营名，交给 present 做「G系 / C系」风格本地化
+            "enemy": str(node.get("enemy") or ""),
+            "tier": tier,
+            "tierNum": VOID_TIER_ORDER.get(tier, 9),
+            "expiry": _iso(end),
+            "isHard": False,
+            "isStorm": True,
+            "source": "official",
+        })
+    result.sort(key=lambda item: (item["tierNum"], item["expiry"]))
+    return result
+
+
 # ---------------------------------------------------------------------- 主体
 class OfficialWorldState:
     """把官方 CDN 数据整理成 warframestat 的文档结构（带短缓存）。"""
@@ -412,6 +476,8 @@ class OfficialWorldState:
             "invasions": self._invasions(data, nodes),
             "syndicateMissions": self._bounties(syndicates),
             "fissures": official_fissures(data, nodes),
+            "voidStorms": official_void_storms(data, nodes),
+            "nightwave": self._nightwave(data),
             "archimedeas": self._archimedeas(),
             # 官方接口没有仲裁字段；留空让上层按 arbi.wf.wiki 轮换兜底
             "arbitration": {
@@ -420,10 +486,46 @@ class OfficialWorldState:
             },
         }
         # 官方接口没有的模块：显式置 None，总览里显示「暂不可用」而不是 0
-        for key in ("steelPath", "nightwave", "duviriCycle", "archonHunt",
-                    "news", "events", "dailyDeals"):
+        for key in ("steelPath", "duviriCycle", "archonHunt", "news",
+                    "events", "dailyDeals"):
             state[key] = None
         return state
+
+    def _nightwave(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """SeasonInfo → warframestat nightwave 结构。
+
+        官方只给挑战内部路径（如 SeasonDailyTwoForOne），这里还原成可读标题；
+        声望数值官方不给，保留 0，中转数据可用时由上层覆盖。
+        """
+        info = data.get("SeasonInfo") if isinstance(data, dict) else None
+        if not isinstance(info, dict) or not info.get("Season"):
+            return None
+        now = time.time()
+        challenges = []
+        for row in info.get("ActiveChallenges") or []:
+            if not isinstance(row, dict):
+                continue
+            end = _ms(row.get("Expiry")) / 1000.0
+            if end and end <= now:
+                continue
+            path = str(row.get("Challenge") or "")
+            challenges.append({
+                "id": str((row.get("_id") or {}).get("$oid") or ""),
+                "title": _challenge_title(path),
+                "desc": "",
+                "reputation": int(row.get("Reputation") or 0),
+                "isDaily": bool(row.get("Daily")),
+                "isElite": "Elite" in path,
+                "expiry": _iso(end),
+            })
+        challenges.sort(key=lambda item: (not item["isDaily"], item["expiry"]))
+        return {
+            "season": int(info.get("Season") or 0),
+            "tag": str(info.get("AffiliationTag") or ""),
+            "phase": info.get("Phase"),
+            "expiry": _iso(_ms(info.get("Expiry")) / 1000.0),
+            "activeChallenges": challenges,
+        }
 
     def _cetus(self, syndicates: List[Any], now: float) -> Optional[Dict[str, Any]]:
         for row in syndicates:
