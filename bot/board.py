@@ -39,7 +39,6 @@ JUNK_LABELS: Dict[int, str] = {
     65: "假金垃圾",
     25: "假银垃圾",
 }
-JUNK_ORDER: Dict[int, int] = {value: index for index, value in enumerate(JUNK_RARITIES)}
 
 _KIND_JUNK = "junk"
 _KIND_FRAME = "frames"
@@ -366,8 +365,12 @@ class BoardClient:
             if item.ducats in by_ducats and ("component" in tags or "blueprint" in tags):
                 junk.append(item.slug)
                 by_ducats[item.ducats].append(item.slug)
-        junk.sort(key=lambda slug: (JUNK_ORDER.get(index.get(slug).ducats, 9)
-                                    if index.get(slug) else 9, slug))
+        # 各档位轮流排：首次部署/重启后金垃圾和银垃圾都能在十几分钟内出榜单，
+        # 而不是把 345 件金垃圾扫完才轮到银垃圾。
+        lanes = [sorted(by_ducats[key]) for key in self.rarities if by_ducats.get(key)]
+        depth = max((len(lane) for lane in lanes), default=0)
+        junk = [lane[level] for level in range(depth) for lane in lanes
+                if level < len(lane)]
         frames.sort()
         riven_targets: List[str] = []
         if self.scan_riven and self.riven is not None:

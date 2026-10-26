@@ -209,6 +209,15 @@ class BoardScanTest(unittest.TestCase):
         self.assertEqual(stats["total"], 2)
         self.assertEqual(board.junk_coverage(45), (2, 2))
 
+    def test_junk_scan_interleaves_rarities(self):
+        board, market, _http = build_board(DEFAULT_TOPS)
+        board._ensure_targets()
+        targets = board._targets["junk"]
+        self.assertEqual(len(targets), 6)
+        # 前四件应当覆盖四个档位，而不是先把 100 杜卡特扫完
+        tiers = [market.index.get(slug).ducats for slug in targets[:4]]
+        self.assertEqual(sorted(tiers), [15, 45, 65, 100])
+
     def test_frames_sorted_desc(self):
         board, _market, _http = build_board(DEFAULT_TOPS)
         for _ in range(12):
