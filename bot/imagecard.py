@@ -643,10 +643,10 @@ def riven_analysis_card(analysis, evaluations: Sequence = (),
         rows = []
         colors: Dict[Tuple[int, int], tuple] = {}
         for index, evaluation in enumerate(evaluations):
-            unit = evaluation.stat.unit if evaluation.stat else ""
             rows.append([
                 evaluation.name,
-                "%+g%s" % (evaluation.value, unit),
+                (evaluation.stat.format(evaluation.value)
+                 if evaluation.stat else "%+g" % evaluation.value),
                 (evaluation.stat.range_text(getattr(evaluation, "scale", 1.0))
                  if evaluation.stat else "—"),
                 evaluation.grade,

@@ -9,7 +9,7 @@ import json
 import os
 import unittest
 
-from bot import ocr, rivenocr
+from bot import ocr, rivencalc, rivenocr
 from bot.riven import RivenWeapon
 from bot.rivencalc import calculate, evaluate_roll
 
@@ -299,6 +299,48 @@ class InvertedStatTest(unittest.TestCase):
         recoil = [item for item in evaluations if item.name == "后坐力"][0]
         self.assertFalse(recoil.negative)
         self.assertEqual(recoil.value, -105.0)
+
+
+class MultiplierStatTest(unittest.TestCase):
+    """对派系伤害（歧视）在卡面上写成倍率：`x1.5` 是加伤、`x0.6` 才是减伤。
+
+    它**没有** `+` / `-` 号，正负只能看倍率本身——1.x 是正面（正向词条），
+    0.x 是负面（诅咒）。以前一律把倍率当成「正面」，`x0.5` 会被硬塞进正向槽位。
+    """
+
+    def setUp(self):
+        self.analysis = calculate(FURIS)
+
+    def test_x1_5_is_a_positive_bonus(self):
+        result = resolve_texts(["+143.1% 多重射击\nx1.5 对Grineer的伤害"], FURIS)
+        self.assertEqual(result.config, "2+")
+        self.assertEqual(dict(result.pairs)["对派系伤害"], 50.0)
+        faction = [item for item in
+                   evaluate_roll(self.analysis, result.pairs, result.scale)
+                   if item.name == "对派系伤害"][0]
+        self.assertFalse(faction.negative)
+
+    def test_x0_6_is_the_curse(self):
+        result = resolve_texts(["+143.1% 多重射击\n+102.9% 触发几率\n"
+                                "+92.1% 火焰伤害\nx0.6 对Grineer的伤害"], FURIS)
+        self.assertEqual(result.config, "3+1")
+        self.assertAlmostEqual(dict(result.pairs)["对派系伤害"], -40.0, places=1)
+        faction = [item for item in
+                   evaluate_roll(self.analysis, result.pairs, result.scale)
+                   if item.name == "对派系伤害"][0]
+        self.assertTrue(faction.negative)
+
+    def test_lost_x_is_still_read_as_multiplier(self):
+        """OCR 把 `x` 读丢，只剩 `1.5`，也得按倍率算成 +50% 而不是 1.5%。"""
+        candidates = rivenocr.read_texts(["+143.1% 多重射击\n1.5 对Grineer的伤害"])
+        values = {item.name: item.value for item in candidates}
+        self.assertEqual(values["对派系伤害"], 50.0)
+
+    def test_card_form_is_preserved(self):
+        """输出照卡面写：`x1.5` / `x0.6`，不给它改成 `+50%`。"""
+        self.assertEqual(rivencalc.multiplier_text(50.0), "x1.5")
+        self.assertEqual(rivencalc.multiplier_text(-40.0), "x0.6")
+        self.assertEqual(rivencalc.multiplier_text(-34.0), "x0.66")
 
 
 class OrderTest(unittest.TestCase):

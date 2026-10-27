@@ -809,7 +809,8 @@ x0.66 对 Grineer 的伤害"""
             reply = router.handle("#紫卡分析", ctx)[0]
         self.assertIn("3+1", reply.text)
         self.assertIn("对派系伤害", reply.text)
-        self.assertIn("-34", reply.text)
+        # 派系（歧视）词条在卡面上是倍率写法，`x0.66` 就是 -34%（负面）
+        self.assertIn("x0.66", reply.text)
 
     def test_nonsense_values_are_flagged(self):
         """数值和这把武器的任何配置都对不上时，照实列出并提示核对原图。"""

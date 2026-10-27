@@ -37,6 +37,42 @@ MALUS = {
 }
 
 
+# 卡面上写成倍率的词条：对派系伤害（歧视）。它的数值不是 `+45.5%` 而是 `x1.5`，
+# 正负也不是看 `+` / `-` 号，而是看倍率本身——1.x 是正面（加伤），0.x 是负面（减伤）。
+# 内部一律用百分数存（+50 / -50），只在识别与显示时换算。
+MULTIPLIER_STATS = {"对派系伤害"}
+
+
+def is_multiplier_stat(name: str) -> bool:
+    """这个词条在卡面上是不是倍率写法（`x1.5`）。"""
+    text = str(name or "").strip()
+    if text in MULTIPLIER_STATS:
+        return True
+    canonical = canonical_name(text) if text else ""
+    return canonical in MULTIPLIER_STATS
+
+
+def multiplier_text(value: float) -> str:
+    """百分数 → 卡面倍率写法：+50 → `x1.5`，-34 → `x0.66`。
+
+    卡面上倍率一般只保留一位小数（`x1.5`），但偶尔会多一位（`x0.66`），
+    所以这里按两位格式化、末尾是 0 就去掉——读进来是什么，输出还是什么。
+    """
+    number = "%.2f" % (1.0 + value / 100.0)
+    if number.endswith("0"):
+        number = number[:-1]
+    return "x" + number
+
+
+def format_roll(stat: Optional["RivenStat"], name: str, value: float) -> str:
+    """按卡面写法输出数值；拿不到词条定义时按名字判断是不是倍率词条。"""
+    if stat is not None:
+        return stat.format(value)
+    if is_multiplier_stat(name):
+        return multiplier_text(value)
+    return "%+g" % value
+
+
 @dataclass
 class RivenStat:
     name: str
@@ -44,6 +80,9 @@ class RivenStat:
     maximum: float
     unit: str = "%"
     negative: bool = False
+    # 卡面上写成倍率的词条（对派系伤害：`x1.5` 是正面、`x0.5` 是负面）。
+    # 内部数值仍旧用百分数（+50 / -50），只在显示与识别时换算。
+    multiplier: bool = False
 
     @property
     def low(self) -> float:
@@ -53,12 +92,22 @@ class RivenStat:
     def high(self) -> float:
         return max(self.minimum, self.maximum)
 
+    def format(self, value: float) -> str:
+        """按卡面的写法输出一条词条的数值。"""
+        if self.multiplier:
+            return multiplier_text(value)
+        return "%+g%s" % (value, self.unit)
+
     def range_text(self, scale: float = 1.0) -> str:
         """`scale` 用来把满级范围换算到当前等级（没升满的紫卡显示的是当前等级数值）。"""
-        if not scale or abs(scale - 1.0) < 1e-9:
+        ratio = 1.0 if not scale else scale
+        if self.multiplier:
+            return "%s ~ %s" % (multiplier_text(self.minimum * ratio),
+                                multiplier_text(self.maximum * ratio))
+        if abs(ratio - 1.0) < 1e-9:
             return "%s ~ %s%s" % (_fmt(self.minimum), _fmt(self.maximum), self.unit)
-        return "%s ~ %s%s" % (_fmt(self.minimum * scale),
-                              _fmt(self.maximum * scale), self.unit)
+        return "%s ~ %s%s" % (_fmt(self.minimum * ratio),
+                              _fmt(self.maximum * ratio), self.unit)
 
 
 @dataclass
@@ -108,6 +157,7 @@ class BaseStat:
     unit: str = "%"
     positive_only: bool = False
     invert: bool = False
+    multiplier: bool = False
 
 
 # 数值来自 Wiki 的 Attributes and their base value 表
@@ -160,7 +210,8 @@ BASE_STATS: List[BaseStat] = [
     BaseStat("magnetic", "磁力伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
                                       "archgun": 90}, positive_only=True),
     BaseStat("faction", "对派系伤害", {"rifle": 45, "shotgun": 45, "pistol": 45,
-                                       "archgun": 45, "melee": 45}),
+                                       "archgun": 45, "melee": 45},
+             multiplier=True),
     BaseStat("magazine", "弹匣容量", {"rifle": 50, "shotgun": 50, "pistol": 50,
                                       "archgun": 60.3}),
     BaseStat("ammo", "弹药最大值", {"rifle": 49.95, "shotgun": 90,
@@ -208,7 +259,9 @@ ALIASES = {
     "辐射伤害": ("辐射", "辐射伤害", "radiation"),
     "爆炸伤害": ("爆炸", "爆炸伤害", "blast"),
     "磁力伤害": ("磁力", "磁力伤害", "magnetic"),
-    "对派系伤害": ("派系", "对派系", "歧视", "bane", "grineer", "corpus", "infested"),
+    "对派系伤害": ("派系", "对派系", "歧视", "bane", "grineer", "corpus",
+                   "infested", "corrupted", "orokin", "sentient", "narmer",
+                   "murmur"),
     "弹匣容量": ("弹匣", "弹匣容量", "mag", "magazine"),
     "弹药最大值": ("弹药", "弹药上限", "弹药最大值", "ammo"),
     "弹药效率": ("弹效", "弹药效率", "ammoefficiency", "ammo efficiency"),
@@ -282,7 +335,8 @@ def _positive(base: BaseStat, category: str, weight: float,
     low, high = nominal * 0.9, nominal * 1.1
     if base.invert:
         low, high = -high, -low
-    return RivenStat(base.name, _round1(low), _round1(high), base.unit)
+    return RivenStat(base.name, _round1(low), _round1(high), base.unit,
+                     multiplier=base.multiplier)
 
 
 def _negative(base: BaseStat, category: str, malus: float,
@@ -296,7 +350,7 @@ def _negative(base: BaseStat, category: str, malus: float,
         low, high = -high, -low
     minimum, maximum = min(low, high), max(low, high)
     return RivenStat(base.name, _round1(minimum), _round1(maximum),
-                     base.unit, negative=True)
+                     base.unit, negative=True, multiplier=base.multiplier)
 
 
 def calculate(weapon: RivenWeapon) -> RivenAnalysis:
@@ -409,8 +463,16 @@ def evaluate_roll(analysis: RivenAnalysis,
     if not scale:
         scale = 1.0
 
+    normalized: List[Tuple[str, float]] = []
+    for name, value in pairs:
+        # 手输/OCR 漏掉 `x` 时，对派系伤害会写成 `1.5`（意思是 x1.5，即 +50%）。
+        # 它不可能是 1.5%，所以这里按倍率换算回来。
+        if is_multiplier_stat(name) and 0 < abs(value) <= 3:
+            value = round((abs(value) - 1.0) * 100.0, 1)
+        normalized.append((name, value))
+
     classified = [(name, value, is_negative_effect(name, value))
-                  for name, value in pairs]
+                  for name, value in normalized]
     positives = [item for item in classified if not item[2]]
     has_negative = any(item[2] for item in classified)
 

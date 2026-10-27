@@ -14,6 +14,8 @@
    现在**以卡面上的符号为准**：`+` 就是正向、`-` 就是负向，数值范围不能推翻它。
    只有符号压根没读到，或者符号和这条词条能对上的正负明显冲突（比如
    「火焰伤害」不可能为负），才让范围出面定正负。
+   例外两处：后坐力这类属性有益方向本身就是负值（正面也写 `-`）；对派系伤害
+   （歧视）压根没有符号位，卡面写成倍率 `x1.5` / `x0.6`，1.x 是正面、0.x 是负面。
 5. **多读一位小数**——紫卡数值都是 1 位小数，`92.19` 其实是 `92.1%` 多吃了
    一个 9，截断后与正确读数合并成一票。
 6. **兜不住就直说**——数值怎么都对不上范围时只提示、不硬猜，宁可不给结论，
@@ -28,7 +30,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .rivencalc import ALIASES, RivenAnalysis
+from .rivencalc import ALIASES, RivenAnalysis, format_roll, is_multiplier_stat
 
 # ---------------------------------------------------------------------- 词条别名
 _ASCII_RE = re.compile(r"^[a-z0-9 ]+$")
@@ -220,10 +222,11 @@ def _sign_flag(token: _Token, sign: str) -> str:
     """把这个读数在图上带的是 + 还是 - 记下来。
 
     卡面上 `+` 就是正向、`-` 就是负向，这是判定正负的第一依据。
-    `x1.5 对派系` 这类倍率写法只可能是正向，也算 `+`。
+    但对派系伤害（歧视）是例外：它写成倍率 `x1.5` / `x0.5`，**没有符号位**，
+    1.x 是正面（加伤）、0.x 才是负面（减伤）——正负由倍率本身决定。
     """
     if token.multiplier:
-        return "+"
+        return "+" if token.value >= 0 else "-"
     if not sign:
         return ""
     return "-" if sign in _NEG_CHARS else "+"
@@ -333,15 +336,23 @@ def _line_rolls(line: str) -> List[Tuple[str, float, float, str]]:
             continue
         sign = token.sign or _sign_before(chunk, token)
         value = token.value
+        flag = _sign_flag(token, sign)
         if not token.multiplier and sign and sign in _NEG_CHARS and value > 0:
             value = -value
+        # 对派系伤害是倍率写法（`x1.5` / `x0.5`）：OCR 把 `x` 读丢时只剩 `1.5`，
+        # 这里按倍率解释。不然 `1.5%` 永远套不进 ~45% 的范围，而且正负也没法判
+        # ——它的正负就看倍率本身：1.x 是加伤、0.x 是减伤。
+        if not token.multiplier and is_multiplier_stat(canonical) and \
+                0 < abs(value) <= 3:
+            value = round((abs(value) - 1.0) * 100.0, 1)
+            flag = "+" if value >= 0 else "-"
         if abs(value) > 999:
             continue
         # 带明确正负号的读数比「光秃秃一个数字」可信（符号更容易被漏读）
-        if sign or token.multiplier:
+        if sign or token.multiplier or flag:
             weight += 1.0
         entries.append((token.start, order, distance, canonical, weight,
-                        _quantize(value, token.raw), _sign_flag(token, sign)))
+                        _quantize(value, token.raw), flag))
 
     # 同一个数字只认离它最近的词条名：`x1.5 对 Grineer 的伤害` 里「Grineer」
     # 和尾部的「伤害」都会命中，但只能算一条对派系伤害。
@@ -473,10 +484,22 @@ def read(png: bytes) -> ReadResult:
 
 
 # ---------------------------------------------------------------------- 范围校验
-def _distance(value: float, span: Tuple[float, float]) -> float:
+def _distance(value: float, span: Tuple[float, float],
+              slack: float = 0.0) -> float:
+    """数值到范围的距离。
+
+    `slack` 是这个读数本身的精度误差：倍率词条（`x1.5`）只保留一位小数，
+    反推成百分数会落在 ±5 个百分点里（x1.5 可能是 +45.0 也可能是 +55.0），
+    所以拿 [value-slack, value+slack] 这个区间去和范围比，别因为这点偏差
+    就把本来合规的读数判成「套不上」。
+    """
     low, high = span
     if low > high:
         low, high = high, low
+    if slack:
+        if value - slack <= high and value + slack >= low:
+            return 0.0
+        return min(abs(value - slack - high), abs(low - value - slack))
     if low <= value <= high:
         return 0.0
     return min(abs(value - low), abs(value - high))
@@ -549,6 +572,10 @@ class Resolution:
 # 读过 `-` 的读数绝不翻转（那是卡面写明的），只有符号彻底丢了才试另一个方向。
 _SIGN_FIX_PENALTY = 1.5
 
+# 倍率词条（`x1.5`）的精度：卡面只有一位小数，1.5 可能是 +45.0 也可能是 +55.0，
+# 反推成百分数时留 ±5 个百分点的不确定度。
+_MULTIPLIER_SLACK = 5.0
+
 
 def _pick(candidate: Candidate, config: _Config, strict: bool = True,
           scale: float = 1.0):
@@ -560,6 +587,8 @@ def _pick(candidate: Candidate, config: _Config, strict: bool = True,
     `scale` 是「卡面数值 / 满级数值」：没升满的卡要先除掉它再比范围。
     """
     best = None
+    # 倍率词条（`x1.5`）只有一位小数，反推成百分数有 ±5 的不确定度
+    slack = _MULTIPLIER_SLACK if is_multiplier_stat(candidate.name) else 0.0
     for value, votes in candidate.options:
         scaled = value / (scale or 1.0)
         prefer = candidate.polarity(value)  # 卡面上读到的是 + 还是 -
@@ -579,12 +608,12 @@ def _pick(candidate: Candidate, config: _Config, strict: bool = True,
         for span, negative in ordered:
             # 输出用槽位该有的号：卡面写的本来就该是这个号
             sign = _expected_sign(span) or prefer or ("-" if value < 0 else "+")
-            plain = _distance(scaled, span)
+            plain = _distance(scaled, span, slack)
             gap, flipped = plain, False
             if not prefer:
                 # 符号没读到：`79.3` 可能是 `-79.3` 少读了减号，两个方向都试，
                 # 翻转要付代价，免得把真·正数硬翻成负数
-                mirrored = _distance(-scaled, span) + _SIGN_FIX_PENALTY
+                mirrored = _distance(-scaled, span, slack) + _SIGN_FIX_PENALTY
                 if mirrored < gap:
                     gap, flipped = mirrored, True
             signed = abs(value) * (-1.0 if sign == "-" else 1.0)
@@ -801,8 +830,8 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
     pairs: List[Tuple[str, float]] = []
     for name, value, negative, gap in picks:
         if gap > 1.0:
-            notes.append("%s %+g%% 略超 %s 配置范围，请核对原图"
-                         % (name, value, config.label))
+            notes.append("%s %s 略超 %s 配置范围，请核对原图"
+                         % (name, format_roll(None, name, value), config.label))
         pairs.append((name, value))
     for candidate in dropped:
         notes.append("%s 与 %s 的词条数量对不上，已忽略" % (candidate.name, config.label))

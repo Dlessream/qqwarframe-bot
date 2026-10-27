@@ -10,7 +10,8 @@ from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
 from .replies import Reply
 from .riven import RivenAuction, RivenWeapon
-from .rivencalc import RivenAnalysis, RollEvaluation, infer_config_label
+from .rivencalc import (RivenAnalysis, RollEvaluation, format_roll,
+                        infer_config_label)
 from .wiki import WikiHit, WikiPage
 from .worldstate import (Arbitration, Sortie, VoidTrader, countdown,
                          parse_timestamp)
@@ -159,9 +160,9 @@ def riven_ocr_reply(analysis: RivenAnalysis,
             if candidate.name == name:
                 stat = candidate
                 break
-        unit = stat.unit if stat else "%"
-        rows.append([name, "%+g%s" % (value, unit)])
-        lines.append("%s %+g%s" % (name, value, unit))
+        text_value = format_roll(stat, name, value)
+        rows.append([name, text_value])
+        lines.append("%s %s" % (name, text_value))
     text = "【%s】紫卡截图识别\n倾向 %.2f（%s）\n%s\n\n只做截图词条识别，不计算范围/评分。" % (
         analysis.name, analysis.disposition, analysis.dots or "—",
         "\n".join(lines))
@@ -181,7 +182,7 @@ def riven_ocr_reply(pairs, note: str = "") -> Reply:
     if note:
         lines.append(note)
     for name, value in pairs:
-        lines.append("  %s %+g" % (name, value))
+        lines.append("  %s %s" % (name, format_roll(None, name, value)))
     lines.append("")
     lines.append("未识别到具体武器；发送完整紫卡截图，或带武器名可看范围/评分。")
     return Reply(text="\n".join(lines))
@@ -219,11 +220,12 @@ def riven_analysis_reply(analysis: RivenAnalysis,
         lines.append("你的词条（按 %s 配置比较）：" % infer_config_label(evaluations))
         for evaluation in evaluations:
             if evaluation.stat is None:
-                lines.append("  %s %+g：未识别（该武器没有这个词条）" % (
-                    evaluation.name, evaluation.value))
+                lines.append("  %s %s：未识别（该武器没有这个词条）" % (
+                    evaluation.name, format_roll(None, evaluation.name,
+                                                 evaluation.value)))
                 continue
-            lines.append("  %s %+g%s：范围 %s，%s" % (
-                evaluation.name, evaluation.value, evaluation.stat.unit,
+            lines.append("  %s %s：范围 %s，%s" % (
+                evaluation.name, evaluation.stat.format(evaluation.value),
                 evaluation.stat.range_text(getattr(evaluation, "scale", 1.0)),
                 evaluation.grade))
         if not from_image:
