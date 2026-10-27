@@ -9,7 +9,7 @@ import json
 import os
 import unittest
 
-from bot import rivenocr
+from bot import ocr, rivenocr
 from bot.riven import RivenWeapon
 from bot.rivencalc import calculate
 
@@ -78,6 +78,21 @@ class ParseTest(unittest.TestCase):
         text = "暴击几率 89.2%"
         self.assertEqual(rivenocr.parse_text(text), [("暴击几率", 89.2)])
 
+    def test_split_decimal(self):
+        """`102. 9%`、`143 1%` 都是小数点没读准，要合回一个数。"""
+        self.assertEqual(rivenocr.parse_text("+102. 9% 触发几率"),
+                         [("触发几率", 102.9)])
+        self.assertEqual(rivenocr.parse_text("+143 1% 多重射击"),
+                         [("多重射击", 143.1)])
+
+    def test_extra_digit_keeps_a_low_vote_reading(self):
+        """`492.1%` 要同时留下 492.1 和去掉首位的 92.1，让范围校验去挑。"""
+        candidates = rivenocr.read_texts(["+492.1% 火焰伤害"])
+        self.assertEqual(len(candidates), 1)
+        values = {value for value, _count in candidates[0].options}
+        self.assertEqual(values, {492.1, 92.1})
+        self.assertEqual(candidates[0].value, 492.1)  # 票多的仍是原读数
+
     def test_multiplier_faction(self):
         text = "x1.5 对 Grineer 的伤害"
         self.assertEqual(rivenocr.parse_text(text), [("对派系伤害", 50.0)])
@@ -99,6 +114,35 @@ class ParseTest(unittest.TestCase):
         self.assertEqual([name for name, _value in
                           rivenocr.parse_text("+102.9% 触友几率")],
                          ["触发几率"])
+
+
+class DeskewTest(unittest.TestCase):
+    """倾斜角靠「行亮度起伏」估计，用画出来的横条验证，不需要 Tesseract。"""
+
+    def _barred(self, angle: float):
+        from PIL import Image, ImageDraw
+
+        image = Image.new("L", (600, 800), 0)
+        draw = ImageDraw.Draw(image)
+        for top in range(360, 780, 40):
+            draw.rectangle([40, top, 560, top + 22], fill=255)
+        return image.convert("RGB").rotate(
+            angle, expand=True, resample=Image.BICUBIC, fillcolor=(0, 0, 0))
+
+    def test_upright_is_zero(self):
+        self.assertAlmostEqual(ocr.deskew_angle(self._barred(0.0)), 0.0, delta=1.0)
+
+    def test_detects_clockwise_tilt(self):
+        # 图顺时针歪了 10°，要返回 +10 才能转回来
+        self.assertAlmostEqual(ocr.deskew_angle(self._barred(-10.0)), 10.0, delta=2.0)
+
+    def test_detects_counter_clockwise_tilt(self):
+        self.assertAlmostEqual(ocr.deskew_angle(self._barred(7.0)), -7.0, delta=2.0)
+
+    def test_retry_angles_follow_the_hint(self):
+        angles = ocr.retry_angles(self._barred(-10.0))
+        self.assertEqual(len(angles), 3)
+        self.assertTrue(all(abs(angle - 10.0) <= 3.0 for angle in angles))
 
 
 class ResolveTest(unittest.TestCase):

@@ -700,7 +700,12 @@ class CommandRouter:
         notes: List[str] = []
         if candidates:
             # 有武器之后才能用它的词条表 / 数值范围校正符号、剔除不属于它的词条
-            pairs, notes = rivenocr.finalize(candidates, analysis)
+            resolution = rivenocr.resolve(candidates, analysis)
+            pairs, notes = resolution.pairs, resolution.notes
+            if not resolution.config and abs(result.tilt) >= 2.0:
+                # 歪着拍的图字会糊，认不准就别装作认准了
+                notes.append("图片倾斜约 %d°，字迹有损失，建议正着截图再发一次"
+                             % abs(result.tilt))
         evaluations = evaluate_roll(analysis, pairs) if pairs else []
         return present.riven_analysis_reply(analysis, evaluations, notes,
                                             from_image=bool(ctx.image))

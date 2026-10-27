@@ -95,6 +95,7 @@ class Candidate:
 class ReadResult:
     candidates: List[Candidate] = field(default_factory=list)
     texts: List[str] = field(default_factory=list)
+    tilt: float = 0.0
 
 
 # ---------------------------------------------------------------------- 数值
@@ -142,14 +143,22 @@ def _token_from_match(match) -> _Token:
                   percent=bool(match.group("pct")))
 
 
+_SPLIT_DECIMAL_RE = re.compile(r"(?<=\d)[.．,]\s+(?=\d)")
+# `143 1%`：小数点干脆没读出来，只剩个空格。只在「数字 + 空格 + 一两位数字 + %」
+# 时才补小数点，避免把 `段位 13 210` 这种并成一个数。
+_SPLIT_PERCENT_RE = re.compile(r"(?<=\d)\s+(?=\d{1,2}\s*[%％])")
+
+
 def _tokens(chunk: str) -> List[_Token]:
     tokens: List[_Token] = []
     for match in _TOKEN_RE.finditer(chunk):
         token = _token_from_match(match)
-        # `92.1%6` 这种：% 后面多读出来的数字不算数值
-        if not token.multiplier and token.start > 0 and \
-                chunk[token.start - 1] in "%％":
-            continue
+        # `92.1%6`、`79.396` 这种：紧跟在前一个数字（或 %）后面的
+        # 那一截是同一个数被多读出来的，不算独立数值
+        if not token.multiplier and token.start > 0:
+            previous = chunk[token.start - 1]
+            if previous in "%％" or previous.isdigit():
+                continue
         tokens.append(token)
     return tokens
 
@@ -247,7 +256,24 @@ def _fuzzy_stats(line: str,
 
 # ---------------------------------------------------------------------- 行解析
 def _lines(text: str) -> List[str]:
-    return [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    # `102. 9%`、`143 1%` 这种被断在小数点上的，先合回去，否则只会读到后面那截
+    return [_SPLIT_PERCENT_RE.sub(".", _SPLIT_DECIMAL_RE.sub(".", line))
+            for line in lines]
+
+
+def _leading_variant(value: float):
+    """`492.1` 往往是 `92.1` 前面多读了一个 4，去掉首位给一个低票候选。
+
+    只在整数部分有三位以上时才给，交给范围校验去判断哪个读数合规——
+    单独看数字没法知道哪个才是真的。
+    """
+    text = "%.1f" % abs(value)
+    whole, fraction = text.split(".")
+    if len(whole) < 3:
+        return None
+    number = float("%s.%s" % (whole[1:], fraction))
+    return -number if value < 0 else number
 
 
 def _line_rolls(line: str) -> List[Tuple[str, float, float]]:
@@ -295,7 +321,15 @@ def _line_rolls(line: str) -> List[Tuple[str, float, float]]:
             continue
         seen.add(canonical)
         result.append((canonical, value, weight))
-    return result
+
+    # 顺带给「多读一位」的读数记一票（票力三分之一），
+    # 494.1 / 143 1 这类偏差太大的，范围校验会把它挑掉
+    extra: List[Tuple[str, float, float]] = []
+    for canonical, value, weight in result:
+        stripped = _leading_variant(value)
+        if stripped is not None:
+            extra.append((canonical, stripped, max(1.0, weight / 3.0)))
+    return result + extra
 
 
 # ---------------------------------------------------------------------- 投票
@@ -342,20 +376,26 @@ def parse_text(text: str) -> List[Tuple[str, float]]:
 
 # ---------------------------------------------------------------------- 识别入口
 def read(png: bytes) -> ReadResult:
-    """截图 → 候选词条；一条都没认出来时换几个角度再试一次。"""
+    """截图 → 候选词条。
+
+    先花几十毫秒测一下文字歪了多少度：歪得明显就直接把图转正再识别，
+    省得在歪图上白跑一遍。转正后还是几乎什么都没认出来时，再补几组角度
+    重来——歪图本来就难认，多花几秒总比回一句「没认出来」有用。
+    """
     from . import ocr
 
-    texts = ocr.extract_variants(png)
+    image = ocr.load(png)
+    hint = ocr.deskew_angle(image)
+    primary = [round(hint, 1)] if abs(hint) >= 2.0 else []
+    texts = ocr.extract_variants(png, angles=primary)
     candidates = read_texts(texts)
-    if len(candidates) < 2:
-        angles: List[float] = []
-        hint = ocr._rotate_hint(png)
-        if abs(hint) > 0.5:
-            angles.append(hint)
-        angles.extend([-8.0, -4.0, 4.0, 8.0])
-        texts = texts + ocr.extract_variants(png, angles=angles)
-        candidates = read_texts(texts)
-    return ReadResult(candidates=candidates, texts=texts)
+    if len(candidates) < 4:
+        extra = [angle for angle in ocr.retry_angles(image)
+                 if angle not in primary]
+        if extra:
+            texts = texts + ocr.extract_variants(png, angles=extra)
+            candidates = read_texts(texts)
+    return ReadResult(candidates=candidates, texts=texts, tilt=hint)
 
 
 # ---------------------------------------------------------------------- 范围校验

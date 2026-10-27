@@ -111,15 +111,28 @@ def _variants(image, angles: Sequence[float] = ()) -> List[Tuple[str, object, st
     """(变体名, 图片, tesseract 参数)。"""
     source = _prepare(image)
     if angles:
-        # 角度歪的截图：按 OSD 之外的几个候选角各转一次，交给投票挑选
-        return [("rot%+d_4x_th160" % angle,
-                 ImageOps.invert(_upscale(
-                     _strip_icons(source.rotate(angle, expand=True,
-                                                resample=Image.BICUBIC)
-                                  ).convert("L"), 4)).point(
-                     lambda value: 255 if value > 160 else 0),
-                 "--psm 6")
-                for angle in angles]
+        # 歪掉的截图：抹掉图标 → 整图放大 4 倍 → 整张转正 → 反色二值化。
+        # 顺序很重要：先转再放大会把插值出来的糊边一起放大，笔画糊成一团；
+        # 先放大再转，重采样只作用一次。放大倍数按原图长边算，大图（手机
+        # 拍的）自动降到 2 倍，免得一次识别就要十几秒。
+        clean = _strip_icons(source).convert("L")
+        longest = max(clean.size) or 1
+        scale = max(2, min(4, int(round(2800.0 / longest))))
+        big = _upscale(clean, scale)
+        jobs: List[Tuple[str, object, str]] = []
+        for angle in angles:
+            rotated = big.rotate(angle, resample=Image.BICUBIC, expand=True,
+                                 fillcolor=0)
+            rotated = ImageOps.autocontrast(rotated).filter(
+                ImageFilter.UnsharpMask(radius=2, percent=170, threshold=2))
+            inverted = ImageOps.invert(rotated)
+            jobs.append(("rot%+.1f_inv" % angle, inverted, "--psm 6"))
+            for threshold in (140, 180):
+                jobs.append(("rot%+.1f_inv_th%d" % (angle, threshold),
+                             inverted.point(
+                                 lambda value, cut=threshold: 255 if value > cut else 0),
+                             "--psm 6"))
+        return jobs
 
     width, height = source.size
     clean = _strip_icons(source)
@@ -151,35 +164,90 @@ def _run(image, config: str) -> str:
         return ""
 
 
-def _rotate_hint(png: bytes) -> float:
-    """用 Tesseract 的 OSD 猜一下整张图的旋转角，失败就当 0 度。"""
-    if pytesseract is None:
+def _row_profile(image) -> List[float]:
+    """把图缩成 1 像素宽：每个像素就是那一行的平均亮度。"""
+    return list(image.resize((1, image.height), Image.BOX).getdata())
+
+
+def _profile_spread(image) -> float:
+    profile = _row_profile(image)
+    if not profile:
         return 0.0
+    mean = sum(profile) / float(len(profile))
+    return sum((value - mean) ** 2 for value in profile) / float(len(profile))
+
+
+def _skew_spread(image, angle: float, margin: float = 0.18) -> float:
+    """转到 angle 度之后，每行亮度起伏有多大；转到文字水平时最大。
+
+    转完要裁掉一圈：`rotate` 会在四角补黑，不裁的话越转黑边越多、
+    起伏越大，结果永远顶在搜索区间的两端。
+    """
+    rotated = image.rotate(angle, resample=Image.BILINEAR, fillcolor=0)
+    width, height = rotated.size
+    rotated = rotated.crop((int(width * margin), int(height * margin),
+                            int(width * (1 - margin)),
+                            int(height * (1 - margin))))
+    return _profile_spread(rotated)
+
+
+def deskew_angle(image) -> float:
+    """估计文字歪了多少度（逆时针为正），靠「转正后每行亮度起伏最大」。
+
+    紫卡的文字区是十几行等距文字，转正时行与行的空隙最分明；歪一点点，
+    每行就会糊在一起、起伏变小。先 2° 粗扫再 0.5° 细扫，纯 PIL 实现，
+    不需要 numpy。只取下半部分计算：上半是原画，纹理噪声比文字大得多。
+    """
+    if Image is None:
+        return 0.0
+    gray = _prepare(image).convert("L")
+    top = int(gray.height * 0.42)
+    area = ImageOps.autocontrast(gray.crop((0, top, gray.width, gray.height)))
+    area = ImageOps.invert(area)  # 浅色字 → 亮，行均值才有峰值
+    longest = max(area.size)
+    if longest > 420:
+        ratio = 420.0 / longest
+        area = area.resize((max(1, int(area.width * ratio)),
+                            max(1, int(area.height * ratio))), Image.BILINEAR)
+
+    best_angle, best_spread = 0.0, -1.0
+    for step, span, centre in ((2.0, 20.0, 0.0), (0.5, 2.5, None)):
+        if centre is None:
+            centre = best_angle
+        angle = centre - span
+        while angle <= centre + span + 1e-9:
+            spread = _skew_spread(area, angle)
+            if spread > best_spread:
+                best_angle, best_spread = angle, spread
+            angle += step
+    return best_angle
+
+
+def retry_angles(image, span: float = 2.0) -> List[float]:
+    """歪图兜底要试的角度：以检测到的倾斜角为主，再各偏一点防抖。"""
+    hint = deskew_angle(image)
+    if abs(hint) < 0.75:
+        return [-5.0, 5.0]
+    return [round(hint, 1), round(hint - span, 1), round(hint + span, 1)]
+
+
+def load(png: bytes):
+    """图片字节 → PIL 图；打不开时抛 OcrError。"""
+    if Image is None:
+        raise OcrError("缺少 Pillow，无法处理图片。")
     try:
-        image = Image.open(io.BytesIO(png)).convert("RGB")
-        osd = pytesseract.image_to_osd(image)
-    except Exception:
-        return 0.0
-    for line in str(osd).splitlines():
-        if line.lower().startswith("rotate:"):
-            try:
-                angle = float(line.split(":")[1])
-            except ValueError:
-                return 0.0
-            return angle - 360.0 if angle > 180 else angle
-    return 0.0
+        return Image.open(io.BytesIO(png)).convert("RGB")
+    except Exception as exc:  # 空文件、截断、格式不支持等
+        raise OcrError("图片打不开：%s" % exc)
 
 
 def extract_variants(png: bytes, angles: Sequence[float] = ()) -> List[str]:
-    """同一张图的多次识别结果；角度变体用于歪图兜底。"""
+    """同一张图的多次识别结果；angles 用于歪图（转过再识别）。"""
     if not available():
         raise OcrError(
             "图片识别未启用：请安装 Tesseract OCR（含 chi_sim 中文包），"
             "Docker 镜像已内置；Windows 需单独安装。")
-    try:
-        image = Image.open(io.BytesIO(png)).convert("RGB")
-    except Exception as exc:
-        raise OcrError("图片打不开：%s" % exc)
+    image = load(png)
     texts: List[str] = []
     for _tag, prepared, config in _variants(image, angles):
         text = _run(prepared, config)
