@@ -46,3 +46,6 @@ gh_device.log
 gh_device_code.txt
 _gh_*.py
 _sim_wm_world.py
+
+# 临时增量包
+*.bundle
