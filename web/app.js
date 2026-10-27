@@ -21,6 +21,8 @@
     arbiTiers: [],
     arbiQuery: "",
     arbiCurrent: "",
+    missionEntries: [],
+    missionColors: {},
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -295,6 +297,7 @@
       const status = await api("/api/status");
       render(status);
       if (!state.arbiNodes.length) loadArbi();
+      if (!state.missionEntries.length) loadMissionColors();
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") {
         const pill = $("connPill");
@@ -730,8 +733,13 @@
       name.append(title, system);
       const meta = document.createElement("div");
       meta.className = "arbi-meta";
-      meta.textContent = [node.mission || "—", node.levels || "—",
-        "最终 " + (node.tier || "未评级")].join(" · ");
+      const mission = document.createElement("span");
+      mission.className = "mission-chip";
+      mission.textContent = node.mission || "—";
+      const missionColor = (data.mission_colors || {})[node.mission];
+      if (missionColor) mission.style.color = missionColor;
+      meta.append(mission, document.createTextNode(
+        " · " + [node.levels || "—", "最终 " + (node.tier || "未评级")].join(" · ")));
       main.append(name, meta);
 
       const tags = document.createElement("div");
@@ -779,6 +787,108 @@
     });
   }
 
+  async function loadMissionColors() {
+    try {
+      const data = await api("/api/mission-colors");
+      state.missionEntries = data.entries || [];
+      state.missionColors = {};
+      state.missionEntries.forEach((entry) => {
+        state.missionColors[entry.name] = entry.color;
+      });
+      renderMissionColors(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("missionInfo", "读取任务配色失败：" + exc.message);
+      }
+    }
+  }
+
+  function renderMissionColors(data) {
+    const entries = data.entries || [];
+    const custom = entries.filter((entry) => entry.custom).length;
+    const info = [];
+    info.push("共 <b>" + entries.length + "</b> 种任务类型");
+    info.push("已自定义 <b>" + custom + "</b>");
+    if (data.file) info.push("配色保存在 " + data.file);
+    $("missionInfo").innerHTML = info.join(" · ");
+    setText("missionCount", entries.length ? entries.length + " 种" : "");
+
+    const list = $("missionColors");
+    list.innerHTML = "";
+    if (!entries.length) {
+      list.innerHTML = '<div class="arbi-empty">没有可配置的任务类型。</div>';
+      return;
+    }
+    entries.forEach((entry) => {
+      const row = document.createElement("label");
+      row.className = "mission-row" + (entry.custom ? " is-custom" : "");
+      const input = document.createElement("input");
+      input.type = "color";
+      input.value = entry.color;
+      input.dataset.name = entry.name;
+      input.dataset.default = entry.default;
+      const name = document.createElement("span");
+      name.className = "mission-name";
+      name.textContent = entry.name;
+      const code = document.createElement("code");
+      code.textContent = entry.color;
+      input.addEventListener("input", () => {
+        code.textContent = input.value.toUpperCase();
+        row.classList.toggle("is-custom",
+          input.value.toUpperCase() !== String(entry.default).toUpperCase());
+      });
+      row.title = "默认 " + entry.default;
+      row.append(input, name, code);
+      list.appendChild(row);
+    });
+  }
+
+  async function saveMissionColors() {
+    const inputs = Array.from(
+      $("missionColors").querySelectorAll('input[type="color"]'));
+    if (!inputs.length) {
+      toast("没有可保存的任务配色。");
+      return;
+    }
+    const colors = {};
+    inputs.forEach((input) => { colors[input.dataset.name] = input.value; });
+    const button = $("missionSave");
+    button.disabled = true;
+    try {
+      const result = await api("/api/mission-colors", {
+        method: "POST",
+        body: { colors },
+      });
+      toast("任务配色已保存，下一次出图生效");
+      state.missionEntries = result.entries || state.missionEntries;
+      renderMissionColors(result);
+      await loadArbi();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function resetMissionColors() {
+    const button = $("missionReset");
+    button.disabled = true;
+    try {
+      const result = await api("/api/mission-colors", {
+        method: "POST",
+        body: { reset: true },
+      });
+      toast("已恢复默认任务配色");
+      state.missionEntries = result.entries || [];
+      renderMissionColors(result);
+      await loadArbi();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("恢复失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function refreshData() {
     const button = $("dataRefresh");
     button.disabled = true;
@@ -821,6 +931,8 @@
       loadAliases();
     });
     $("dataRefresh").addEventListener("click", refreshData);
+    $("missionSave").addEventListener("click", saveMissionColors);
+    $("missionReset").addEventListener("click", resetMissionColors);
     $("arbiRefresh").addEventListener("click", loadArbi);
     $("arbiFilterBtn").addEventListener("click", () => {
       state.arbiQuery = $("arbiFilter").value.trim().toLowerCase();

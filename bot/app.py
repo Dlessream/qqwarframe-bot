@@ -15,7 +15,7 @@ import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
-from . import __version__, imagecard, ocr, present
+from . import __version__, imagecard, missioncolors, ocr, present
 from .alerts import AlertStore
 from .aliases import AliasStore
 from .arbi import ArbiClient, ArbiError
@@ -96,6 +96,8 @@ class BotApp:
         arbi_cfg = config.get("arbi", {})
         self.arbi = (ArbiClient(arbi_cfg, logger=self.log)
                      if arbi_cfg.get("enabled", True) else None)
+        # 仲裁卡片按任务类型上色，颜色表可在控制台「任务配色」里改
+        missioncolors.configure(str(arbi_cfg.get("mission_colors_file") or ""))
 
         board_cfg = config.get("board", {})
         self.board = (BoardClient(self.market, self.riven, board_cfg, logger=self.log)
@@ -514,12 +516,28 @@ class BotApp:
             current = ""
         snapshot["enabled"] = True
         snapshot["current"] = current
+        snapshot["mission_colors"] = missioncolors.mapping()
         return snapshot
 
     def save_arbi_rating(self, key: str, tier: str) -> Dict[str, Any]:
         if self.arbi is None:
             raise ValueError("仲裁评级未启用（arbi.enabled）。")
         return self.arbi.set_rating(key, tier)
+
+    # ------------------------------------------------------------------ 任务配色
+    def mission_colors_snapshot(self) -> Dict[str, Any]:
+        """控制台「任务配色」：每种任务类型的当前色 / 默认色。"""
+        return {"entries": missioncolors.entries(), **missioncolors.stats()}
+
+    def save_mission_colors(self, items: Dict[str, str]) -> Dict[str, Any]:
+        """批量改色；传空字典里的值表示恢复该任务的默认色。"""
+        return missioncolors.set_colors(items)
+
+    def save_mission_color(self, name: str, color: str) -> Dict[str, Any]:
+        return missioncolors.set_color(name, color)
+
+    def reset_mission_colors(self) -> Dict[str, Any]:
+        return missioncolors.reset()
 
     def alias_snapshot(self) -> Dict[str, Any]:
         index = None

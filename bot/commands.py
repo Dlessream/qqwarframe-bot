@@ -955,34 +955,46 @@ class CommandRouter:
 
     # ------------------------------------------------------------------ 订阅
     def _subscribe_help(self, ctx: Context) -> str:
+        """订阅说明：类型一行给全，下面再逐条说清每种推什么、能筛什么。"""
         return (
             "【订阅】有新内容就推送到本群\n"
             "%s订阅 <类型> [筛选词]\n"
             "类型：%s\n"
+            "　裂缝＝新裂缝出现（可筛 任务 / 节点 / 遗物等级 / 敌人）\n"
+            "　虚空风暴＝新风暴出现（可筛 任务 / 节点 / 星域）\n"
+            "　仲裁＝仲裁任务刷新（每小时一次）\n"
+            "　突击＝每日突击刷新\n"
+            "　回廊＝无尽回廊每周灵化刷新\n"
+            "　轮换＝商店 / 言录使 / 格拉斯轮换\n"
+            "　警报＝新警报出现　入侵＝新入侵出现　特惠＝每日特惠上架\n"
             "例如：%s订阅 裂缝 生存\n"
             "　　　%s订阅 仲裁\n"
-            "%s订阅列表 查看　%s取消订阅 <编号|类型> 取消" % (
+            "%s订阅列表 查看　%s取消订阅 <编号|类型|all> 取消" % (
                 ctx.prefix, kind_names(), ctx.prefix, ctx.prefix,
                 ctx.prefix, ctx.prefix))
 
     def _subscribe_lines(self, ctx: Context) -> str:
         if self.subscriptions is None:
-            return ""
+            return "订阅功能未启用。"
         subs = self.subscriptions.store.list_for(ctx.chat_type, ctx.chat_id)
         if not subs:
             return "本群目前没有订阅。"
         lines = ["本群订阅（%d 条）：" % len(subs)]
         for index, sub in enumerate(subs, 1):
             lines.append("%d. %s　#%s" % (index, sub.title, sub.id))
+        lines.append("取消：%s取消订阅 <编号|类型|all>" % ctx.prefix)
         return "\n".join(lines)
+
+    def _subscribe_panel(self, ctx: Context) -> str:
+        """说明 + 本群订阅状态，订阅相关回复统一用这一整块。"""
+        return "%s\n\n%s" % (self._subscribe_help(ctx), self._subscribe_lines(ctx))
 
     def _subscribe(self, argument: str, ctx: Context) -> Reply:
         if self.subscriptions is None:
             return present.error_reply("订阅功能未启用。")
         argument = (argument or "").strip()
         if not argument:
-            return Reply(text="%s\n\n%s" % (
-                self._subscribe_help(ctx), self._subscribe_lines(ctx)))
+            return Reply(text=self._subscribe_panel(ctx))
         kind, keyword = parse_kind(argument)
         if kind is None:
             hint = ""
@@ -990,7 +1002,7 @@ class CommandRouter:
                 hint = "\n价格提醒请用 %s提醒 <名称> <目标价>。" % ctx.prefix
             return present.error_reply(
                 "看不懂订阅类型「%s」。%s\n%s" % (
-                    argument, hint, self._subscribe_help(ctx)))
+                    argument, hint, self._subscribe_panel(ctx)))
         try:
             sub, created = self.subscriptions.store.add(
                 ctx.chat_type, ctx.chat_id, ctx.user_id, kind, keyword)
@@ -998,18 +1010,16 @@ class CommandRouter:
             return present.error_reply(str(exc))
         if not created:
             return Reply(text="本群已经订阅过「%s」了。\n\n%s" % (
-                sub.title, self._subscribe_lines(ctx)))
+                sub.title, self._subscribe_panel(ctx)))
         # 新订阅先记基线：当前已经存在的内容不补推，只推之后的
         self.subscriptions.seed(sub)
         return Reply(text="已订阅「%s」，有新内容会推送到本群。\n\n%s" % (
-            sub.title, self._subscribe_lines(ctx)))
+            sub.title, self._subscribe_panel(ctx)))
 
     def _subscriptions_list(self, ctx: Context) -> Reply:
         if self.subscriptions is None:
             return present.error_reply("订阅功能未启用。")
-        if not self.subscriptions.store.list_for(ctx.chat_type, ctx.chat_id):
-            return Reply(text=self._subscribe_help(ctx))
-        return Reply(text=self._subscribe_lines(ctx))
+        return Reply(text=self._subscribe_panel(ctx))
 
     def _unsubscribe(self, argument: str, ctx: Context) -> Reply:
         if self.subscriptions is None:
@@ -1017,13 +1027,16 @@ class CommandRouter:
         ident = (argument or "").strip()
         if not ident:
             return present.error_reply(
-                "用法：%s取消订阅 <编号|类型|all>\n先发 %s订阅列表 查看编号。" % (
-                    ctx.prefix, ctx.prefix))
+                "%s\n\n%s" % (
+                    "用法：%s取消订阅 <编号|类型|all>" % ctx.prefix,
+                    self._subscribe_panel(ctx)))
         removed = self.subscriptions.store.remove(ctx.chat_type, ctx.chat_id, ident)
         if not removed:
-            return present.error_reply("没有找到「%s」对应的订阅。" % ident)
+            return present.error_reply(
+                "没有找到「%s」对应的订阅。\n\n%s" % (
+                    ident, self._subscribe_panel(ctx)))
         names = "、".join(sub.title for sub in removed)
-        return Reply(text="已取消：%s\n\n%s" % (names, self._subscribe_lines(ctx)))
+        return Reply(text="已取消：%s\n\n%s" % (names, self._subscribe_panel(ctx)))
 
     # ------------------------------------------------------------------ 维基
     def _translate(self, argument: str, ctx: Context) -> Reply:

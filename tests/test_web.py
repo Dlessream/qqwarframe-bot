@@ -134,6 +134,34 @@ class FakeApp:
         self.arbi_saved = (key, tier)
         return {"ok": True, "key": key, "tier": tier or "S", "source": "manual"}
 
+    def mission_colors_snapshot(self):
+        return {
+            "entries": [
+                {"name": "生存", "color": "#60CB8F",
+                 "default": "#60CB8F", "custom": False},
+                {"name": "防御", "color": "#123456",
+                 "default": "#62BEDB", "custom": True},
+            ],
+            "file": "data/mission_colors.json",
+            "custom": 1,
+            "total": 2,
+        }
+
+    def save_mission_color(self, name, color):
+        if not name:
+            raise ValueError("缺少任务类型名称。")
+        self.mission_saved = (name, color)
+        return {"ok": True, "name": name, "color": color,
+                "text": "%s → %s" % (name, color)}
+
+    def save_mission_colors(self, items):
+        self.mission_batch = dict(items)
+        return {"ok": True, "count": len(items), "entries": []}
+
+    def reset_mission_colors(self):
+        self.mission_reset = True
+        return {"ok": True, "count": 0, "entries": []}
+
 
 class AdminServerTest(unittest.TestCase):
     def setUp(self):
@@ -185,6 +213,43 @@ class AdminServerTest(unittest.TestCase):
             "/api/arbi", method="POST",
             headers={"X-Admin-Token": "secret"},
             body={"key": "", "tier": "A"})
+        self.assertEqual(status, 400)
+
+    def test_mission_colors(self):
+        status, body = self.request(
+            "/api/mission-colors", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["entries"][0]["name"], "生存")
+        self.assertTrue(payload["entries"][1]["custom"])
+
+        status, _ = self.request("/api/mission-colors")
+        self.assertEqual(status, 401)
+
+        status, body = self.request(
+            "/api/mission-colors", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"name": "生存", "color": "#00FF00"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.app.mission_saved, ("生存", "#00FF00"))
+
+        status, body = self.request(
+            "/api/mission-colors", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"colors": {"生存": "#00FF00", "防御": "#0000FF"}})
+        self.assertEqual(status, 200)
+        self.assertEqual(len(self.app.mission_batch), 2)
+
+        status, body = self.request(
+            "/api/mission-colors", method="POST",
+            headers={"X-Admin-Token": "secret"}, body={"reset": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(self.app.mission_reset)
+
+        status, body = self.request(
+            "/api/mission-colors", method="POST",
+            headers={"X-Admin-Token": "secret"}, body={"name": ""})
         self.assertEqual(status, 400)
 
     def test_html(self):

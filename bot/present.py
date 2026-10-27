@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import List, Optional, Sequence
 
-from . import autotrans, conquest, imagecard, render, terms
+from . import autotrans, conquest, imagecard, missioncolors, render, terms
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -373,7 +373,17 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
     enemy = terms.localize_faction(str(enemy))
     system = node.system if node is not None else "—"
     level = node.level_text if node is not None else "—"
-    rows = [[name, system, mission, enemy, level, tier or "—"]]
+    # 卡片主色跟着任务类型走（生存绿、防御蓝、拦截紫…），颜色可在控制台改
+    known_mission = bool(mission) and mission not in ("—", "-")
+    mission_color = missioncolors.rgb(mission) if known_mission else None
+    rating_color = _rating_color(tier)
+    accent = mission_color or rating_color
+    rows = [[
+        imagecard.Cell(name), imagecard.Cell(system),
+        imagecard.Cell(mission, color=mission_color, bold=known_mission),
+        imagecard.Cell(enemy), imagecard.Cell(level),
+        imagecard.Cell(tier or "—", color=rating_color, bold=True),
+    ]]
 
     lines = ["【仲裁】", subtitle, "节点：%s" % name]
     if node is not None and node.system:
@@ -394,15 +404,14 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
         footer += " + arbi.wf.wiki"
     return Reply(
         text="\n".join(lines),
-        image=lambda: imagecard.build_table(
+        image=lambda: imagecard.table_card(
             "仲裁任务", subtitle,
-            ["节点", "星球", "类型", "敌人", "等级", "评级"], rows,
-            footer, accent=_rating_color(tier),
-            chip="仲裁 %s" % tier if tier else "仲裁",
-            note=note,
-            ratios=[2.0, 0.8, 1.0, 1.0, 0.8, 0.6],
-            highlights=[[_rating_color(tier), None, None, None, None,
-                         _rating_color(tier)]]))
+            [("节点", 2.0), ("星球", 0.8), ("类型", 1.0), ("敌人", 1.0),
+             ("等级", 0.8), ("评级", 0.6)],
+            rows, footer, accent=accent,
+            chip=("%s · %s" % (mission, tier) if tier else mission)
+            if known_mission else ("仲裁 %s" % tier if tier else "仲裁"),
+            note=note))
 
 
 def arbitration_tiers_reply(data, current_key: str = "",
@@ -447,13 +456,14 @@ def arbitration_tiers_reply(data, current_key: str = "",
             if len(rows) >= limit:
                 truncated += 1
                 continue
+            mission = _arbi_mission(node.mission)
             rows.append([tier, node.name, node.system,
-                         _arbi_mission(node.mission), node.level_text, label])
+                         mission, node.level_text, label])
             if current_key and node.key == current_key:
                 highlights.append([imagecard.GOLD] * 6)
             else:
-                highlights.append([_rating_color(tier), None, None, None,
-                                   None, None])
+                highlights.append([_rating_color(tier), None, None,
+                                   missioncolors.rgb(mission), None, None])
         lines.append("%s：%s" % (tier, "；".join(
             "%s（%s）%s" % (node.name, node.system,
                             _arbi_mission(node.mission))

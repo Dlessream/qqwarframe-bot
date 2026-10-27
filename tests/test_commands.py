@@ -460,8 +460,23 @@ class SubscribeCommandTest(unittest.TestCase):
 
     def test_help_without_argument(self):
         reply = self.router.handle("#订阅", self.ctx)[0]
-        self.assertIn("裂缝", reply.text)
-        self.assertIn("仲裁", reply.text)
+        # 九类订阅要一次列全，并且每种都说明推什么
+        for name in ("裂缝", "虚空风暴", "仲裁", "突击", "回廊",
+                     "轮换", "警报", "入侵", "特惠"):
+            self.assertIn(name, reply.text)
+        self.assertIn("类型：裂缝 / 虚空风暴 / 仲裁 / 突击 / 回廊 / 轮换 / 警报 / 入侵 / 特惠",
+                      reply.text)
+        self.assertIn("裂缝＝新裂缝出现", reply.text)
+        self.assertIn("回廊＝无尽回廊每周灵化刷新", reply.text)
+        self.assertIn("例如：#订阅 裂缝 生存", reply.text)
+        self.assertIn("#订阅列表 查看", reply.text)
+        # 最后一定带上本群状态，不能只有半边说明
+        self.assertIn("本群目前没有订阅。", reply.text)
+
+    def test_list_without_subscription_shows_full_panel(self):
+        reply = self.router.handle("#订阅列表", self.ctx)[0]
+        self.assertIn("类型：裂缝", reply.text)
+        self.assertIn("本群目前没有订阅。", reply.text)
 
     def test_unsubscribe(self):
         self.router.handle("#订阅 回廊", self.ctx)

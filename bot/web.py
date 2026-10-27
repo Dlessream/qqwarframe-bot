@@ -163,6 +163,12 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_groups()})
                     return
+                if path == "/api/mission-colors":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.mission_colors_snapshot()})
+                    return
                 if path == "/api/catalog":
                     if not self._authorized():
                         self._unauthorized()
@@ -328,6 +334,28 @@ class AdminServer:
                     except Exception as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/mission-colors":
+                    try:
+                        if data.get("reset"):
+                            result = server.app.reset_mission_colors()
+                        elif isinstance(data.get("colors"), dict):
+                            result = server.app.save_mission_colors(
+                                data.get("colors") or {})
+                        else:
+                            result = server.app.save_mission_color(
+                                str(data.get("name") or ""),
+                                str(data.get("color") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.INTERNAL_SERVER_ERROR)
                         return
                     self._json(result)
                     return
