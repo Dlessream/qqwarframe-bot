@@ -23,6 +23,8 @@
 | --- | --- |
 | ![仲裁评级](docs/arbi.png) | ![仲裁任务](docs/arbitration.png) |
 
+![仲裁表 · 未来 7 天](docs/arbi_schedule.png)
+
 | 奸商 | 英文维基 |
 | --- | --- |
 | ![奸商](docs/baro.png) | ![维基](docs/wiki.png) |
