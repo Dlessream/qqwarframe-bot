@@ -38,6 +38,16 @@ from .worldstate import WorldStateClient, WorldStateError
 
 LOGGER = logging.getLogger("qqwarframe.app")
 
+# 群策略模式：whitelist = 只服务白名单（白名单为空则谁都不服务，默认）
+#             blacklist = 除黑名单外都服务
+GROUP_POLICY_MODES = ("whitelist", "blacklist")
+
+GROUP_POLICY_REASONS = {
+    "blacklist": "在黑名单里",
+    "not_whitelisted": "不在白名单里",
+    "whitelist_empty": "白名单为空，未配置任何可用群",
+}
+
 
 def _item_category(item):
     if item is None:
@@ -157,6 +167,10 @@ class BotApp:
         self._chat_bucket: Dict[str, Deque[float]] = {}
         self._lock = threading.Lock()
         self._config_lock = threading.Lock()
+        # 被群策略拦下的群：群号 -> {count, last, reason}，供控制台一键加白
+        self._blocked_groups: Dict[str, Dict[str, Any]] = {}
+        self._blocked_lock = threading.Lock()
+        self._blocked_log_at: Dict[str, float] = {}
         self._alert_thread: Optional[threading.Thread] = None
         self._sub_thread: Optional[threading.Thread] = None
         self.started_at = time.time()
@@ -407,25 +421,161 @@ class BotApp:
         if replies:
             self._reply(replies, is_group, group_id, user_id)
 
+    def _group_lists(self) -> Tuple[set, set]:
+        whitelist = {str(item).strip() for item in
+                     (self.behavior.get("whitelist_groups") or [])
+                     if str(item).strip()}
+        blacklist = {str(item).strip() for item in
+                     (self.behavior.get("blacklist_groups") or [])
+                     if str(item).strip()}
+        return whitelist, blacklist
+
+    def group_policy_mode(self) -> str:
+        """whitelist（默认，白名单为空则谁都不服务） / blacklist（只拦黑名单）。"""
+        mode = str(self.behavior.get("group_policy") or "whitelist").strip().lower()
+        return mode if mode in GROUP_POLICY_MODES else "whitelist"
+
+    def _note_blocked(self, group_id: str, reason: str) -> None:
+        """记录被拦的群：控制台能看到「谁来过、为什么没反应」。"""
+        now = time.time()
+        with self._blocked_lock:
+            entry = self._blocked_groups.get(group_id)
+            if entry is None:
+                entry = {"group_id": group_id, "count": 0, "first": now,
+                         "last": now, "reason": reason}
+                self._blocked_groups[group_id] = entry
+            entry["count"] += 1
+            entry["last"] = now
+            entry["reason"] = reason
+            if len(self._blocked_groups) > 200:
+                oldest = sorted(self._blocked_groups.values(),
+                                key=lambda item: item["last"])[:50]
+                for item in oldest:
+                    self._blocked_groups.pop(item["group_id"], None)
+            last_log = self._blocked_log_at.get(group_id, 0.0)
+            should_log = now - last_log > 600
+            if should_log:
+                self._blocked_log_at[group_id] = now
+        if should_log:
+            self.log.info("群 %s 未通过群策略（%s），已忽略；在控制台可一键加白",
+                          group_id, GROUP_POLICY_REASONS.get(reason, reason))
+
     def _group_allowed(self, group_id: str) -> bool:
         group_id = str(group_id or "").strip()
-        whitelist = {str(item).strip() for item in
-                     (self.behavior.get("whitelist_groups") or [])}
-        blacklist = {str(item).strip() for item in
-                     (self.behavior.get("blacklist_groups") or [])}
+        if not group_id:
+            return False
+        whitelist, blacklist = self._group_lists()
+        if group_id in blacklist:
+            self._note_blocked(group_id, "blacklist")
+            return False
         if whitelist:
-            return group_id in whitelist and group_id not in blacklist
-        return group_id not in blacklist
+            if group_id in whitelist:
+                return True
+            self._note_blocked(group_id, "not_whitelisted")
+            return False
+        # 白名单为空：默认不服务任何群，避免机器人被拉进群就自动干活
+        if self.group_policy_mode() == "blacklist":
+            return True
+        self._note_blocked(group_id, "whitelist_empty")
+        return False
 
-    def group_policy_snapshot(self) -> Dict[str, List[str]]:
+    def group_policy_snapshot(self) -> Dict[str, Any]:
+        whitelist, blacklist = self._group_lists()
+        with self._blocked_lock:
+            blocked = sorted(
+                (dict(item) for item in self._blocked_groups.values()),
+                key=lambda item: item["last"], reverse=True)[:20]
+            for item in blocked:
+                item["last_text"] = time.strftime(
+                    "%m-%d %H:%M", time.localtime(item["last"]))
+                item["reason_text"] = GROUP_POLICY_REASONS.get(
+                    item["reason"], item["reason"])
+        mode = self.group_policy_mode()
+        if whitelist:
+            summary = "白名单模式：仅 %d 个群可用" % len(whitelist)
+        elif mode == "blacklist":
+            summary = "放行模式：除 %d 个黑名单群外都可用" % len(blacklist)
+        else:
+            summary = "白名单为空：所有群都不响应（把群号加进白名单才可用）"
         return {
-            "whitelist": sorted({str(item).strip() for item in
-                                 (self.behavior.get("whitelist_groups") or [])
-                                 if str(item).strip()}),
-            "blacklist": sorted({str(item).strip() for item in
-                                 (self.behavior.get("blacklist_groups") or [])
-                                 if str(item).strip()}),
+            "whitelist": sorted(whitelist),
+            "blacklist": sorted(blacklist),
+            "mode": mode,
+            "summary": summary,
+            "blocked": blocked,
         }
+
+    def _persist_behavior(self, updates: Dict[str, Any]) -> None:
+        """把 behavior 的若干键原子写回 config.json。"""
+        if not self.config_path:
+            raise ValueError("当前启动方式没有配置文件路径，无法保存名单。")
+        path = os.path.abspath(self.config_path)
+        if not os.path.isfile(path):
+            raise ValueError("找不到配置文件：%s" % path)
+        with self._config_lock:
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    data = json.load(handle)
+                if not isinstance(data, dict):
+                    raise ValueError("配置文件根节点不是 JSON 对象。")
+                behavior = data.setdefault("behavior", {})
+                behavior.update(updates)
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as handle:
+                    json.dump(data, handle, ensure_ascii=False, indent=2)
+                    handle.write("\n")
+                try:
+                    shutil.copymode(path, tmp)
+                except OSError:
+                    pass
+                os.replace(tmp, path)
+            except Exception as exc:
+                try:
+                    os.remove(path + ".tmp")
+                except OSError:
+                    pass
+                raise ValueError("保存配置失败：%s" % exc)
+            self.behavior.update(updates)
+
+    def allow_group(self, group_id: str) -> Dict[str, Any]:
+        """把一个群加进白名单（并从黑名单移除），用于控制台一键放行。"""
+        group_id = str(group_id or "").strip()
+        if not re.fullmatch(r"\d{5,20}", group_id):
+            raise ValueError("群号格式不对：%s" % group_id)
+        whitelist, blacklist = self._group_lists()
+        whitelist.add(group_id)
+        blacklist.discard(group_id)
+        self._persist_behavior({
+            "whitelist_groups": sorted(whitelist),
+            "blacklist_groups": sorted(blacklist),
+        })
+        with self._blocked_lock:
+            self._blocked_groups.pop(group_id, None)
+        self.log.info("群 %s 已加入白名单（白名单共 %d 个）", group_id, len(whitelist))
+        return {"ok": True, **self.group_policy_snapshot()}
+
+    def deny_group(self, group_id: str) -> Dict[str, Any]:
+        """把一个群踢进黑名单（同时从白名单移除）。"""
+        group_id = str(group_id or "").strip()
+        if not re.fullmatch(r"\d{5,20}", group_id):
+            raise ValueError("群号格式不对：%s" % group_id)
+        whitelist, blacklist = self._group_lists()
+        blacklist.add(group_id)
+        whitelist.discard(group_id)
+        self._persist_behavior({
+            "whitelist_groups": sorted(whitelist),
+            "blacklist_groups": sorted(blacklist),
+        })
+        self.log.info("群 %s 已加入黑名单", group_id)
+        return {"ok": True, **self.group_policy_snapshot()}
+
+    def set_group_policy_mode(self, mode: str) -> Dict[str, Any]:
+        mode = str(mode or "").strip().lower()
+        if mode not in GROUP_POLICY_MODES:
+            raise ValueError("未知的群策略模式：%s" % mode)
+        self._persist_behavior({"group_policy": mode})
+        self.log.info("群策略模式切换为：%s", mode)
+        return {"ok": True, **self.group_policy_snapshot()}
 
     def _normalize_group_ids(self, values, label: str) -> List[str]:
         if not isinstance(values, (list, tuple)):
@@ -443,43 +593,24 @@ class BotApp:
                     result.append(item)
         return sorted(result)
 
-    def update_group_policy(self, whitelist, blacklist) -> Dict[str, Any]:
+    def update_group_policy(self, whitelist, blacklist,
+                            mode: Optional[str] = None) -> Dict[str, Any]:
         """更新群策略，并原子写回 config.json；无需重启立即生效。"""
         whitelist_ids = self._normalize_group_ids(whitelist, "白名单")
         blacklist_ids = self._normalize_group_ids(blacklist, "黑名单")
-        if not self.config_path:
-            raise ValueError("当前启动方式没有配置文件路径，无法保存名单。")
-        path = os.path.abspath(self.config_path)
-        if not os.path.isfile(path):
-            raise ValueError("找不到配置文件：%s" % path)
-        with self._config_lock:
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    data = json.load(handle)
-                if not isinstance(data, dict):
-                    raise ValueError("配置文件根节点不是 JSON 对象。")
-                behavior = data.setdefault("behavior", {})
-                behavior["whitelist_groups"] = whitelist_ids
-                behavior["blacklist_groups"] = blacklist_ids
-                tmp = path + ".tmp"
-                with open(tmp, "w", encoding="utf-8") as handle:
-                    json.dump(data, handle, ensure_ascii=False, indent=2)
-                    handle.write("\n")
-                try:
-                    shutil.copymode(path, tmp)
-                except OSError:
-                    pass
-                os.replace(tmp, path)
-            except Exception as exc:
-                try:
-                    os.remove(path + ".tmp")
-                except OSError:
-                    pass
-                raise ValueError("保存配置失败：%s" % exc)
-            self.behavior["whitelist_groups"] = whitelist_ids
-            self.behavior["blacklist_groups"] = blacklist_ids
-        self.log.info("群策略已更新：白名单 %d，黑名单 %d",
-                      len(whitelist_ids), len(blacklist_ids))
+        updates: Dict[str, Any] = {
+            "whitelist_groups": whitelist_ids,
+            "blacklist_groups": blacklist_ids,
+        }
+        if mode is not None:
+            mode = str(mode).strip().lower()
+            if mode not in GROUP_POLICY_MODES:
+                raise ValueError("未知的群策略模式：%s" % mode)
+            updates["group_policy"] = mode
+        self._persist_behavior(updates)
+        self.log.info("群策略已更新：白名单 %d，黑名单 %d，模式 %s",
+                      len(whitelist_ids), len(blacklist_ids),
+                      self.group_policy_mode())
         return {"ok": True, **self.group_policy_snapshot()}
 
     # ------------------------------------------------------------------ 别名/数据源

@@ -2,6 +2,9 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+  const escapeHtml = (value) => String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const state = {
     token: localStorage.getItem("qqwf_admin_token") || "",
     status: null,
@@ -363,14 +366,60 @@
   function renderGroups(groups) {
     const whitelist = Array.isArray(groups.whitelist) ? groups.whitelist : [];
     const blacklist = Array.isArray(groups.blacklist) ? groups.blacklist : [];
+    const policyMode = groups.mode === "blacklist" ? "blacklist" : "whitelist";
     if (!state.groupsDirty) {
       $("whitelistInput").value = whitelist.join("\n");
       $("blacklistInput").value = blacklist.join("\n");
     }
+    document.querySelectorAll('input[name="groupPolicyMode"]').forEach((el) => {
+      el.checked = el.value === policyMode;
+    });
     const mode = whitelist.length
       ? "白名单模式：仅 " + whitelist.length + " 个群可用；黑名单优先"
-      : "黑名单模式：除 " + blacklist.length + " 个黑名单群外，其他群都可用";
-    setText("groupMode", "当前：" + mode);
+      : (policyMode === "blacklist"
+        ? "黑名单模式：除 " + blacklist.length + " 个黑名单群外，其他群都可用"
+        : "白名单为空：所有群都不会响应，请把群号填进白名单");
+    const modeEl = $("groupMode");
+    setText("groupMode", "当前：" + (groups.summary || mode));
+    if (modeEl) modeEl.classList.toggle("is-empty", !whitelist.length && policyMode !== "blacklist");
+    renderBlocked(groups.blocked || []);
+  }
+
+  function renderBlocked(items) {
+    const wrap = $("groupBlockedWrap");
+    const list = $("groupBlockedList");
+    if (!wrap || !list) return;
+    if (!items.length) {
+      wrap.hidden = true;
+      list.innerHTML = "";
+      return;
+    }
+    wrap.hidden = false;
+    list.innerHTML = items.map((item) => (
+      '<div class="group-blocked-item">' +
+        '<b>' + escapeHtml(item.group_id || "") + '</b>' +
+        '<span class="gb-reason">' + escapeHtml(item.reason_text || "") + '</span>' +
+        '<span class="gb-count">' + Number(item.count || 0) + ' 次 · ' +
+          escapeHtml(item.last_text || "") + '</span>' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-allow="' +
+          escapeHtml(item.group_id || "") + '">加白</button>' +
+      '</div>'
+    )).join("");
+  }
+
+  async function allowGroup(groupId) {
+    try {
+      const result = await api("/api/groups/allow", {
+        method: "POST",
+        body: { group_id: groupId },
+      });
+      state.groupsDirty = false;
+      renderGroups(result);
+      toast("群 " + groupId + " 已加入白名单");
+      refresh();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("加白失败：" + exc.message);
+    }
   }
 
   function parseGroupIds(value) {
@@ -1176,6 +1225,28 @@
     });
     ["whitelistInput", "blacklistInput"].forEach((id) => {
       $(id).addEventListener("input", () => { state.groupsDirty = true; });
+    });
+    document.querySelectorAll('input[name="groupPolicyMode"]').forEach((el) => {
+      el.addEventListener("change", async () => {
+        if (!el.checked) return;
+        try {
+          const result = await api("/api/groups/mode", {
+            method: "POST",
+            body: { mode: el.value },
+          });
+          renderGroups(result);
+          toast(el.value === "blacklist"
+            ? "已切到黑名单制：除黑名单外都服务"
+            : "已切到白名单制：只服务白名单里的群");
+          refresh();
+        } catch (exc) {
+          if (exc.message !== "UNAUTHORIZED") toast("切换失败：" + exc.message);
+        }
+      });
+    });
+    $("groupBlockedList").addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-allow]");
+      if (btn) allowGroup(btn.getAttribute("data-allow"));
     });
     $("bannerAction").addEventListener("click", () => {
       const kind = $("bannerAction").dataset.kind || "remote";

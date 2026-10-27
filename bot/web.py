@@ -299,7 +299,41 @@ class AdminServer:
                     try:
                         result = server.app.update_group_policy(
                             data.get("whitelist") or [],
-                            data.get("blacklist") or [])
+                            data.get("blacklist") or [],
+                            data.get("mode"))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/groups/allow":
+                    try:
+                        result = server.app.allow_group(
+                            str(data.get("group_id") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/groups/deny":
+                    try:
+                        result = server.app.deny_group(
+                            str(data.get("group_id") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/groups/mode":
+                    try:
+                        result = server.app.set_group_policy_mode(
+                            str(data.get("mode") or ""))
                     except ValueError as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_REQUEST)

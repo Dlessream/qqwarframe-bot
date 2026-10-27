@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Warframe Ops · 控制台</title>
-  <link rel="stylesheet" href="/static/style.css?v=6">
+  <link rel="stylesheet" href="/static/style.css?v=7">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"></div>
@@ -106,13 +106,24 @@
       <div class="panel-head">
         <div>
           <span class="card-label">群策略</span>
-          <span class="panel-sub">黑名单永远拒绝；白名单非空时只服务白名单</span>
+          <span class="panel-sub">默认只服务白名单；白名单为空时任何群都不响应</span>
         </div>
         <button id="groupSave" class="btn btn-primary btn-sm" type="button">保存名单</button>
       </div>
+      <div class="group-mode-row">
+        <span>模式</span>
+        <label class="group-mode-chip">
+          <input type="radio" name="groupPolicyMode" value="whitelist" checked>
+          <b>白名单制</b><small>只服务名单里的群，空名单 = 全部不服务</small>
+        </label>
+        <label class="group-mode-chip">
+          <input type="radio" name="groupPolicyMode" value="blacklist">
+          <b>黑名单制</b><small>除黑名单外都服务</small>
+        </label>
+      </div>
       <div class="groups-grid">
         <label class="field">
-          <span>白名单 <small>5–20 位群号，每行一个；留空表示不限制</small></span>
+          <span>白名单 <small>5–20 位群号，每行一个；白名单制下留空则不服务任何群</small></span>
           <textarea id="whitelistInput" class="textarea" rows="5" spellcheck="false" placeholder="123456789&#10;987654321"></textarea>
         </label>
         <label class="field">
@@ -121,6 +132,13 @@
         </label>
       </div>
       <p id="groupMode" class="group-mode">当前：未加载群策略</p>
+      <div id="groupBlockedWrap" class="group-blocked" hidden>
+        <div class="group-blocked-head">
+          <span>最近被拦下的群</span>
+          <small>机器人收到过消息但没回应，点「加白」即可放行</small>
+        </div>
+        <div id="groupBlockedList" class="group-blocked-list"></div>
+      </div>
     </section>
 
     <section class="panel aliases-panel">
@@ -263,6 +281,6 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>

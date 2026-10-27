@@ -30,6 +30,9 @@ DEFAULTS: Dict[str, Any] = {
         "at_sender": True,
         "whitelist_groups": [],
         "blacklist_groups": [],
+        # whitelist：只服务白名单里的群；白名单为空时谁都不服务（默认，最安全）
+        # blacklist：除黑名单外都服务（白名单为空时的旧行为）
+        "group_policy": "whitelist",
         "cooldown_seconds": 3,
         "max_replies_per_minute": 20,
         "max_reply_chars": 1200,
@@ -345,6 +348,12 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         cfg["behavior"].get("whitelist_groups"), "behavior.whitelist_groups")
     cfg["behavior"]["blacklist_groups"] = _as_str_list(
         cfg["behavior"].get("blacklist_groups"), "behavior.blacklist_groups")
+    mode = str(cfg["behavior"].get("group_policy") or "whitelist").strip().lower()
+    if mode not in ("whitelist", "blacklist"):
+        raise ValueError(
+            "behavior.group_policy 只能是 whitelist（空白名单不服务）"
+            "或 blacklist（除黑名单外都服务）")
+    cfg["behavior"]["group_policy"] = mode
     cfg["behavior"]["cooldown_seconds"] = max(
         0, _as_int(cfg["behavior"]["cooldown_seconds"], "behavior.cooldown_seconds", 0))
     cfg["behavior"]["max_replies_per_minute"] = max(

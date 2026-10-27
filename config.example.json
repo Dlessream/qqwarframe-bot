@@ -19,6 +19,7 @@
     "at_sender": true,
     "whitelist_groups": [],
     "blacklist_groups": [],
+    "group_policy": "whitelist",
     "cooldown_seconds": 3,
     "max_replies_per_minute": 20,
     "max_reply_chars": 1200,

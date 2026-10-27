@@ -108,6 +108,8 @@ def build_app_config(http_base, ws_url):
             "at_sender": True,
             "whitelist_groups": [],
             "blacklist_groups": [],
+            # 集成测试要模拟「群里正常得到回复」，用黑名单制放开
+            "group_policy": "blacklist",
             "cooldown_seconds": 0,
             "max_replies_per_minute": 100,
             "max_reply_chars": 1200,

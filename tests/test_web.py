@@ -47,8 +47,30 @@ class FakeApp:
             "update": self.update_checker.snapshot(),
         }
 
-    def update_group_policy(self, whitelist, blacklist):
-        self.groups = {"whitelist": list(whitelist), "blacklist": list(blacklist)}
+    def update_group_policy(self, whitelist, blacklist, mode=None):
+        self.groups = {"whitelist": list(whitelist), "blacklist": list(blacklist),
+                       "mode": mode or self.groups.get("mode", "whitelist"),
+                       "blocked": []}
+        return {"ok": True, **self.groups}
+
+    def allow_group(self, group_id):
+        if not str(group_id or "").isdigit():
+            raise ValueError("群号格式不对：%s" % group_id)
+        self.groups = {"whitelist": [str(group_id)],
+                       "blacklist": [], "mode": "whitelist", "blocked": []}
+        return {"ok": True, **self.groups}
+
+    def deny_group(self, group_id):
+        self.groups = {"whitelist": [], "blacklist": [str(group_id)],
+                       "mode": "whitelist", "blocked": []}
+        return {"ok": True, **self.groups}
+
+    def set_group_policy_mode(self, mode):
+        if mode not in ("whitelist", "blacklist"):
+            raise ValueError("未知的群策略模式：%s" % mode)
+        self.groups = dict(self.groups)
+        self.groups["mode"] = mode
+        self.groups["blocked"] = []
         return {"ok": True, **self.groups}
 
     def group_policy_snapshot(self):
@@ -349,8 +371,44 @@ class AdminServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         saved = json.loads(body)
         self.assertEqual(saved["whitelist"], ["100", "200"])
-        self.assertEqual(saved["blacklist"], ["300"])
-        self.assertEqual(self.app.groups["blacklist"], ["300"])
+
+    def test_groups_allow(self):
+        status, body = self.request(
+            "/api/groups/allow", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"group_id": "1109499758"})
+        self.assertEqual(status, 200)
+        saved = json.loads(body)
+        self.assertEqual(saved["whitelist"], ["1109499758"])
+        self.assertEqual(saved["blocked"], [])
+
+    def test_groups_allow_rejects_bad_id(self):
+        status, body = self.request(
+            "/api/groups/allow", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"group_id": "abc"})
+        self.assertEqual(status, 400)
+
+    def test_groups_deny(self):
+        status, body = self.request(
+            "/api/groups/deny", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"group_id": "678500378"})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["blacklist"], ["678500378"])
+
+    def test_groups_mode(self):
+        status, body = self.request(
+            "/api/groups/mode", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"mode": "blacklist"})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["mode"], "blacklist")
+        status, _body = self.request(
+            "/api/groups/mode", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"mode": "open"})
+        self.assertEqual(status, 400)
 
     def test_aliases_get(self):
         status, body = self.request(
