@@ -101,6 +101,16 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(len(sub.seen), 5)
 
 
+class FakeArbi:
+    def today(self):
+        from bot.arbi import ArbiNode
+        now = time.time()
+        node = ArbiNode(key="SolNode1", name="Gabii", system="谷神星",
+                        mission="Survival", faction="Infested",
+                        mission_type="Survival")
+        return [(now - 600, now + 1800, node, "S")]
+
+
 class ServiceTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -171,6 +181,22 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(len(pushes), 1)
         self.assertIn("Korms", pushes[0][1].text)
         self.assertNotIn("f2", pushes[0][1].text)
+
+    def test_arbitration_falls_back_to_local_schedule(self):
+        """官方兜底只给 SolNode000 占位时，按本地轮换表补当前仲裁。"""
+        self.world.fields["arbitration"] = {
+            "node": "—", "nodeKey": "SolNode000", "type": "",
+            "enemy": "", "expiry": "", "expired": False,
+        }
+        service = SubscriptionService(self.store, self.world, None, FakeArbi())
+        sub, _ = self.store.add("group", "1", "9", "arbitration")
+        service.seed(sub)
+        service.poll()
+        sub.seen = []
+        pushes = service.poll()
+        self.assertEqual(len(pushes), 1)
+        self.assertIn("Gabii", pushes[0][1].text)
+        self.assertIn("生存", pushes[0][1].text)
 
 
 if __name__ == "__main__":

@@ -133,7 +133,8 @@ class BotApp:
                 int(subs_cfg.get("max_per_chat", 20)),
                 int(subs_cfg.get("seen_limit", 400)))
             self.subscriptions = SubscriptionService(
-                store, self.worldstate, self.rotation, logger=self.log)
+                store, self.worldstate, self.rotation, self.arbi,
+                logger=self.log)
         self.subscription_interval = max(60, int(subs_cfg.get("check_seconds", 120)))
 
         self.router = CommandRouter(

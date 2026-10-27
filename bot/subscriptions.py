@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from . import present
 from . import terms
 from .replies import Reply
-from .worldstate import parse_timestamp
+from .worldstate import Arbitration, parse_timestamp
 
 LOGGER = logging.getLogger("qqwarframe.subscriptions")
 
@@ -254,11 +254,12 @@ class SubscriptionService:
     """轮询世界状态，把新事件变成待推送的 Reply。"""
 
     def __init__(self, store: SubscriptionStore, worldstate=None,
-                 rotation=None, logger: Optional[logging.Logger] = None,
+                 rotation=None, arbi=None, logger: Optional[logging.Logger] = None,
                  push_limit: int = 6):
         self.store = store
         self.worldstate = worldstate
         self.rotation = rotation
+        self.arbi = arbi
         self.log = logger or LOGGER
         self.push_limit = push_limit
         self._cache: Dict[str, Any] = {}
@@ -375,12 +376,18 @@ class SubscriptionService:
 
         if kind == "arbitration":
             raw = self._field("arbitration")
-            if not isinstance(raw, dict) or not raw.get("nodeKey"):
+            key_text = str((raw or {}).get("nodeKey") or "") if isinstance(raw, dict) else ""
+            if (not isinstance(raw, dict) or not key_text
+                    or key_text == "SolNode000" or raw.get("expired")):
+                # 官方兜底源只给 SolNode000 占位，按本地轮换表补当前仲裁
+                raw = self._arbi_now() or raw
+            if not isinstance(raw, dict) or not raw.get("expiry"):
                 return []
             if raw.get("expired"):
                 return []
             return [{
-                "key": "%s|%s" % (raw.get("nodeKey"), raw.get("expiry")),
+                "key": "%s|%s" % (raw.get("nodeKey") or raw.get("node") or "?",
+                                  raw.get("expiry")),
                 "raw": raw, "hard": False,
                 "text": "%s %s %s" % (raw.get("node") or "", raw.get("type") or "",
                                       raw.get("enemy") or ""),
@@ -401,6 +408,37 @@ class SubscriptionService:
             }]
 
         return []
+
+    def _arbi_now(self) -> Optional[Dict[str, Any]]:
+        """官方兜底不给仲裁时，按本地 arbi 轮换表算当前/下一场。"""
+        if self.arbi is None:
+            return None
+        try:
+            entries = self.arbi.today()
+        except Exception as exc:  # noqa: BLE001
+            self.log.warning("订阅算仲裁失败：%s", exc)
+            return None
+        now = time.time()
+        picked = None
+        for start, end, node, _tier in entries:
+            if start <= now < end:
+                picked = (end, node)
+                break
+        if picked is None and entries:
+            _start, end, node, _tier = entries[0]
+            picked = (end, node)
+        if picked is None:
+            return None
+        end, node = picked
+        return {
+            "node": node.display_name,
+            "nodeKey": node.key,
+            "type": node.mission_type or node.mission,
+            "enemy": node.faction,
+            "expiry": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(end)),
+            "expired": False,
+            "source": "arbi",
+        }
 
     def _rotation_events(self) -> List[Dict[str, Any]]:
         if self.rotation is None:
@@ -486,8 +524,15 @@ class SubscriptionService:
             return [present.circuit_reply(raws[0])]
         if kind == "sortie" and self.worldstate is not None:
             return [present.sortie_reply(self.worldstate.sortie())]
-        if kind == "arbitration" and self.worldstate is not None:
-            return [present.arbitration_reply(self.worldstate.arbitration())]
+        if kind == "arbitration":
+            raw = raws[0]
+            arbitration = Arbitration(
+                node=terms.localize_node(str(raw.get("node") or "—")),
+                mission=terms.localize_mission(str(raw.get("type") or "")),
+                enemy=terms.localize_faction(str(raw.get("enemy") or "")),
+                end=parse_timestamp(raw.get("expiry")),
+                node_key=str(raw.get("nodeKey") or ""))
+            return [present.arbitration_reply(arbitration)]
         if kind == "rotation" and self.rotation is not None:
             return [present.rotation_overview_reply(
                 self.rotation.acrithis_view(), self.rotation.glast_view(),
