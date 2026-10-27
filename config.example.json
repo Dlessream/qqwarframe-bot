@@ -96,6 +96,13 @@
     "check_seconds": 300,
     "max_per_chat": 20
   },
+  "subscriptions": {
+    "enabled": true,
+    "file": "data/subscriptions.json",
+    "check_seconds": 120,
+    "max_per_chat": 20,
+    "seen_limit": 400
+  },
   "log": {
     "level": "INFO",
     "file": "logs/bot.log"

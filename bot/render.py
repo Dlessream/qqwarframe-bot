@@ -262,6 +262,8 @@ def render_help(prefix: str = "#") -> str:
         "%s今日仲裁 / %s高效仲裁  未来 24 小时轮换、高价值仲裁" % (prefix, prefix),
         "%s提醒 <名称> <价>   降价提醒" % prefix,
         "%s提醒列表 / %s取消提醒 <编号|all>" % (prefix, prefix),
+        "%s订阅 <类型> [筛选]  新内容出现就推送到群" % prefix,
+        "%s订阅列表 / %s取消订阅 <编号|类型>" % (prefix, prefix),
         "%s更新               立即刷新缓存数据" % prefix,
         "%s数据状态           各数据源更新时间" % prefix,
         "%swiki <关键词>      英文维基（支持中文，如 电男）" % prefix,

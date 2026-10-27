@@ -20,6 +20,8 @@ from .replies import Reply
 from .riven import RivenClient
 from .rivencalc import calculate, evaluate_roll, looks_like_stat
 from . import rivenocr
+from .subscriptions import (SubscriptionService, kind_label, kind_names,
+                            parse_kind)
 from .updater import DataUpdater
 from .wiki import WikiClient, WikiError
 from .worldstate import Arbitration, WorldStateClient, WorldStateError
@@ -78,9 +80,13 @@ COMMANDS: Dict[str, str] = {
     "glast": "rotation_glast",
     "埃莉诺": "rotation_eleanor", "eleanor": "rotation_eleanor",
     "终幕": "rotation_eleanor", "终幕武器": "rotation_eleanor",
-    "提醒": "alert", "订阅": "alert", "alert": "alert", "watch": "alert",
+    "提醒": "alert", "alert": "alert", "watch": "alert",
     "提醒列表": "alerts", "我的提醒": "alerts", "alerts": "alerts",
     "取消提醒": "unalert", "删除提醒": "unalert", "unalert": "unalert",
+    # 事件订阅（世界状态推送）：和「提醒」（价格）分开
+    "订阅": "subscribe", "subscribe": "subscribe",
+    "订阅列表": "subs", "我的订阅": "subs", "subs": "subs",
+    "取消订阅": "unsubscribe", "退订": "unsubscribe", "unsubscribe": "unsubscribe",
     "wiki": "wiki", "维基": "wiki",
     "翻译": "translate", "中英": "translate", "双语": "translate", "百科": "wiki", "wikipedia": "wiki",
     "更新": "update", "刷新": "update", "refresh": "update",
@@ -95,6 +101,22 @@ COMMAND_ORDER = sorted(COMMANDS.keys(), key=len, reverse=True)
 
 # 曾经当作「帮助」的别名，现在一律忽略（既不回帮助，也不当成物品去查）
 IGNORED_WORDS = {"菜单", "指令", "命令", "help", "?", "？", "helpme"}
+
+# 不吃参数的命令：裸词唤醒时必须「整条消息就是这个词」。
+# 以前群里聊「仲裁什么时候刷新」「回廊怎么进」都会被当成查询，机器人乱插话。
+WHOLE_WORD_COMMANDS = frozenset({
+    "baro", "sortie", "arbitration", "world_summary", "world_alerts",
+    "world_invasions", "steel_path", "nightwave", "cycles", "deals", "news",
+    "events", "circuit", "archon", "fissures", "steel_fissures", "storms",
+    "bounties", "cetus", "deep_research", "temporal_research", "research",
+    "riven_rank", "frame_rank", "junk_gold", "junk_silver", "junk_bronze",
+    "junk_fake_gold", "junk_fake_silver", "junk_overview", "alerts", "help",
+})
+
+# 「查绝路」这种连写没问题，但「紫卡分析这个怎么样」是在聊天，别接。
+_SENTENCE_RE = re.compile(
+    r"[？?！!。，,；;~～]|怎么|怎样|什么|怎么着|为啥|为什么|如何|多少|"
+    r"什么时候|啥时候|哪里|哪个|能不能|可不可以|吗|呢|呀|啊|吧")
 
 
 def is_ignored(text: str) -> bool:
@@ -197,7 +219,8 @@ class CommandRouter:
                  updater: Optional[DataUpdater] = None,
                  translator=None,
                  board=None,
-                 rotation=None):
+                 rotation=None,
+                 subscriptions: Optional[SubscriptionService] = None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
@@ -217,6 +240,7 @@ class CommandRouter:
         self.updater = updater
         self.board = board
         self.rotation = rotation
+        self.subscriptions = subscriptions
 
     # ------------------------------------------------------------------ 解析
     def parse(self, text: str,
@@ -237,20 +261,28 @@ class CommandRouter:
         if not prefix:
             if not allow_bare:
                 return None
-            # 无前缀模式：只匹配已知命令，普通聊天不当作物品查询。
+            # 无前缀模式：只认「独立的词」，句子里夹带的词不算唤醒。
             parts = text.split(None, 1)
             head = parts[0]
+            tail = parts[1].strip() if len(parts) > 1 else ""
             if head in ("唤醒", "唤醒词") or is_ignored(text):
                 return None
-            if head.lower() in COMMANDS:
-                return (COMMANDS[head.lower()],
-                        parts[1].strip() if len(parts) > 1 else "")
+            command = COMMANDS.get(head.lower())
+            if command:
+                if command in WHOLE_WORD_COMMANDS and tail:
+                    # 「仲裁 什么时候刷新」不再当作查询
+                    return None
+                return (command, tail)
             for alias in COMMAND_ORDER:
-                if COMMANDS[alias] == "help":
-                    continue  # 帮助只认整词，避免「帮助我查…」这类句子触发
+                command = COMMANDS[alias]
+                if command in WHOLE_WORD_COMMANDS:
+                    continue  # 这个词必须单独出现，连写的一律不算
                 if (len(alias) >= 2 or not alias.isascii()) \
                         and text.startswith(alias) and len(text) > len(alias):
-                    return (COMMANDS[alias], text[len(alias):].strip())
+                    rest = text[len(alias):].strip()
+                    if _SENTENCE_RE.search(rest):
+                        continue  # 「紫卡分析这个怎么样」是在聊天
+                    return (command, rest)
             return None
         if not text:
             # 只发一个前缀（例如单独的 #）不再当作求助，直接忽略。
@@ -399,6 +431,12 @@ class CommandRouter:
                 return [self._list_alerts(ctx)]
             if command == "unalert":
                 return [self._remove_alert(argument, ctx)]
+            if command == "subscribe":
+                return [self._subscribe(argument, ctx)]
+            if command == "subs":
+                return [self._subscriptions_list(ctx)]
+            if command == "unsubscribe":
+                return [self._unsubscribe(argument, ctx)]
             return [self._item(argument, ctx, category=None)]
         except CommandError as exc:
             return [present.error_reply(str(exc))]
@@ -914,6 +952,74 @@ class CommandRouter:
         if not removed:
             return present.error_reply("没有找到编号为 #%s 的提醒。" % ident)
         return present.error_reply("已取消 %d 条提醒。" % removed)
+
+    # ------------------------------------------------------------------ 订阅
+    def _subscribe_help(self, ctx: Context) -> str:
+        return (
+            "【订阅】有新内容就推送到本群\n"
+            "%s订阅 <类型> [筛选词]\n"
+            "类型：%s\n"
+            "例如：%s订阅 裂缝 生存\n"
+            "　　　%s订阅 仲裁\n"
+            "%s订阅列表 查看　%s取消订阅 <编号|类型> 取消" % (
+                ctx.prefix, kind_names(), ctx.prefix, ctx.prefix,
+                ctx.prefix, ctx.prefix))
+
+    def _subscribe_lines(self, ctx: Context) -> str:
+        if self.subscriptions is None:
+            return ""
+        subs = self.subscriptions.store.list_for(ctx.chat_type, ctx.chat_id)
+        if not subs:
+            return "本群目前没有订阅。"
+        lines = ["本群订阅（%d 条）：" % len(subs)]
+        for index, sub in enumerate(subs, 1):
+            lines.append("%d. %s　#%s" % (index, sub.title, sub.id))
+        return "\n".join(lines)
+
+    def _subscribe(self, argument: str, ctx: Context) -> Reply:
+        if self.subscriptions is None:
+            return present.error_reply("订阅功能未启用。")
+        argument = (argument or "").strip()
+        if not argument:
+            return Reply(text="%s\n\n%s" % (
+                self._subscribe_help(ctx), self._subscribe_lines(ctx)))
+        kind, keyword = parse_kind(argument)
+        if kind is None:
+            return present.error_reply(
+                "看不懂订阅类型「%s」。\n%s" % (argument, self._subscribe_help(ctx)))
+        try:
+            sub, created = self.subscriptions.store.add(
+                ctx.chat_type, ctx.chat_id, ctx.user_id, kind, keyword)
+        except ValueError as exc:
+            return present.error_reply(str(exc))
+        if not created:
+            return Reply(text="本群已经订阅过「%s」了。\n\n%s" % (
+                sub.title, self._subscribe_lines(ctx)))
+        # 新订阅先记基线：当前已经存在的内容不补推，只推之后的
+        self.subscriptions.seed(sub)
+        return Reply(text="已订阅「%s」，有新内容会推送到本群。\n\n%s" % (
+            sub.title, self._subscribe_lines(ctx)))
+
+    def _subscriptions_list(self, ctx: Context) -> Reply:
+        if self.subscriptions is None:
+            return present.error_reply("订阅功能未启用。")
+        if not self.subscriptions.store.list_for(ctx.chat_type, ctx.chat_id):
+            return Reply(text=self._subscribe_help(ctx))
+        return Reply(text=self._subscribe_lines(ctx))
+
+    def _unsubscribe(self, argument: str, ctx: Context) -> Reply:
+        if self.subscriptions is None:
+            return present.error_reply("订阅功能未启用。")
+        ident = (argument or "").strip()
+        if not ident:
+            return present.error_reply(
+                "用法：%s取消订阅 <编号|类型|all>\n先发 %s订阅列表 查看编号。" % (
+                    ctx.prefix, ctx.prefix))
+        removed = self.subscriptions.store.remove(ctx.chat_type, ctx.chat_id, ident)
+        if not removed:
+            return present.error_reply("没有找到「%s」对应的订阅。" % ident)
+        names = "、".join(sub.title for sub in removed)
+        return Reply(text="已取消：%s\n\n%s" % (names, self._subscribe_lines(ctx)))
 
     # ------------------------------------------------------------------ 维基
     def _translate(self, argument: str, ctx: Context) -> Reply:

@@ -28,6 +28,7 @@ from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
 from .render import chunk_text
 from .riven import RivenClient
+from .subscriptions import SubscriptionService, SubscriptionStore
 from .translate import Translator
 from .update import UpdateChecker
 from .updater import DataUpdater
@@ -124,12 +125,23 @@ class BotApp:
                                      int(alert_cfg.get("max_per_chat", 20)))
         self.alert_interval = max(60, int(alert_cfg.get("check_seconds", 300)))
 
+        subs_cfg = config.get("subscriptions", {}) or {}
+        self.subscriptions: Optional[SubscriptionService] = None
+        if subs_cfg.get("enabled", True):
+            store = SubscriptionStore(
+                str(subs_cfg.get("file", "data/subscriptions.json")),
+                int(subs_cfg.get("max_per_chat", 20)),
+                int(subs_cfg.get("seen_limit", 400)))
+            self.subscriptions = SubscriptionService(
+                store, self.worldstate, self.rotation, logger=self.log)
+        self.subscription_interval = max(60, int(subs_cfg.get("check_seconds", 120)))
+
         self.router = CommandRouter(
             self.market, self.wiki, config, logger=self.log,
             riven=self.riven, worldstate=self.worldstate, alerts=self.alerts,
             arbi=self.arbi, updater=self.updater,
             translator=self.translator, board=self.board,
-            rotation=self.rotation)
+            rotation=self.rotation, subscriptions=self.subscriptions)
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
                                      logger=self.log)
@@ -143,6 +155,7 @@ class BotApp:
         self._lock = threading.Lock()
         self._config_lock = threading.Lock()
         self._alert_thread: Optional[threading.Thread] = None
+        self._sub_thread: Optional[threading.Thread] = None
         self.started_at = time.time()
         self._restarting = False
         self.web_config = dict(config.get("web", {}))
@@ -174,6 +187,10 @@ class BotApp:
             self._alert_thread = threading.Thread(target=self._alert_loop,
                                                   name="alerts", daemon=True)
             self._alert_thread.start()
+        if self.subscriptions is not None:
+            self._sub_thread = threading.Thread(target=self._subscription_loop,
+                                                name="subscriptions", daemon=True)
+            self._sub_thread.start()
 
     def run(self) -> None:
         self.start()
@@ -209,6 +226,11 @@ class BotApp:
             alert_count = len(self.alerts.active()) if self.alerts is not None else 0
         except Exception:
             alert_count = 0
+        try:
+            sub_count = (len(self.subscriptions.store.active())
+                         if self.subscriptions is not None else 0)
+        except Exception:
+            sub_count = 0
         update = self.update_checker.snapshot() if self.update_checker else {}
         whitelist = {str(item).strip() for item in
                      (self.behavior.get("whitelist_groups") or [])}
@@ -241,6 +263,7 @@ class BotApp:
                 "results": self.updater.last_results if self.updater else {},
             },
             "alerts": alert_count,
+            "subscriptions": sub_count,
             "groups": {
                 "whitelist": sorted(whitelist),
                 "blacklist": sorted(blacklist),
@@ -905,6 +928,36 @@ class BotApp:
             if len(chunks) > 1:
                 time.sleep(0.35)
         return True
+
+    # ------------------------------------------------------------------ 订阅
+    def _subscription_loop(self) -> None:
+        if self._stop.wait(min(45, self.subscription_interval)):
+            return
+        while not self._stop.is_set():
+            try:
+                self._check_subscriptions()
+            except Exception as exc:  # pragma: no cover - 防御
+                self.log.exception("检查订阅时出错：%s", exc)
+            if self._stop.wait(self.subscription_interval):
+                return
+
+    def _check_subscriptions(self) -> None:
+        if self.subscriptions is None:
+            return
+        pushes = self.subscriptions.poll()
+        if not pushes:
+            return
+        self.log.info("订阅推送：%d 条", len(pushes))
+        for chat_id, reply in pushes:
+            if self._stop.is_set():
+                return
+            if not self._group_allowed(chat_id):
+                continue
+            try:
+                self._deliver(True, chat_id, reply)
+            except Exception as exc:  # pragma: no cover - 防御
+                self.log.warning("订阅推送失败（%s）：%s", chat_id, exc)
+            time.sleep(0.4)
 
     # ------------------------------------------------------------------ 提醒
     def _alert_loop(self) -> None:

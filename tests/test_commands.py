@@ -95,7 +95,7 @@ class FakeWiki:
 
 
 def make_router(fail_market=False, alerts=None, riven=None, updater=None,
-                arbi=None, worldstate=None):
+                arbi=None, worldstate=None, subscriptions=None):
     market = FakeMarket(build_index())
     market.fail = fail_market
     wiki = FakeWiki()
@@ -105,7 +105,8 @@ def make_router(fail_market=False, alerts=None, riven=None, updater=None,
     }
     return CommandRouter(market, wiki, config, alerts=alerts, riven=riven,
                          updater=updater, arbi=arbi,
-                         worldstate=worldstate), market, wiki
+                         worldstate=worldstate,
+                         subscriptions=subscriptions), market, wiki
 
 
 class FakeImageRiven:
@@ -415,6 +416,66 @@ class AlertCommandTest(unittest.TestCase):
         self.assertIn("没有找到", replies[0])
 
 
+class FakeSubWorld:
+    """订阅服务只用到这三个取数方法。"""
+
+    def fissures(self):
+        return []
+
+    def void_storms(self):
+        return []
+
+    def fetch(self, path):
+        return None
+
+
+class SubscribeCommandTest(unittest.TestCase):
+    def setUp(self):
+        from bot.subscriptions import SubscriptionService, SubscriptionStore
+        self.dir = tempfile.mkdtemp()
+        self.store = SubscriptionStore(os.path.join(self.dir, "subs.json"))
+        self.service = SubscriptionService(self.store, FakeSubWorld())
+        self.ctx = Context(user_id="1", group_id="2", is_group=True)
+        self.router, _, _ = make_router(subscriptions=self.service)
+
+    def test_add_and_list(self):
+        reply = self.router.handle("#订阅 裂缝 生存", self.ctx)[0]
+        self.assertIn("已订阅", reply.text)
+        self.assertIn("裂缝·生存", reply.text)
+        subs = self.store.list_for("group", "2")
+        self.assertEqual(subs[0].kind, "fissure")
+        self.assertEqual(subs[0].keyword, "生存")
+        listed = self.router.handle("#订阅列表", self.ctx)[0]
+        self.assertIn("裂缝·生存", listed.text)
+
+    def test_duplicate(self):
+        self.router.handle("#订阅 仲裁", self.ctx)
+        reply = self.router.handle("#订阅 仲裁", self.ctx)[0]
+        self.assertIn("已经订阅过", reply.text)
+
+    def test_unknown_kind(self):
+        reply = self.router.handle("#订阅 绝路", self.ctx)[0]
+        self.assertIn("看不懂", reply.text)
+        self.assertEqual(self.store.list_for("group", "2"), [])
+
+    def test_help_without_argument(self):
+        reply = self.router.handle("#订阅", self.ctx)[0]
+        self.assertIn("裂缝", reply.text)
+        self.assertIn("仲裁", reply.text)
+
+    def test_unsubscribe(self):
+        self.router.handle("#订阅 回廊", self.ctx)
+        reply = self.router.handle("#取消订阅 回廊", self.ctx)[0]
+        self.assertIn("已取消", reply.text)
+        self.assertEqual(self.store.list_for("group", "2"), [])
+
+    def test_price_alert_still_works(self):
+        alerts = AlertStore(os.path.join(self.dir, "alerts.json"))
+        router, _, _ = make_router(alerts=alerts)
+        router.handle("#提醒 绝路 50", self.ctx)
+        self.assertEqual(len(alerts.list_for("group", "2")), 1)
+
+
 class RivenAnalysisCommandTest(unittest.TestCase):
     def setUp(self):
         self.ctx = Context(user_id="1", group_id="2", is_group=True)
@@ -446,6 +507,18 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertIsNone(router.parse("唤醒", allow_bare=True))
         self.assertEqual(router.parse("#紫卡分析绝路"),
                          ("riven_analysis", "绝路"))
+
+    def test_parse_bare_requires_whole_word(self):
+        """裸词唤醒只认独立的词：句子里夹带「仲裁」「回廊」不该触发。"""
+        router, _, _ = make_router()
+        self.assertEqual(router.parse("仲裁", allow_bare=True), ("arbitration", ""))
+        self.assertEqual(router.parse("回廊", allow_bare=True), ("circuit", ""))
+        for sentence in ("仲裁什么时候刷新", "仲裁 怎么打", "回廊怎么进",
+                         "今天仲裁是啥", "突击打哪个好"):
+            self.assertIsNone(router.parse(sentence, allow_bare=True), sentence)
+        # 带参数的命令仍支持连写，但明显是聊天句子就不接
+        self.assertEqual(router.parse("查绝路", allow_bare=True), ("query", "绝路"))
+        self.assertIsNone(router.parse("紫卡分析这个怎么样", allow_bare=True))
 
     def test_split_roll_args(self):
         self.assertEqual(split_roll_args("绝路 伤害=165 多重=90"),

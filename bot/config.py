@@ -127,6 +127,13 @@ DEFAULTS: Dict[str, Any] = {
         "check_seconds": 300,
         "max_per_chat": 20,
     },
+    "subscriptions": {
+        "enabled": True,
+        "file": "data/subscriptions.json",
+        "check_seconds": 120,
+        "max_per_chat": 20,
+        "seen_limit": 400,
+    },
     "auto_update": {
         "enabled": True,
         "interval_seconds": 21600,
@@ -390,6 +397,14 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         60, _as_int(alerts["check_seconds"], "alerts.check_seconds", 60))
     alerts["max_per_chat"] = max(
         1, _as_int(alerts["max_per_chat"], "alerts.max_per_chat", 1))
+
+    subs = cfg["subscriptions"]
+    subs["check_seconds"] = max(
+        60, _as_int(subs["check_seconds"], "subscriptions.check_seconds", 60))
+    subs["max_per_chat"] = max(
+        1, _as_int(subs["max_per_chat"], "subscriptions.max_per_chat", 1))
+    subs["seen_limit"] = max(
+        50, _as_int(subs["seen_limit"], "subscriptions.seen_limit", 50))
 
     return cfg
 

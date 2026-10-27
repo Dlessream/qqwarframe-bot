@@ -999,6 +999,8 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s今日仲裁 / %s高效仲裁" % (prefix, prefix), "未来 24 小时轮换、高价值仲裁"],
         ["%s提醒 <名称> <价>" % prefix, "降价提醒"],
         ["%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"],
+        ["%s订阅 <类型> [筛选]" % prefix, "新内容出现就推送到群"],
+        ["%s订阅列表 / %s取消订阅" % (prefix, prefix), "管理事件订阅"],
         ["%s更新 / %s数据状态" % (prefix, prefix), "刷新缓存、查看数据源"],
         ["%swiki <关键词>" % prefix, "英文维基"],
         ["%s翻译 <物品名>" % prefix, "中英双语对照"],
