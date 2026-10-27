@@ -794,6 +794,10 @@ class BoardClient:
                         if (not flags and len(candidates) <= 1
                                 and _as_int(candidates[0][0]) >= self.bait_price_floor):
                             legacy = True
+                        if (legacy and len(candidates) <= 1
+                                and _as_int(candidates[0][0]) < self.bait_price_floor):
+                            # 便宜的单条价格不可疑：撤销待核实标记，别排进重扫队列
+                            legacy = False
                         if legacy and not full:
                             self._legacy_riven += 1
                         record = {"t": _as_float(entry[0]), "c": candidates}

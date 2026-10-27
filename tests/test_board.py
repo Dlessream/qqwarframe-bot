@@ -322,6 +322,20 @@ class RivenBaitFilterTest(unittest.TestCase):
         self.assertEqual([(quote.slug, quote.price) for quote in board.riven_quotes()],
                          [("soma", 800)])
 
+    def test_cheap_single_candidate_drops_legacy_flag(self):
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        # 上一版把便宜的单条条目也标了待核实（标志位 bit0），这次要撤销
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"version": 2, "riven": {
+                "soma": [1.7e9, [[800, 8, "honest",
+                                  ["多重射击 +98.1%"], "", 1]], 1]}}, handle)
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        entry = board._quotes["riven"]["soma"]
+        self.assertNotIn("v", entry)
+        self.assertEqual(entry["t"], 1.7e9)     # 不进重扫队列
+        self.assertEqual(board._legacy_riven, 0)
+        self.assertEqual([quote.price for quote in board.riven_quotes()], [800])
+
     def test_single_candidate_after_full_fetch_is_listed(self):
         path = os.path.join(tempfile.mkdtemp(), "board.json")
         # 标志位 bit1（=2）：已按新接口完整抓过，市场真的只有这一单
