@@ -688,6 +688,16 @@ class ArbitrationCommandTest(unittest.TestCase):
         replies = router.handle("#仲裁表 99", self.ctx)
         self.assertIn("未来 7 天共 168 场", replies[0].text)
 
+    def test_schedule_text_is_capped(self):
+        """文字版每天最多 4 场，7 天也不该刷屏，剩下的指向图片。"""
+        router, _, _ = make_router(arbi=FakeArbi())
+        replies = router.handle("#仲裁表", self.ctx)
+        lines = [line for line in replies[0].text.splitlines() if line.strip()]
+        self.assertLessEqual(len(lines), 7 * 7 + 4)
+        self.assertIn("见图片", replies[0].text)
+        # 每天 24 场全是 A+，明细只列 4 场，其余合并成一行
+        self.assertEqual(replies[0].text.count("· A+"), 4 * 7)
+
     def test_schedule_disabled(self):
         router, _, _ = make_router(arbi=None)
         replies = router.handle("#仲裁表", self.ctx)

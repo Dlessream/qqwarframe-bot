@@ -26,6 +26,9 @@ PLATFORM_LABELS = {
     "mobile": "Mobile",
 }
 
+# 仲裁表文字版每天最多列几场（S 优先），避免 7 天 168 行刷屏
+TEXT_HIGHLIGHTS_PER_DAY = 4
+
 
 def platform_label(platform: Optional[str]) -> str:
     return PLATFORM_LABELS.get((platform or "pc").lower(), (platform or "PC").upper())
@@ -855,18 +858,25 @@ def arbitration_week_reply(entries, days: int = 7) -> Reply:
             "badge": badge,
             "rows": day_rows,
         })
-        # 文本只列 S / A+ 的重点场次，完整 168 场在图片里
+        # 文本只列每天最值得打的几场（S 优先），完整排期在图片里
         text_lines.append("—— %s · %d 场 ——" % (_arbi_day_label(rows[0][0]),
                                               len(rows)))
-        for start, _end, node, tier in rows:
-            if tier not in ("S", "A+"):
-                continue
+        highlights = [row for row in rows if row[3] in ("S", "A+")]
+        highlights.sort(key=lambda row: (0 if row[3] == "S" else 1, row[0]))
+        shown = highlights[:TEXT_HIGHLIGHTS_PER_DAY]
+        for start, _end, node, tier in shown:
             text_lines.append("  %s %s · %s · %s" % (
                 time.strftime("%H:00", time.localtime(start)),
                 node.display_name, _arbi_mission(node.mission), tier))
-        rest = sum(1 for _s, _e, _n, tier in rows if tier not in ("S", "A+"))
+        hidden_high = len(highlights) - len(shown)
+        rest = len(rows) - len(shown) - hidden_high
+        tail = []
+        if hidden_high:
+            tail.append("S / A+ 还有 %d 场" % hidden_high)
         if rest:
-            text_lines.append("  另有 %d 场 A / A- / B / C" % rest)
+            tail.append("A / A- / B / C %d 场" % rest)
+        if tail:
+            text_lines.append("  另有 %s，见图片" % "、".join(tail))
 
     subtitle = "未来 %d 天共 %d 场 · 每场 1 小时 · 按本机时区" % (days, total)
     note = "S / A+ 级已标出；任务颜色与仲裁卡片、控制台配色一致。"
