@@ -134,8 +134,9 @@ class ServiceTest(unittest.TestCase):
                                            mission="Defense")]
         pushes = self.service.poll()
         self.assertEqual(len(pushes), 1)
-        chat_id, reply = pushes[0]
+        chat_id, reply, at_user = pushes[0]
         self.assertEqual(chat_id, "1")
+        self.assertEqual(at_user, "9")                 # 订阅人，推送时 @ 他
         self.assertIn("E Prime", reply.text)
         self.assertNotIn("Mantle", reply.text)         # 只推新增的那条
         self.assertEqual(self.service.poll(), [])      # 不重复推

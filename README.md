@@ -683,7 +683,8 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 | `require_prefix` | `false` | 是否强制带前缀；`false` 时命令可直接发送 |
 | `allow_private` | `true` | 是否响应私聊 |
 | `respond_to_at` | `true` | @机器人 可免前缀 |
-| `at_sender` | `true` | 回复时 @ 提问者 |
+| `at_sender` | `false` | 回复命令时 @ 提问者（默认关，群里不刷屏） |
+| `at_subscription` | `true` | 订阅推送时 @ 订阅人（只有这里保留 @） |
 | `group_policy` | `whitelist` | 群策略：`whitelist` 只服务白名单（空名单=谁都不服务）、`blacklist` 除黑名单外都服务 |
 | `whitelist_groups` | `[]` | 群白名单；白名单制下**只有名单内的群会被响应** |
 | `blacklist_groups` | `[]` | 群黑名单；**永远不服务，优先级高于白名单** |
@@ -1011,7 +1012,7 @@ OCR 依赖：
 python -m unittest discover -s tests -t . -v
 ```
 
-**616 个离线测试**，不联网、不连 QQ，覆盖：
+**622 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1087,7 +1088,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 616 个测试 + fixtures
+├── tests/                 # 622 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

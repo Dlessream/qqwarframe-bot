@@ -1090,8 +1090,9 @@ class BotApp:
                group_id: str, user_id: str) -> None:
         first = True
         for reply in replies:
+            # 默认不 @ 提问的人（群里刷屏太吵），要打开就配 at_sender = true
             at_user = user_id if (is_group and first
-                                  and self.behavior.get("at_sender", True)) else ""
+                                  and self.behavior.get("at_sender", False)) else ""
             sent = self._deliver(is_group, group_id if is_group else user_id,
                                  reply, at_user=at_user)
             if sent:
@@ -1158,13 +1159,15 @@ class BotApp:
         if not pushes:
             return
         self.log.info("订阅推送：%d 条", len(pushes))
-        for chat_id, reply in pushes:
+        for chat_id, reply, at_user in pushes:
             if self._stop.is_set():
                 return
             if not self._group_allowed(chat_id):
                 continue
+            # 订阅推送保留 @：@ 的是当初订阅这条的人，方便他知道有新内容
+            at = at_user if self.behavior.get("at_subscription", True) else ""
             try:
-                self._deliver(True, chat_id, reply)
+                self._deliver(True, chat_id, reply, at_user=at)
             except Exception as exc:  # pragma: no cover - 防御
                 self.log.warning("订阅推送失败（%s）：%s", chat_id, exc)
             time.sleep(0.4)

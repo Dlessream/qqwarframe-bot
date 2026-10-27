@@ -466,14 +466,17 @@ class SubscriptionService:
             return
         self.store.mark_seen(sub, [event["key"] for event in events])
 
-    def poll(self) -> List[Tuple[str, Reply]]:
-        """检查一轮；返回 [(群号, 待推送 Reply), ...]。"""
+    def poll(self) -> List[Tuple[str, Reply, str]]:
+        """检查一轮；返回 [(群号, 待推送 Reply, 订阅人 QQ), ...]。
+
+        订阅人用来在推送时 @ 一下（普通回复不 @，只有订阅推送 @）。
+        """
         self._cache.clear()
         subs = self.store.active()
         if not subs:
             return []
         seed_only = not self._primed
-        pushes: List[Tuple[str, Reply]] = []
+        pushes: List[Tuple[str, Reply, str]] = []
         for sub in subs:
             try:
                 events = self.events(sub.kind)
@@ -495,7 +498,7 @@ class SubscriptionService:
                     self.log.warning("订阅出图失败（%s）：%s", sub.kind, exc)
                     replies = []
                 for reply in replies:
-                    pushes.append((sub.chat_id, reply))
+                    pushes.append((sub.chat_id, reply, sub.user_id))
             if unseen:
                 self.store.mark_seen(sub, keys)
         self._primed = True

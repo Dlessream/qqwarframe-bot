@@ -27,7 +27,8 @@ DEFAULTS: Dict[str, Any] = {
         "require_prefix": False,
         "allow_private": True,
         "respond_to_at": True,
-        "at_sender": True,
+        "at_sender": False,
+        "at_subscription": True,
         "whitelist_groups": [],
         "blacklist_groups": [],
         # whitelist：只服务白名单里的群；白名单为空时谁都不服务（默认，最安全）
