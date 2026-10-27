@@ -985,8 +985,12 @@ class CommandRouter:
                 self._subscribe_help(ctx), self._subscribe_lines(ctx)))
         kind, keyword = parse_kind(argument)
         if kind is None:
+            hint = ""
+            if any(token.isdigit() for token in argument.split()):
+                hint = "\n价格提醒请用 %s提醒 <名称> <目标价>。" % ctx.prefix
             return present.error_reply(
-                "看不懂订阅类型「%s」。\n%s" % (argument, self._subscribe_help(ctx)))
+                "看不懂订阅类型「%s」。%s\n%s" % (
+                    argument, hint, self._subscribe_help(ctx)))
         try:
             sub, created = self.subscriptions.store.add(
                 ctx.chat_type, ctx.chat_id, ctx.user_id, kind, keyword)
