@@ -265,6 +265,19 @@ class RivenBaitFilterTest(unittest.TestCase):
         self.assertEqual([quote.price for quote in board.riven_quotes()],
                          [500, 500, 500])
 
+    def test_legacy_cache_kept_but_marked_stale(self):
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        # v1 格式：每把武器只有一条 [价格, 一口价, 卖家, 词条, 上架时间, 抓取时间]
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"version": 1, "riven": {
+                "soma": [50000, 1, "troll", ["暴击几率 +161.1%"],
+                         "2026-10-26T10:00:00", 1e9]}}, handle)
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        entry = board._quotes["riven"]["soma"]
+        self.assertEqual(entry["c"][0][0], 50000)
+        self.assertEqual(entry["t"], 0.0)          # 立刻进重扫队列
+        self.assertEqual(board._legacy_riven, 1)
+
     def test_cache_roundtrip_keeps_candidates(self):
         path = os.path.join(tempfile.mkdtemp(), "board.json")
         board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})

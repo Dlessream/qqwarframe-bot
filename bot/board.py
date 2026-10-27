@@ -245,6 +245,7 @@ class BoardClient:
         self._cursor: Dict[str, int] = {_KIND_JUNK: 0, _KIND_FRAME: 0, _KIND_RIVEN: 0}
         self._targets_at = 0.0
         self._attr_names: Optional[Dict[str, str]] = None
+        self._legacy_riven = 0
         self._ban_until = 0.0
         self._ok_streak = 0
         self._recent: Deque[float] = deque()
@@ -737,12 +738,15 @@ class BoardClient:
                     continue
                 if len(entry) >= 6 and not isinstance(entry[1], list):
                     # v1 旧格式：[价格, 一口价, 卖家, 词条, 时间, 抓取时间]
+                    # 只有一条候选、判断不了是不是钓鱼价，先留着显示，
+                    # 但把时间置 0 让它立刻进入重扫队列，按限流慢慢补全候选。
                     self._quotes[_KIND_RIVEN][slug] = {
-                        "t": _as_float(entry[5]),
+                        "t": 0.0,
                         "c": [[_as_int(entry[0]), 0, str(entry[2]),
                                list(entry[3] or []), str(entry[4]),
                                1 if _as_int(entry[1]) else 0]],
                     }
+                    self._legacy_riven += 1
                     continue
                 if len(entry) >= 2 and isinstance(entry[1], list):
                     # v2：[抓取时间, [[价格, 等级, 卖家, 词条, 上架时间, 一口价], ...]]
@@ -756,6 +760,8 @@ class BoardClient:
                     if candidates:
                         self._quotes[_KIND_RIVEN][slug] = {
                             "t": _as_float(entry[0]), "c": candidates}
+        if self._legacy_riven:
+            self.log.info("紫卡缓存是旧格式（%d 把），已标记为待重扫", self._legacy_riven)
 
     def _save(self, force: bool = False) -> None:
         if not self.cache_file:
