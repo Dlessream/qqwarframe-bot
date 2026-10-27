@@ -376,15 +376,21 @@ def read_texts(texts: Sequence[str]) -> List[Candidate]:
 
     除了「数值是多少」投票，还会单独记「这个数值在图上带的是 + 还是 -」的票数，
     校验阶段据此定正负。
+
+    **顺序要跟卡面一致**：每份文本都记下某条词条落在第几行（按总行数归一化），
+    取中位数排序。单份文本被倾斜、个别行漏读都不会把顺序带歪——紫卡词条在卡面上
+    的先后是固定的，输出顺序也得跟着它，不能按票数或字母重排。
     """
     votes: Dict[str, Counter] = defaultdict(Counter)
     signs: Dict[str, Dict[str, Counter]] = defaultdict(
         lambda: defaultdict(Counter))
     samples: Dict[str, Dict[str, str]] = defaultdict(dict)
     order: List[str] = []
+    rows_at: Dict[str, List[float]] = defaultdict(list)
 
     for text in texts:
         seen: Dict[str, set] = defaultdict(set)
+        stats_order: List[str] = []
         for line in _lines(text):
             try:
                 rolls = _line_rolls(line)
@@ -401,9 +407,15 @@ def read_texts(texts: Sequence[str]) -> List[Candidate]:
                 samples[name].setdefault(key, line[:44])
                 if name not in order:
                     order.append(name)
+                if name not in stats_order:
+                    stats_order.append(name)
+        # 记「这条词条在这份文本里排第几个」，只看词条之间的相对次序，
+        # 不受工具顶部的武器名、底部段位行数不同影响
+        for index, name in enumerate(stats_order):
+            rows_at[name].append(float(index))
 
     candidates: List[Candidate] = []
-    for name in order:
+    for name in sorted(order, key=lambda item: (_row_key(rows_at.get(item)),)):
         counter = votes.get(name) or Counter()
         if not counter:
             continue
@@ -418,6 +430,17 @@ def read_texts(texts: Sequence[str]) -> List[Candidate]:
                                     sample=best_sample,
                                     signs=candidate_signs))
     return candidates
+
+
+def _row_key(rows: Optional[Sequence[float]]) -> float:
+    """一条词条在卡面上的相对行位置（取中位数，抗漏读与倾斜）。"""
+    values = sorted(rows or [])
+    if not values:
+        return 1.0
+    size = len(values)
+    if size % 2:
+        return values[size // 2]
+    return (values[size // 2 - 1] + values[size // 2]) / 2.0
 
 
 def parse_text(text: str) -> List[Tuple[str, float]]:
@@ -470,15 +493,35 @@ class _Config:
 
 
 def _span_map(group: Sequence) -> Dict[str, Tuple[float, float]]:
-    """负面词条在数据表里存的是负数（如 -89.1 ~ -72.9），这里统一取绝对值，
-    好和从图上读到的「数值大小」直接比距离。"""
+    """词条范围，**保留符号**。
+
+    不能取绝对值：有些属性有益方向本身就是负的（后坐力，wiki 表里正面值写的就是
+    -90%），同一属性在正面槽位是负数、在负面槽位是正数。取绝对值会把这两种情况
+    压成一样，导致 `-100% 后坐力` 被当成负面词条。
+    """
     result: Dict[str, Tuple[float, float]] = {}
     for stat in group or []:
-        low, high = abs(stat.low), abs(stat.high)
+        low, high = stat.low, stat.high
         if low > high:
             low, high = high, low
         result[stat.name] = (low, high)
     return result
+
+
+def _expected_sign(span: Tuple[float, float]) -> str:
+    """这条槽位在卡面上应该带什么号。
+
+    范围整体是负数 → 卡面写 `-`（后坐力作正面词条、普通词条作负面都是这种）；
+    整体是正数 → 卡面写 `+`；跨过 0（比如穿透 1.8m、连击时间）→ 不强求。
+    """
+    low, high = span
+    if low > high:
+        low, high = high, low
+    if high < 0:
+        return "-"
+    if low > 0:
+        return "+"
+    return ""
 
 
 def _configs(analysis: RivenAnalysis) -> List[_Config]:
@@ -502,45 +545,53 @@ class Resolution:
     scale: float = 1.0
 
 
+# 「卡面上的符号没读到」时允许按范围把方向补回来，但要付一点代价：
+# 读过 `-` 的读数绝不翻转（那是卡面写明的），只有符号彻底丢了才试另一个方向。
+_SIGN_FIX_PENALTY = 1.5
+
+
 def _pick(candidate: Candidate, config: _Config, strict: bool = True,
           scale: float = 1.0):
-    """在这套配置的范围里挑一个读数；返回 (成本, 数值, 是否负面) 或 None。
+    """在这套配置的范围里挑一个读数；返回 (评分, 满级数值, 是否负面, 卡面数值) 或 None。
 
-    `strict` 为真时先听图上读到的符号：卡面写 `+` 就只往正向范围里放，
-    写 `-` 就只往负面范围里放。只有符号和这张卡的配置明显冲突时
-    （比如某个词条压根不可能为负），才退回只看范围。
+    `strict` 为真时先听图上读到的符号：卡面符号要和这条槽位「本该有的号」一致
+    （`_expected_sign`）。注意「本该有的号」不等于「正面就是 +」——后坐力作正面
+    词条时卡面写的正是 `-`，所以这里比的是槽位，不是正负。
     `scale` 是「卡面数值 / 满级数值」：没升满的卡要先除掉它再比范围。
     """
     best = None
     for value, votes in candidate.options:
-        magnitude = abs(value) / (scale or 1.0)
-        prefer = candidate.polarity(value)
-        positive_ok = (candidate.name in config.positives
-                       and not (strict and prefer == "-"))
-        negative_ok = (candidate.name in config.negatives
-                       and not (strict and prefer == "+"))
-        if not positive_ok and not negative_ok:
-            # 符号和这条词条能对上的正负冲突了，多半是符号被读错，退回只看范围
-            positive_ok = candidate.name in config.positives
-            negative_ok = candidate.name in config.negatives
-        if not positive_ok and not negative_ok:
+        scaled = value / (scale or 1.0)
+        prefer = candidate.polarity(value)  # 卡面上读到的是 + 还是 -
+        slots: List[Tuple[Tuple[float, float], bool]] = []
+        if candidate.name in config.positives:
+            slots.append((config.positives[candidate.name], False))
+        if candidate.name in config.negatives:
+            slots.append((config.negatives[candidate.name], True))
+        if not slots:
             return None
-
-        choices = []
-        if positive_ok:
-            choices.append((_distance(magnitude, config.positives[candidate.name]),
-                            False))
-        if negative_ok:
-            choices.append((_distance(magnitude, config.negatives[candidate.name]),
-                            True))
-        for gap, negative in choices:
-            # 同样贴近时：票多的优先，其次保持图上读到的正负
-            mismatch = 1 if (value < 0) != negative else 0
+        ordered = slots
+        if strict and prefer:
+            matched = [slot for slot in slots
+                       if _expected_sign(slot[0]) in ("", prefer)]
+            if matched:
+                ordered = matched
+        for span, negative in ordered:
+            # 输出用槽位该有的号：卡面写的本来就该是这个号
+            sign = _expected_sign(span) or prefer or ("-" if value < 0 else "+")
+            plain = _distance(scaled, span)
+            gap, flipped = plain, False
+            if not prefer:
+                # 符号没读到：`79.3` 可能是 `-79.3` 少读了减号，两个方向都试，
+                # 翻转要付代价，免得把真·正数硬翻成负数
+                mirrored = _distance(-scaled, span) + _SIGN_FIX_PENALTY
+                if mirrored < gap:
+                    gap, flipped = mirrored, True
+            signed = abs(value) * (-1.0 if sign == "-" else 1.0)
+            mismatch = 0 if (not prefer or sign == prefer) else 1
             score = (gap, -votes, mismatch)
             if best is None or score < best[0]:
-                # 返回的是「换算到满级」的数值（用来比范围），
-                # 卡面原值单独带出去——最终要按卡面输出
-                best = (score, magnitude, negative, abs(value))
+                best = (score, scaled, negative, signed, flipped)
     return best
 
 
@@ -629,20 +680,21 @@ def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
                 if picked is None:
                     failed = True
                     break
-                score, magnitude, negative, raw = picked
-                gap = score[0]
-                cost += gap
+                score, scaled, negative, signed, flipped = picked
+                # 只把「真的超范围」算进贴合度；「补符号」的代价只参与排序
+                gap = score[0] - (_SIGN_FIX_PENALTY if flipped else 0.0)
+                cost += score[0]
                 votes += -score[1]
                 mismatch += score[2]
                 # 「贴合」要求数值真的落在该配置的范围里（只容忍几分的误差）。
                 # 差得远的说明这一套配置根本不是这张卡的配置。
-                if gap > max(_FIT_SLACK, magnitude * 0.05):
+                if gap > max(_FIT_SLACK, abs(scaled) * 0.05):
                     unfit += 1
                 if negative:
                     negatives += 1
                 else:
                     positives += 1
-                picks.append((candidate.name, raw, negative, gap))
+                picks.append((candidate.name, signed, negative, gap))
             if failed:
                 continue
             if (positives, negatives) != (config.want_positive, config.want_negative):
@@ -685,8 +737,11 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
         return Resolution(notes=notes)
 
     if len(usable) > _MAX_CANDIDATES:
-        usable.sort(key=lambda item: -item.votes_total)
-        del usable[_MAX_CANDIDATES:]
+        # 只留票最多的几条，但**保留卡面顺序**：候选数过多时要剪枝，
+        # 不能顺手把词条位置重排了
+        keep = sorted(range(len(usable)),
+                      key=lambda index: -usable[index].votes_total)[:_MAX_CANDIDATES]
+        usable = [usable[index] for index in sorted(keep)]
 
     conflicts = _conflicts(usable)
     has_signs = any(candidate.polarity(value)
@@ -744,10 +799,9 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
     _key, config, picks, dropped = best
     scale = best_scale or 1.0
     pairs: List[Tuple[str, float]] = []
-    for name, magnitude, negative, gap in picks:
-        value = -magnitude if negative else magnitude
+    for name, value, negative, gap in picks:
         if gap > 1.0:
-            notes.append("%s %.1f%% 略超 %s 配置范围，请核对原图"
+            notes.append("%s %+g%% 略超 %s 配置范围，请核对原图"
                          % (name, value, config.label))
         pairs.append((name, value))
     for candidate in dropped:

@@ -11,7 +11,7 @@ import unittest
 
 from bot import ocr, rivenocr
 from bot.riven import RivenWeapon
-from bot.rivencalc import calculate
+from bot.rivencalc import calculate, evaluate_roll
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures",
                        "riven_ocr_samples.json")
@@ -254,6 +254,77 @@ class SignTest(unittest.TestCase):
         result = rivenocr.resolve(cards, self.analysis)
         self.assertEqual(len(result.pairs), 4)
         self.assertNotIn("弹药效率", [name for name, _value in result.pairs])
+
+
+class InvertedStatTest(unittest.TestCase):
+    """后坐力这类「有益方向是负值」的词条：卡面上的 `-` 不代表它是负面词条。
+
+    wiki 的属性表里后坐力的正面基础值写的就是 -90%，所以正面词条显示成
+    `-105.0% 后坐力`，而它属于 2+/3+ 里的正向词条；反过来 `+80% 后坐力`
+    （后坐力变大）才是负面词条。
+    """
+
+    def setUp(self):
+        self.analysis = calculate(FURIS)
+
+    def test_negative_recoil_is_a_positive_stat(self):
+        result = rivenocr.resolve([
+            rivenocr.Candidate("后坐力", [(-105.0, 10)], signs={"-105.0": (0, 8)}),
+            rivenocr.Candidate("多重射击", [(143.1, 10)], signs={"143.1": (8, 0)}),
+        ], self.analysis)
+        self.assertEqual(result.config, "2+")
+        self.assertEqual(result.pairs, [("后坐力", -105.0), ("多重射击", 143.1)])
+        self.assertEqual(result.notes, [])
+
+    def test_positive_recoil_is_the_curse(self):
+        result = rivenocr.resolve([
+            rivenocr.Candidate("多重射击", [(160.0, 10)], signs={"160.0": (8, 0)}),
+            rivenocr.Candidate("触发几率", [(130.0, 10)], signs={"130.0": (8, 0)}),
+            rivenocr.Candidate("火焰伤害", [(130.0, 10)], signs={"130.0": (8, 0)}),
+            rivenocr.Candidate("后坐力", [(80.0, 10)], signs={"80.0": (8, 0)}),
+        ], self.analysis)
+        self.assertEqual(result.config, "3+1")
+        self.assertEqual(dict(result.pairs)["后坐力"], 80.0)
+        evaluations = evaluate_roll(self.analysis, result.pairs, result.scale)
+        recoil = [item for item in evaluations if item.name == "后坐力"][0]
+        self.assertTrue(recoil.negative)
+
+    def test_minus_recoil_is_not_the_curse(self):
+        """以前的实现在这里会反过来：`-105% 后坐力` 被当成负面词条。"""
+        result = rivenocr.resolve([
+            rivenocr.Candidate("后坐力", [(-105.0, 10)], signs={"-105.0": (0, 8)}),
+            rivenocr.Candidate("多重射击", [(143.1, 10)], signs={"143.1": (8, 0)}),
+        ], self.analysis)
+        evaluations = evaluate_roll(self.analysis, result.pairs, result.scale)
+        recoil = [item for item in evaluations if item.name == "后坐力"][0]
+        self.assertFalse(recoil.negative)
+        self.assertEqual(recoil.value, -105.0)
+
+
+class OrderTest(unittest.TestCase):
+    """词条顺序必须和卡面一致：卡面上在上面的一条，结果里也在上面。"""
+
+    CARD = ["多重射击", "触发几率", "弹药最大值", "火焰伤害"]
+    LINES = ["+143.1% 多重射击", "+102.9% 触发几率",
+             "-79.3% 弹药最大值", "+92.1% 火焰伤害"]
+
+    def test_order_follows_the_card(self):
+        texts = ["\n".join(self.LINES)]
+        self.assertEqual([item.name for item in rivenocr.read_texts(texts)],
+                         self.CARD)
+
+    def test_scrambled_variant_does_not_reorder(self):
+        """有一份预处理把行读反了，也不能把顺序带歪。"""
+        texts = ["\n".join(self.LINES), "\n".join(reversed(self.LINES)),
+                 "\n".join(self.LINES)]
+        self.assertEqual([item.name for item in rivenocr.read_texts(texts)],
+                         self.CARD)
+
+    def test_resolve_keeps_the_order(self):
+        texts = ["\n".join(reversed(self.LINES)), "\n".join(self.LINES),
+                 "\n".join(self.LINES)]
+        result = resolve_texts(texts, FURIS)
+        self.assertEqual([name for name, _value in result.pairs], self.CARD)
 
 
 class ResolveTest(unittest.TestCase):
