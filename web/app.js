@@ -114,6 +114,18 @@
     return text;
   }
 
+  function rotationText(rotation) {
+    if (!rotation || rotation.enabled === false) return "未启用";
+    const parts = [];
+    parts.push("言录使 " + (rotation.acrithis ? "已获取" : "待抓取"));
+    parts.push("信条 " + Number(rotation.glast || 0) + "/5");
+    parts.push("终幕 " + Number(rotation.coda_a || 0) + "+" +
+      Number(rotation.coda_b || 0));
+    let text = parts.join(" ｜ ");
+    if (rotation.error) text += "（抓取失败）";
+    return text;
+  }
+
   function render(status) {
     state.status = status;
     const conn = status.onebot || {};
@@ -126,6 +138,7 @@
     setText("rivenCount", Number(status.riven && status.riven.weapons || 0).toLocaleString("zh-CN"));
     setText("lastUpdate", status.updater && status.updater.last_run ? formatTime(status.updater.last_run) : "尚未运行");
     setText("boardState", boardText(status.board));
+    setText("rotationState", rotationText(status.rotation));
     setText("alertCount", status.alerts == null ? "—" : status.alerts);
     const groups = status.groups || {};
     setText("groupPolicy", "白 " + Number((groups.whitelist || []).length) +

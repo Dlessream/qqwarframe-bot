@@ -246,6 +246,8 @@ def render_help(prefix: str = "#") -> str:
         "%s紫卡                最贵零洗紫卡榜（高 → 低）" % prefix,
         "%s紫卡分析 + 截图                  自动识别武器/词条/负面" % prefix,
         "%s紫卡分析 <武器> [词条=数值 ...]  范围 + roll 评分" % prefix,
+        "%s轮换               言录使 / 格拉斯 / 埃莉诺 轮换商店" % prefix,
+        "%s轮换 <言录使|格拉斯|埃莉诺>  单个商店明细" % prefix,
         "%s奸商 / %s突击 / %s仲裁  世界状态" % (prefix, prefix, prefix),
         "%s世界状态           全量世界状态总览" % prefix,
         "%s警报 / %s入侵 / %s裂缝" % (prefix, prefix, prefix),

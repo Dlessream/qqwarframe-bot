@@ -169,5 +169,20 @@
     "window_seconds": 300,
     "max_requests_per_window": 35,
     "save_every": 25
+  },
+  "rotation": {
+    "enabled": true,
+    "cache_file": "data/rotation_cache.json",
+    "proxy": "http://127.0.0.1:10809",
+    "proxy_mode": "auto",
+    "proxy_fallbacks": [
+      "none"
+    ],
+    "refresh_seconds": 1800,
+    "tick_seconds": 60,
+    "timeout_seconds": 25,
+    "use_jina": true,
+    "jina_base": "https://r.jina.ai/",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
   }
 }

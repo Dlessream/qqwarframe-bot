@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -676,6 +677,102 @@ class BoardCommandTest(unittest.TestCase):
 
     def test_disabled_without_board(self):
         reply = self.router(None).handle("#金垃圾", self.ctx)[0]
+        self.assertIn("未启用", reply.text)
+
+
+class FakeRotation:
+    """轮换商店假数据：命令层只读快照。"""
+
+    def __init__(self, ready=True, error=""):
+        self.ready = ready
+        self.error = error
+
+    def snapshot(self):
+        return {"data": {}, "fetched": {}, "error": self.error}
+
+    def acrithis_view(self):
+        rows = ([{"name": "霰弹枪裂罅 Mod", "short": "霰弹裂罅", "cost": 15,
+                  "en": "Shotgun Riven Mod"},
+                 {"name": "Forma 蓝图", "short": "Forma", "cost": 10,
+                  "en": "Forma"}] if self.ready else [])
+        return {"observed": "10 月 26 日", "rows": rows,
+                "fetched": time.time(), "next": time.time() + 5 * 86400}
+
+    def glast_view(self):
+        rows = [{"name": "信条·铁晶磁轨炮", "element": "辐射", "percent": 38.4},
+                {"name": "信条·枢密", "element": "磁力", "percent": 43.9}]
+        if not self.ready:
+            rows = [{"name": "信条·铁晶磁轨炮", "element": "", "percent": 0.0}]
+        return {"rows": rows, "fetched": time.time(),
+                "next": time.time() + 2 * 86400, "complete": self.ready}
+
+    def eleanor_view(self, now=None):
+        rows = [{"name": "终幕·血肢", "element": "冰冻", "percent": 25.6},
+                {"name": "终幕·脓痘", "element": "毒素", "percent": 54.3}]
+        if not self.ready:
+            rows = [{"name": "终幕·血肢", "element": "", "percent": 0.0}]
+        return {"batch": "B", "rows": rows, "fetched": time.time(),
+                "next": time.time() + 2 * 86400, "complete": self.ready}
+
+
+class RotationCommandTest(unittest.TestCase):
+    def setUp(self):
+        self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
+
+    def router(self, rotation):
+        router, _market, _wiki = make_router()
+        router.rotation = rotation
+        return router
+
+    def test_parse_commands(self):
+        router = self.router(FakeRotation())
+        self.assertEqual(router.parse("#轮换"), ("rotation", ""))
+        self.assertEqual(router.parse("#轮换 言录使"), ("rotation", "言录使"))
+        self.assertEqual(router.parse("#言录使")[0], "rotation_acrithis")
+        self.assertEqual(router.parse("#格拉斯")[0], "rotation_glast")
+        self.assertEqual(router.parse("#埃莉诺")[0], "rotation_eleanor")
+        self.assertEqual(router.parse("#轮换商店")[0], "rotation")
+
+    def test_overview(self):
+        reply = self.router(FakeRotation()).handle("#轮换", self.ctx)[0]
+        self.assertIn("言录使", reply.text)
+        self.assertIn("埃尔戈·格拉斯", reply.text)
+        self.assertIn("埃莉诺", reply.text)
+        self.assertIn("霰弹裂罅", reply.text)
+        self.assertIn("B 批", reply.text)
+        self.assertTrue(reply.has_image)
+
+    def test_acrithis_detail(self):
+        reply = self.router(FakeRotation()).handle("#轮换 言录使", self.ctx)[0]
+        self.assertIn("15 苦栓", reply.text)
+        self.assertIn("Forma 蓝图", reply.text)
+        self.assertIn("10 月 26 日", reply.text)
+        self.assertTrue(reply.has_image)
+
+    def test_glast_detail(self):
+        reply = self.router(FakeRotation()).handle("#轮换 格拉斯", self.ctx)[0]
+        self.assertIn("信条·铁晶磁轨炮", reply.text)
+        self.assertIn("辐射 38.4%", reply.text)
+        self.assertIn("40 堕落全息密钥", reply.text)
+
+    def test_eleanor_detail(self):
+        reply = self.router(FakeRotation()).handle("#轮换 埃莉诺", self.ctx)[0]
+        self.assertIn("B 批", reply.text)
+        self.assertIn("终幕·脓痘", reply.text)
+        self.assertIn("毒素 54.3%", reply.text)
+
+    def test_unknown_shop_hint(self):
+        reply = self.router(FakeRotation()).handle("#轮换 奸商", self.ctx)[0]
+        self.assertIn("怎么查", reply.text)
+
+    def test_partial_data(self):
+        reply = self.router(FakeRotation(ready=False)).handle("#轮换 格拉斯",
+                                                             self.ctx)[0]
+        self.assertIn("未上报", reply.text)
+        self.assertIn("还没抓到", reply.text)
+
+    def test_disabled_without_rotation(self):
+        reply = self.router(None).handle("#轮换", self.ctx)[0]
         self.assertIn("未启用", reply.text)
 
 

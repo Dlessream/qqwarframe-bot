@@ -69,6 +69,14 @@ COMMANDS: Dict[str, str] = {
     "今日仲裁": "today_arbitration", "高效仲裁": "effective_arbitration",
     "深层科研": "deep_research", "时光科研": "temporal_research",
     "科研": "research",
+    "轮换": "rotation", "周轮换": "rotation", "每周轮换": "rotation",
+    "轮换商店": "rotation", "rotation": "rotation", "weekly": "rotation",
+    "言录使": "rotation_acrithis", "acrithis": "rotation_acrithis",
+    "格拉斯": "rotation_glast", "埃尔戈·格拉斯": "rotation_glast",
+    "格拉斯特": "rotation_glast", "ergo": "rotation_glast",
+    "glast": "rotation_glast",
+    "埃莉诺": "rotation_eleanor", "eleanor": "rotation_eleanor",
+    "终幕": "rotation_eleanor", "终幕武器": "rotation_eleanor",
     "提醒": "alert", "订阅": "alert", "alert": "alert", "watch": "alert",
     "提醒列表": "alerts", "我的提醒": "alerts", "alerts": "alerts",
     "取消提醒": "unalert", "删除提醒": "unalert", "unalert": "unalert",
@@ -100,6 +108,25 @@ PLATFORM_ALIASES = {
     "switch": "switch", "ns": "switch", "sw": "switch",
     "mobile": "mobile", "手机": "mobile", "ios": "mobile", "安卓": "mobile",
 }
+
+# 轮换商店：#轮换 后面可以跟的关键词
+ROTATION_SHOPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("acrithis", ("言录使", "acrithis", "双衍", "王境", "苦栓")),
+    ("glast", ("格拉斯", "格拉斯特", "埃尔戈", "ergo", "glast", "信条", "近战")),
+    ("eleanor", ("埃莉诺", "eleanor", "终幕", "1999", "心肌")),
+)
+ROTATION_ALL = ("", "全部", "总览", "all", "overview", "?")
+
+
+def rotation_shop(argument: str) -> Optional[str]:
+    """把 `#轮换 xxx` 的参数翻译成商店 key；看不懂返回 None。"""
+    text = (argument or "").strip().lower()
+    if text in ROTATION_ALL:
+        return "all"
+    for key, aliases in ROTATION_SHOPS:
+        if any(alias in text for alias in aliases):
+            return key
+    return None
 
 
 class CommandError(Exception):
@@ -168,7 +195,8 @@ class CommandRouter:
                  arbi: Optional[ArbiClient] = None,
                  updater: Optional[DataUpdater] = None,
                  translator=None,
-                 board=None):
+                 board=None,
+                 rotation=None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
@@ -187,6 +215,7 @@ class CommandRouter:
         self.arbi = arbi
         self.updater = updater
         self.board = board
+        self.rotation = rotation
 
     # ------------------------------------------------------------------ 解析
     def parse(self, text: str,
@@ -288,6 +317,14 @@ class CommandRouter:
                 return [self._junk(25, ctx)]
             if command == "junk_overview":
                 return [self._junk_overview(ctx)]
+            if command == "rotation":
+                return [self._rotation(argument, ctx)]
+            if command == "rotation_acrithis":
+                return [self._rotation("言录使", ctx)]
+            if command == "rotation_glast":
+                return [self._rotation("格拉斯", ctx)]
+            if command == "rotation_eleanor":
+                return [self._rotation("埃莉诺", ctx)]
             if command == "riven_analysis":
                 return [self._riven_analysis(argument, ctx)]
             if command == "update":
@@ -548,6 +585,34 @@ class CommandRouter:
             return self._scanning_reply("垃圾行情", ready, total)
         return present.junk_overview_reply(
             groups, present.platform_label(self.default_platform))
+
+    def _rotation(self, argument: str, ctx: Context) -> Reply:
+        """#轮换 / #轮换 言录使 / 格拉斯 / 埃莉诺。"""
+        if self.rotation is None:
+            return present.error_reply("轮换商店未启用（rotation.enabled = false）。")
+        shop = rotation_shop(argument)
+        if shop is None:
+            return present.error_reply(
+                "轮换商店怎么查：\n"
+                "#轮换 —— 三个商店总览（含倒计时）\n"
+                "#轮换 言录使 —— 本周 5 件（双衍王境 · 苦栓）\n"
+                "#轮换 格拉斯 —— 信条近战 5 把的元素与加成\n"
+                "#轮换 埃莉诺 —— 当前批次的终幕武器")
+        state = self.rotation.snapshot()
+        error = str(state.get("error") or "")
+        acrithis = self.rotation.acrithis_view()
+        glast = self.rotation.glast_view()
+        eleanor = self.rotation.eleanor_view()
+        if shop == "acrithis":
+            reply = present.acrithis_reply(acrithis)
+        elif shop == "glast":
+            reply = present.glast_reply(glast)
+        elif shop == "eleanor":
+            reply = present.eleanor_reply(eleanor)
+        else:
+            reply = present.rotation_overview_reply(acrithis, glast, eleanor,
+                                                    error=error)
+        return reply
 
     def _frame_rank(self, ctx: Context) -> Reply:
         if self.board is None:

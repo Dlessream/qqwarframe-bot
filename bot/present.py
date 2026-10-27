@@ -1374,10 +1374,174 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
             aligns=["right", "left", "right", "left"]))
 
 
+# ---------------------------------------------------------------------- 轮换
+def _acrithis_line(view: dict) -> str:
+    rows = view.get("rows") or []
+    if not rows:
+        return "本周 5 件还没抓到"
+    return "、".join(row.get("short") or row.get("name") or "？" for row in rows)
+
+
+def _bonus_top(rows: Sequence[dict]) -> str:
+    best = None
+    for row in rows:
+        if not row.get("element"):
+            continue
+        if best is None or row.get("percent", 0) > best.get("percent", 0):
+            best = row
+    if best is None:
+        return ""
+    return "最高 %s %.1f%%" % (best.get("element"), best.get("percent", 0.0))
+
+
+def rotation_overview_reply(acrithis: dict, glast: dict, eleanor: dict,
+                            error: str = "") -> Reply:
+    """三店轮换总览。"""
+    lines = ["【轮换商店】言录使 · 埃尔戈·格拉斯 · 埃莉诺"]
+
+    acrithis_rest = countdown(acrithis.get("next", 0))
+    glast_rest = countdown(glast.get("next", 0))
+    eleanor_rest = countdown(eleanor.get("next", 0))
+    eleanor_head = "%s 批 %d 把终幕武器" % (eleanor.get("batch", "?"),
+                                          len(eleanor.get("rows") or []))
+    eleanor_top = _bonus_top(eleanor.get("rows") or [])
+    if eleanor_top:
+        eleanor_head += " · " + eleanor_top
+    glast_head = "%d 把信条近战" % len(glast.get("rows") or [])
+    glast_top = _bonus_top(glast.get("rows") or [])
+    if glast_top:
+        glast_head += " · " + glast_top
+
+    lines.append("言录使（双衍王境）：%s —— 剩 %s" % (
+        _acrithis_line(acrithis), acrithis_rest))
+    lines.append("埃尔戈·格拉斯（佩兰数列）：%s —— 剩 %s" % (glast_head, glast_rest))
+    lines.append("埃莉诺（1999）：%s —— 剩 %s" % (eleanor_head, eleanor_rest))
+    lines.append("")
+    lines.append("明细发 #轮换 言录使 / #轮换 格拉斯 / #轮换 埃莉诺")
+
+    rows = [
+        ["言录使 · 双衍王境", _acrithis_line(acrithis), acrithis_rest],
+        ["格拉斯 · 佩兰数列", glast_head, glast_rest],
+        ["埃莉诺 · 1999", eleanor_head, eleanor_rest],
+    ]
+    updated = max(acrithis.get("fetched", 0), glast.get("fetched", 0),
+                  eleanor.get("fetched", 0))
+    note = "言录使每周一、格拉斯与埃莉诺每 4 天的 08:00（北京时间）刷新；明细见分店命令。"
+    if error:
+        note = "wiki 抓取失败，下面是上次快照：%s" % error[:60]
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "轮换商店", "三个商店的当期货架与倒计时", ["商店", "本轮内容", "下次轮换"],
+            rows, "数据 wiki.warframe.com ｜ 玩家上报 ｜ %s" % _fresh(updated),
+            accent=imagecard.GOLD, chip="轮换", note=note,
+            highlights=[[None, None, imagecard.CYAN]] * len(rows),
+            ratios=[1.6, 3.7, 1.4],
+            aligns=["left", "left", "right"]))
+
+
+def acrithis_reply(view: dict) -> Reply:
+    """言录使本周 5 件。"""
+    rows_data = view.get("rows") or []
+    rest = countdown(view.get("next", 0))
+    lines = ["【言录使】本周 5 件兑换 ｜ 剩 %s" % rest]
+    rows = []
+    for index, row in enumerate(rows_data, 1):
+        cost = row.get("cost") or 0
+        lines.append("%d. %s  %d 苦栓" % (index, row.get("name"), cost))
+        rows.append([str(index), row.get("name") or "？",
+                     "%d 苦栓" % cost if cost else "—"])
+    if not rows:
+        lines.append("本周清单还没抓到：wiki 上由玩家上报，国内服务器偶尔抓不到。")
+    if view.get("observed"):
+        lines.append("（wiki 上报日期：%s）" % view.get("observed"))
+    note = "本周 5 件由玩家在 wiki 上报（截至 %s）；每日赋能与 Captura 没有上报。" % (
+        view.get("observed") or "未知日期")
+    subtitle = "双衍王境居住舱 ｜ 苦栓兑换 ｜ 周一 08:00 换"
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "言录使 · 本周 5 件", subtitle, ["#", "商品", "价格"], rows,
+            "数据 wiki.warframe.com ｜ %s" % _fresh(view.get("fetched", 0)),
+            accent=imagecard.GOLD, chip="言录使", note=note,
+            highlights=[[None, None, imagecard.CYAN]] * len(rows),
+            ratios=[0.4, 4.2, 1.2],
+            aligns=["right", "left", "right"]))
+
+
+def _rotation_rows(rows: Sequence[dict]) -> List[List[str]]:
+    result = []
+    for row in rows:
+        percent = row.get("percent") or 0.0
+        result.append([row.get("name") or "？",
+                       row.get("element") or "未上报",
+                       "%.1f%%" % percent if percent else "—"])
+    return result
+
+
+def glast_reply(view: dict) -> Reply:
+    """埃尔戈·格拉斯：信条近战 5 把。"""
+    rows_data = view.get("rows") or []
+    rest = countdown(view.get("next", 0))
+    lines = ["【埃尔戈·格拉斯】信条近战 5 把 ｜ 剩 %s" % rest]
+    for row in rows_data:
+        if row.get("element"):
+            lines.append("%s：%s %.1f%%" % (row.get("name"), row.get("element"),
+                                            row.get("percent", 0.0)))
+        else:
+            lines.append("%s：加成未上报" % row.get("name"))
+    lines.append("40 堕落全息密钥一把，任意中继站找佩兰数列的格拉斯。")
+    if not view.get("complete"):
+        lines.append("（部分数值还没抓到，wiki 抓取失败时会沿用上次快照）")
+    note = "数值由玩家上报，实际以游戏内为准；每 4 天 08:00 换一轮元素与数值。"
+    if not view.get("complete"):
+        note = "部分数值还没抓到（wiki 抓取失败），稍后再试。"
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "埃尔戈·格拉斯 · 信条近战",
+            "中继站 佩兰数列 ｜ 40 堕落全息密钥 ｜ 每 4 天 08:00 换加成",
+            ["武器", "元素", "加成"], _rotation_rows(rows_data),
+            "数据 wiki.warframe.com ｜ %s" % _fresh(view.get("fetched", 0)),
+            accent=imagecard.CYAN, chip="格拉斯", note=note,
+            highlights=[[None, imagecard.CYAN, imagecard.GOLD]] * len(rows_data),
+            ratios=[3.4, 1.2, 1.2],
+            aligns=["left", "left", "right"]))
+
+
+def eleanor_reply(view: dict) -> Reply:
+    """埃莉诺：当前批次的终幕武器。"""
+    rows_data = view.get("rows") or []
+    batch = view.get("batch", "A")
+    rest = countdown(view.get("next", 0))
+    lines = ["【埃莉诺】终幕武器 %s 批 ｜ 剩 %s" % (batch, rest)]
+    for row in rows_data:
+        if row.get("element"):
+            lines.append("%s：%s %.1f%%" % (row.get("name"), row.get("element"),
+                                            row.get("percent", 0.0)))
+        else:
+            lines.append("%s：加成未上报" % row.get("name"))
+    if not view.get("complete"):
+        lines.append("（部分数值还没抓到，wiki 抓取失败时会沿用上次快照）")
+    note = "A / B 两批各 7 把交替，每 4 天 08:00 换批并重掷元素与数值。"
+    if not view.get("complete"):
+        note = "部分数值还没抓到（wiki 抓取失败），稍后再试。"
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.build_table(
+            "埃莉诺 · 终幕武器 %s 批" % batch,
+            "霍瓦尼亚中央商场 ｜ 10 活体心肌细胞 ｜ 每 4 天换批",
+            ["武器", "元素", "加成"], _rotation_rows(rows_data),
+            "数据 wiki.warframe.com ｜ %s" % _fresh(view.get("fetched", 0)),
+            accent=imagecard.PURPLE, chip="埃莉诺", note=note,
+            highlights=[[None, imagecard.PURPLE, imagecard.GOLD]] * len(rows_data),
+            ratios=[3.4, 1.2, 1.2],
+            aligns=["left", "left", "right"]))
+
+
 def help_reply(prefix: str) -> Reply:
     return Reply(text=render.render_help(prefix),
                  image=lambda: imagecard.help_card(prefix))
-
 
 def error_reply(message: str) -> Reply:
     return Reply(text=message)

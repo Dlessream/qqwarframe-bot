@@ -7,6 +7,8 @@ data/alerts.json.tmp
 data/arbi_ratings.json
 data/board_cache.json
 data/board_cache.json.tmp
+data/rotation_cache.json
+data/rotation_cache.json.tmp
 logs/
 *.log
 preview_*.png

@@ -155,6 +155,23 @@ DEFAULTS: Dict[str, Any] = {
         "max_requests_per_window": 35,
         "save_every": 25,
     },
+    # 轮换商店（言录使 / 埃尔戈·格拉斯 / 埃莉诺）：数据只有 wiki 上的玩家上报，
+    # 后台定时抓、落快照，命令只读快照，抓不到就沿用上次的。
+    "rotation": {
+        "enabled": True,
+        "cache_file": "data/rotation_cache.json",
+        "proxy": "http://127.0.0.1:10809",
+        "proxy_mode": "auto",
+        "proxy_fallbacks": ["none"],
+        "refresh_seconds": 1800,
+        "tick_seconds": 60,
+        "timeout_seconds": 25,
+        "use_jina": True,
+        "jina_base": "https://r.jina.ai/",
+        "user_agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/126.0.0.0 Safari/537.36"),
+    },
     "web": {
         "enabled": True,
         "host": "127.0.0.1",
@@ -212,6 +229,8 @@ _ENV_OVERRIDES = {
     "QQWF_AUTO_UPDATE": ("auto_update", "enabled", "bool"),
     "QQWF_BOARD": ("board", "enabled", "bool"),
     "QQWF_BOARD_INTERVAL": ("board", "request_interval", "str"),
+    "QQWF_ROTATION": ("rotation", "enabled", "bool"),
+    "QQWF_ROTATION_PROXY": ("rotation", "proxy", "str"),
     "QQWF_CACHE": ("cache", "enabled", "bool"),
     "QQWF_RIVEN_DISPOSITION": ("riven", "disposition_override", "str"),
     "QQWF_ARBI_PROXY": ("arbi", "proxy", "str"),
