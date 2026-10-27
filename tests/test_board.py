@@ -304,6 +304,58 @@ class RivenBaitFilterTest(unittest.TestCase):
         # 未核实的高价（>= 3000）先不上榜，避免假价霸榜
         self.assertEqual(board.riven_quotes(), [])
 
+    def test_single_candidate_cache_without_flag_is_unverified(self):
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        # 迁移时合并进来的条目：v2 格式但只有一条候选、没有标志位
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"version": 2, "riven": {
+                "vesper_77": [1.7e9, [[50000, 0, "mushroom",
+                                       ["暴击伤害 +108.3%"], "", 1]]],
+                "soma": [1.7e9, [[800, 8, "honest",
+                                  ["多重射击 +98.1%"], "", 1]]]}}, handle)
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        self.assertEqual(board._quotes["riven"]["vesper_77"]["v"], 1)
+        self.assertEqual(board._quotes["riven"]["vesper_77"]["t"], 0.0)
+        # 两条都是单候选，都标成待重扫；便宜的那条照常上榜
+        self.assertEqual(board._legacy_riven, 2)
+        self.assertEqual([(quote.slug, quote.price) for quote in board.riven_quotes()],
+                         [("soma", 800)])
+
+    def test_single_candidate_after_full_fetch_is_listed(self):
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        # 标志位 bit1（=2）：已按新接口完整抓过，市场真的只有这一单
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"version": 2, "riven": {
+                "rare_weapon": [1.7e9, [[4200, 8, "only_one",
+                                         ["多重射击 +98.1%"], "", 1]], 2]}}, handle)
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        self.assertNotIn("v", board._quotes["riven"]["rare_weapon"])
+        self.assertEqual(board._legacy_riven, 0)
+        self.assertEqual([quote.price for quote in board.riven_quotes()], [4200])
+
+    def test_scan_marks_entry_as_fully_fetched(self):
+        weapons = {"rare_weapon": RivenWeapon("rare_weapon", "稀有武器", "Rare",
+                                             "rifle", "primary", 1.2, 6)}
+        auctions = {"rare_weapon": [
+            {"closed": False, "buyout_price": 4200, "starting_price": 4200,
+             "item": {"url_name": "rare_weapon", "re_rolls": 0, "mod_rank": 8,
+                      "attributes": [{"url_name": "multishot", "value": 98.1,
+                                      "positive": True}]},
+             "owner": {"ingame_name": "only_one"},
+             "created": "2026-10-26T10:00:00Z"}]}
+        board, _market, _http = build_board(DEFAULT_TOPS, auctions=auctions,
+                                            weapons=weapons)
+        board._targets["riven"] = ["rare_weapon"]
+        board._quotes["riven"]["rare_weapon"] = {
+            "t": 0.0, "v": 1,
+            "c": [[50000, 0, "troll", ["暴击伤害 +108.3%"], "", 1]]}
+        for _ in range(20):
+            board.step()
+        entry = board._quotes["riven"]["rare_weapon"]
+        self.assertEqual(entry["f"], 1)
+        self.assertNotIn("v", entry)
+        self.assertEqual([quote.price for quote in board.riven_quotes()], [4200])
+
     def test_cache_roundtrip_keeps_candidates(self):
         path = os.path.join(tempfile.mkdtemp(), "board.json")
         board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})

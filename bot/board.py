@@ -69,6 +69,11 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _riven_flags(entry: Dict[str, Any]) -> int:
+    """紫卡缓存的标志位：bit0=老缓存待重扫，bit1=已按新接口完整抓过。"""
+    return (1 if entry.get("v") else 0) | (2 if entry.get("f") else 0)
+
+
 @dataclass
 class BoardQuote:
     """一件物品的当前报价快照。"""
@@ -493,13 +498,18 @@ class BoardClient:
                                  max_price=self.max_riven_price)
         with self._lock:
             if not quotes:
-                existing = self._quotes[_KIND_RIVEN].get(slug)
-                if existing:
-                    existing["t"] = time.time()
+                # 接口通了但一张合格的零洗卡都没有：记成「已抓过、无报价」，
+                # 别继续拿老缓存里的可疑单条价格充数。
+                if slug in self._quotes[_KIND_RIVEN]:
+                    self._quotes[_KIND_RIVEN][slug] = {
+                        "t": time.time(), "f": 1, "c": []}
                 return
             # 存多个候选而不是只存冠军：冠军可能是钓鱼价，查询时再往下顺延。
+            # f=1 表示这条是按新接口完整抓过的（候选已补全），
+            # 即使只抓到 1 条也说明市场就这么多，可以照价上榜。
             self._quotes[_KIND_RIVEN][slug] = {
                 "t": time.time(),
+                "f": 1,
                 "c": [[quote.price, quote.rank, quote.seller,
                        list(quote.attributes[:6]), quote.created,
                        1 if quote.buyout else 0]
@@ -765,7 +775,10 @@ class BoardClient:
                     self._legacy_riven += 1
                     continue
                 if len(entry) >= 2 and isinstance(entry[1], list):
-                    # v2：[抓取时间, [[价格, 等级, 卖家, 词条, 上架时间, 一口价], ...]]
+                    # v2：[抓取时间, [[价格, 等级, 卖家, 词条, 上架时间, 一口价], ...], 标志位]
+                    # 标志位 bit0=老缓存待重扫，bit1=已按新接口完整抓过。
+                    # 没有标志位且只有一条候选的，都是迁移前只存了冠军价的条目：
+                    # 那条价格很可能是议价占位单，先当老缓存处理（不上榜 + 优先重扫）。
                     candidates = []
                     for row in entry[1]:
                         if not isinstance(row, list) or len(row) < 6:
@@ -774,9 +787,20 @@ class BoardClient:
                                            str(row[2] or ""), list(row[3] or []),
                                            str(row[4] or ""), _as_int(row[5])])
                     if candidates:
+                        flags = _as_int(entry[2]) if len(entry) >= 3 else 0
+                        legacy = bool(flags & 1)
+                        full = bool(flags & 2)
+                        if not flags and len(candidates) <= 1:
+                            legacy = True
+                        if legacy and not full:
+                            self._legacy_riven += 1
                         record = {"t": _as_float(entry[0]), "c": candidates}
-                        if len(entry) >= 3 and _as_int(entry[2]):
+                        if legacy and not full:
+                            # 立刻进重扫队列（_next_stale 会优先挑它）
+                            record["t"] = 0.0
                             record["v"] = 1
+                        if full:
+                            record["f"] = 1
                         self._quotes[_KIND_RIVEN][slug] = record
         if self._legacy_riven:
             self.log.info("紫卡缓存是旧格式（%d 把），已标记为待重扫", self._legacy_riven)
@@ -801,7 +825,8 @@ class BoardClient:
                                         str(row[2] or ""), list(row[3] or []),
                                         str(row[4] or ""), _as_int(row[5])]
                                        for row in (entry.get("c") or [])]]
-                                      + ([1] if entry.get("v") else []))
+                                      + ([_riven_flags(entry)]
+                                         if (entry.get("v") or entry.get("f")) else []))
                               for slug, entry in self._quotes[_KIND_RIVEN].items()},
             }
             self._dirty = 0
