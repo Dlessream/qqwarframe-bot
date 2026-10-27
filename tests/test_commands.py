@@ -478,6 +478,23 @@ class SubscribeCommandTest(unittest.TestCase):
         self.assertIn("类型：裂缝", reply.text)
         self.assertIn("本群目前没有订阅。", reply.text)
 
+    def test_panel_is_an_image_card(self):
+        """订阅说明要出图，不是一大段文字刷屏。"""
+        reply = self.router.handle("#订阅", self.ctx)[0]
+        self.assertTrue(reply.has_image)
+        png = reply.image()
+        self.assertTrue(png.startswith(b"\x89PNG"))
+        from PIL import Image
+        from io import BytesIO
+        image = Image.open(BytesIO(png))
+        self.assertEqual(image.width, 860)
+        self.assertGreater(image.height, 600)
+
+    def test_subscribe_confirmation_is_an_image_card(self):
+        reply = self.router.handle("#订阅 裂缝 生存", self.ctx)[0]
+        self.assertIn("已订阅", reply.text)
+        self.assertTrue(reply.has_image)
+
     def test_unsubscribe(self):
         self.router.handle("#订阅 回廊", self.ctx)
         reply = self.router.handle("#取消订阅 回廊", self.ctx)[0]

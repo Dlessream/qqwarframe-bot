@@ -1528,6 +1528,75 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
             aligns=["right", "left", "right", "left"]))
 
 
+# ---------------------------------------------------------------------- 订阅
+# 订阅说明卡：9 类事件一次列全（类型 / 群里收到什么 / 能筛什么 / 推送形式）
+SUBSCRIBE_KINDS: Sequence[Tuple[str, str, str]] = (
+    ("裂缝", "新裂缝：任务 / 星球 / 等级 / 剩余时间", "任务、节点、遗物、敌人"),
+    ("虚空风暴", "新风暴：星域 / 节点 / 任务 / 剩余时间", "任务、节点、星域"),
+    ("仲裁", "仲裁节点 + 任务 + 评级（每小时换）", "—"),
+    ("突击", "每日突击三关 + 奖励", "—"),
+    ("回廊", "本周回廊灵化战甲 / 武器", "—"),
+    ("轮换", "言录使 / 格拉斯 / 埃莉诺 换批", "商店名"),
+    ("警报", "新警报 + 奖励 + 剩余时间", "奖励、节点"),
+    ("入侵", "新入侵 + 阵营进度", "阵营"),
+    ("特惠", "每日特惠折扣", "—"),
+)
+
+
+def _stamp(ts: float) -> str:
+    try:
+        ts = float(ts or 0)
+    except (TypeError, ValueError):
+        return "—"
+    if ts <= 0:
+        return "—"
+    return time.strftime("%m-%d %H:%M", time.localtime(ts))
+
+
+def subscribe_panel_reply(prefix: str, subs: Sequence[dict],
+                          text: str = "", note: str = "") -> Reply:
+    """订阅说明 + 本群订阅，出图（9 类事件一次列全）。"""
+    kind_rows = [[
+        imagecard.Cell(kind, color=imagecard.CYAN, bold=True),
+        desc,
+        ("可筛 " + filters) if filters and filters != "—" else "不限",
+        imagecard.Cell("图片", color=imagecard.GREEN),
+    ] for kind, desc, filters in SUBSCRIBE_KINDS]
+
+    sub_rows = []
+    for row in subs or []:
+        sub_rows.append([
+            "%d" % int(row.get("index") or 0),
+            str(row.get("title") or "—"),
+            str(row.get("keyword") or "不限"),
+            str(row.get("user") or "—"),
+            _stamp(row.get("created") or 0),
+        ])
+    if not sub_rows:
+        sub_rows = [["—", "还没有订阅", "不限", "—", "—"]]
+
+    sections = [
+        {"label": "可以订阅的 %d 类事件" % len(kind_rows),
+         "badge": "有新内容就推图",
+         "columns": [("类型", 1.1), ("群里收到什么", 3.9), ("可筛选", 2.8),
+                     ("推送形式", 0.9)],
+         "rows": kind_rows},
+        {"label": "本群订阅", "badge": "%d 条" % len(subs or []),
+         "columns": [("编号", 0.6), ("类型", 2.2), ("筛选词", 1.6),
+                     ("订阅人", 1.6), ("订阅时间", 1.5)],
+         "rows": sub_rows},
+    ]
+    return Reply(
+        text=text,
+        image=lambda: imagecard.sections_table(
+            "订阅推送", "新内容一出现就推图到本群 ｜ %d 类事件" % len(kind_rows),
+            sections,
+            "数据 warframe worldstate ｜ 每 2 分钟检查一次",
+            accent=imagecard.CYAN, chip="订阅",
+            note=note or ("%s订阅 <类型> [筛选词] 添加，%s取消订阅 <编号|类型|all> 取消；"
+                          "每个事件只推一次，重启不补推。" % (prefix, prefix))))
+
+
 # ---------------------------------------------------------------------- 轮换
 def _weapon_cell_rows(rows: Sequence[dict], accent) -> List[List[object]]:
     """武器行：名字 / 元素 / 加成，缺数据时写「未上报」。"""
