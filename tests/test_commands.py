@@ -776,6 +776,9 @@ class BoardCommandTest(unittest.TestCase):
         self.assertEqual(router.parse("#铜垃圾")[0], "junk_bronze")
         self.assertEqual(router.parse("#垃圾")[0], "junk_overview")
         self.assertEqual(router.parse("#战甲榜")[0], "frame_rank")
+        # 新名字：不带名称的 #战甲 直接给价格全表，带名称才是分类搜索
+        self.assertEqual(router.parse("#战甲"), ("warframe", ""))
+        self.assertEqual(router.parse("#战甲Mesa"), ("warframe", "Mesa"))
         self.assertEqual(router.parse("#紫卡榜")[0], "riven_rank")
         # 不带武器名的紫卡 = 零洗紫卡榜
         self.assertEqual(router.parse("#紫卡"), ("riven", ""))
@@ -796,6 +799,23 @@ class BoardCommandTest(unittest.TestCase):
         reply = self.router(FakeBoard()).handle("#战甲榜", self.ctx)[0]
         self.assertIn("Saryn Prime 一套", reply.text)
         self.assertIn("260p", reply.text)
+
+    def test_frame_rank_by_bare_command(self):
+        reply = self.router(FakeBoard()).handle("#战甲", self.ctx)[0]
+        self.assertIn("Saryn Prime 一套", reply.text)
+        self.assertNotIn("用法", reply.text)
+
+    def test_frame_rank_shows_every_row(self):
+        from bot.board import BoardQuote
+        board = FakeBoard()
+        quotes = [BoardQuote("frame_%02d" % index, 300 - index, 0, 1, 0.0)
+                  for index in range(51)]
+        board.frame_quotes = lambda: quotes
+        board.item_name = lambda slug: "战甲 %s" % slug
+        reply = self.router(board).handle("#战甲", self.ctx)[0]
+        lines = reply.text.strip().splitlines()
+        self.assertEqual(len(lines), 52)  # 1 行标题 + 51 行全列
+        self.assertTrue(lines[-1].startswith("51. 战甲 frame_50"))
 
     def test_riven_rank_without_argument(self):
         router = self.router(FakeBoard())

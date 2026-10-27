@@ -328,6 +328,9 @@ class CommandRouter:
             if command == "price":
                 return [self._item(argument, ctx, category=None, price_only=True)]
             if command == "warframe":
+                # 不带名称时给 Prime 战甲价格（高→低），带名称才是分类搜索
+                if not str(argument or "").strip():
+                    return [self._frame_rank(ctx)]
                 return [self._item(argument, ctx, category="warframe")]
             if command == "weapon":
                 return [self._item(argument, ctx, category="weapon")]
@@ -660,22 +663,22 @@ class CommandRouter:
 
     def _frame_rank(self, ctx: Context) -> Reply:
         if self.board is None:
-            return present.error_reply("战甲榜未启用（board.enabled = false）。")
+            return present.error_reply("战甲价格未启用（board.enabled = false）。")
         quotes = self.board.frame_quotes()
         ready, total = self.board.frame_coverage()
         if not quotes:
-            return self._scanning_reply("Prime 战甲榜", ready, total)
+            return self._scanning_reply("Prime 战甲", ready, total)
         return present.frame_rank_reply(
             quotes, self.board.item_name, (ready, total),
             platform=present.platform_label(self.default_platform))
 
     def _riven_rank(self, ctx: Context) -> Reply:
         if self.board is None:
-            return present.error_reply("紫卡榜未启用（board.enabled = false）。")
+            return present.error_reply("零洗紫卡价格未启用（board.enabled = false）。")
         quotes = self.board.riven_quotes()
         ready, total = self.board.riven_coverage()
         if not quotes:
-            return self._scanning_reply("零洗紫卡榜", ready, total)
+            return self._scanning_reply("零洗紫卡价格", ready, total)
 
         def name_of(slug: str) -> str:
             weapon = None

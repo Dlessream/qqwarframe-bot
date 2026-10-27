@@ -160,6 +160,12 @@ DEFAULTS: Dict[str, Any] = {
         "frame_seconds": 14400,
         "riven_seconds": 28800,
         "max_riven_price": 50000,
+        # 紫卡钓鱼价识别：同一个精确价格刷在多把武器上 / 同一卖家刷多把武器
+        "bait_price_floor": 3000,
+        "bait_price_weapons": 5,
+        "bait_price_ratio": 2.0,
+        "bait_seller_weapons": 4,
+        "riven_candidates_keep": 12,
         "junk_scan": True,
         "riven_scan": True,
         "ban_seconds": 180,

@@ -1458,11 +1458,12 @@ def junk_overview_reply(groups: Sequence[dict], platform: str = "PC") -> Reply:
 
 
 def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
-                     limit: int = 15, platform: str = "PC") -> Reply:
-    """Prime 战甲价格榜（高 → 低）。"""
+                     limit: Optional[int] = None, platform: str = "PC") -> Reply:
+    """Prime 战甲价格（高 → 低），默认全列。"""
+    pool = list(quotes) if limit is None else list(quotes)[:limit]
     rows = []
-    lines = ["【Prime 战甲价格榜】按最低在售从高到低"]
-    for index, quote in enumerate(list(quotes)[:limit], 1):
+    lines = ["【Prime 战甲】按最低在售从高到低"]
+    for index, quote in enumerate(pool, 1):
         name = name_of(quote.slug)
         lines.append("%d. %s  %dp（收 %dp）" % (
             index, name, quote.price, quote.buy))
@@ -1476,12 +1477,12 @@ def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
         lines.append("还没有拿到战甲报价，稍后再试。")
     ready, total = coverage if coverage else (0, 0)
     updated = max((quote.updated for quote in quotes), default=0.0)
-    note = "战甲榜按 Prime 整套最低在售排序；已扫描 %d/%d 套，排名随扫描继续更新。" % (
+    note = "战甲按 Prime 整套最低在售排序；已扫描 %d/%d 套，排名随扫描继续更新。" % (
         ready, total)
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.build_table(
-            "Prime 战甲价格榜", "最低在售从高到低 ｜ %d/%d 套已扫描" % (ready, total),
+            "Prime 战甲", "最低在售从高到低 ｜ %d/%d 套已扫描" % (ready, total),
             ["#", "战甲", "最低在售", "最高收价"], rows,
             "数据 warframe market · %s ｜ %s" % (platform, _fresh(updated)),
             accent=imagecard.CYAN, chip="战甲",
@@ -1493,14 +1494,15 @@ def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
                      limit: int = 12) -> Reply:
-    """最贵零洗紫卡榜（高 → 低）。"""
+    """零洗紫卡价格榜（高 → 低）：每把武器取一张最贵的零洗卡。"""
     rows = []
-    lines = ["【零洗紫卡价格榜】按当前最高价从高到低"]
+    lines = ["【零洗紫卡价格】每把武器取最贵的零洗卡，从高到低"]
     for index, quote in enumerate(list(quotes)[:limit], 1):
         attrs = " / ".join(quote.attributes[:3]) or "未洗词条"
-        lines.append("%d. %s  %dp（%s）· %s · %s" % (
+        rank_tag = "" if not quote.rank or quote.rank >= 8 else " · %d 级" % quote.rank
+        lines.append("%d. %s  %dp（%s%s）· %s · %s" % (
             index, name_of(quote.slug), quote.price,
-            "一口价" if quote.buyout else "起拍价", attrs, quote.seller))
+            "一口价" if quote.buyout else "起拍价", rank_tag, attrs, quote.seller))
         rows.append([
             "%d" % index,
             name_of(quote.slug),
@@ -1511,12 +1513,12 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
         lines.append("还没有拿到零洗紫卡报价，稍后再试。")
     ready, total = coverage if coverage else (0, 0)
     updated = max((quote.updated for quote in quotes), default=0.0)
-    note = ("零洗 = re_rolls 0；已扫描 %d/%d 把武器，取每把武器最贵的零洗拍卖再全局排序。"
-            % (ready, total))
+    note = ("零洗 = re_rolls 0、只算一口价、满级卡优先（0 级卡的词条只有满级零头）；"
+            "已剔除刷在多把武器上的同价占位单。已扫描 %d/%d 把。" % (ready, total))
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.build_table(
-            "零洗紫卡价格榜", "每把武器取最贵零洗，再全局从高到低 ｜ %d/%d 把" % (ready, total),
+            "零洗紫卡价格", "每把武器取最贵零洗，再全局从高到低 ｜ %d/%d 把" % (ready, total),
             ["#", "武器", "价格", "词条"], rows,
             "数据 warframe market · %s" % _fresh(updated),
             accent=imagecard.PURPLE, chip="紫卡",

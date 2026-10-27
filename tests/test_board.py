@@ -5,7 +5,7 @@ import time
 import unittest
 
 from bot.board import (JUNK_LABELS, BoardClient, BoardQuote, junk_ducats,
-                       parse_riven_auctions, parse_top_orders)
+                       parse_riven_auctions, parse_top_orders, riven_candidates)
 from bot.market import Item, ItemIndex
 from bot.net import HttpError
 from bot.riven import RivenWeapon
@@ -184,6 +184,103 @@ class RivenAuctionParseTest(unittest.TestCase):
         quote = parse_riven_auctions([self.row(300, 0, buyout=1200)])
         self.assertEqual(quote.price, 1200)
         self.assertTrue(quote.buyout)
+
+
+class RivenCandidateTest(unittest.TestCase):
+    """零洗卡口径：一口价优先、满级优先。"""
+
+    def row(self, price, rank=8, buyout=None, seller="s1", name="soma",
+            re_rolls=0):
+        return {
+            "closed": False,
+            "buyout_price": buyout,
+            "starting_price": price,
+            "item": {"url_name": name, "re_rolls": re_rolls, "mod_rank": rank,
+                     "attributes": [{"url_name": "critical_chance", "value": 161.1,
+                                     "positive": True}]},
+            "owner": {"ingame_name": seller},
+            "created": "2026-10-26T10:00:00.000+00:00",
+        }
+
+    def test_buyout_beats_higher_starting_price(self):
+        quotes = riven_candidates([self.row(9000), self.row(1200, buyout=1200)])
+        self.assertEqual([quote.price for quote in quotes], [1200])
+        self.assertTrue(quotes[0].buyout)
+
+    def test_max_rank_preferred_over_zero_rank_bait(self):
+        quotes = riven_candidates([
+            self.row(50000, rank=0, buyout=50000),
+            self.row(3500, rank=8, buyout=3500),
+        ])
+        self.assertEqual(quotes[0].price, 3500)
+        self.assertEqual(quotes[0].rank, 8)
+
+    def test_zero_rank_kept_when_only_choice(self):
+        quote = parse_riven_auctions([self.row(400, rank=0, buyout=400)])
+        self.assertEqual(quote.price, 400)
+        self.assertEqual(quote.rank, 0)
+
+    def test_candidates_sorted_desc(self):
+        quotes = riven_candidates([
+            self.row(900, buyout=900), self.row(2400, buyout=2400),
+            self.row(1500, buyout=1500)])
+        self.assertEqual([quote.price for quote in quotes], [2400, 1500, 900])
+
+
+class RivenBaitFilterTest(unittest.TestCase):
+    """钓鱼/占位价过滤：同价刷多把武器、同一卖家刷多把武器。"""
+
+    def board(self):
+        board, _market, _http = build_board(DEFAULT_TOPS)
+        return board
+
+    def put(self, board, slug, candidates):
+        board._quotes["riven"][slug] = {"t": 0.0, "c": candidates}
+
+    def test_same_price_across_weapons_is_bait(self):
+        board = self.board()
+        for slug in ("a", "b", "c"):
+            self.put(board, slug, [
+                [50000, 0, "troll", ["暴击几率 +161.1%"], "", 1],
+                [3500, 8, "honest", ["暴击几率 +161.1%"], "", 1],
+            ])
+        quotes = {quote.slug: quote.price for quote in board.riven_quotes()}
+        self.assertEqual(quotes, {"a": 3500, "b": 3500, "c": 3500})
+        self.assertTrue(board.riven_bait_stats())
+
+    def test_seller_spamming_many_weapons_is_bait(self):
+        board = self.board()
+        for index, slug in enumerate(("a", "b", "c", "d")):
+            self.put(board, slug, [
+                [4000 + index * 111, 8, "spammer", [], "", 1],
+                [900, 8, "honest", [], "", 1],
+            ])
+        quotes = {quote.slug: quote.price for quote in board.riven_quotes()}
+        self.assertEqual(set(quotes.values()), {900})
+
+    def test_cheap_prices_not_filtered(self):
+        board = self.board()
+        for slug in ("a", "b", "c"):
+            self.put(board, slug, [[500, 8, "anyone", ["多重射击 +98.1%"], "", 1]])
+        self.assertEqual([quote.price for quote in board.riven_quotes()],
+                         [500, 500, 500])
+
+    def test_cache_roundtrip_keeps_candidates(self):
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        self.put(board, "soma", [
+            [3000, 8, "s1", ["多重射击 +98.1%"], "2026-10-26T10:00:00", 1],
+            [1200, 8, "s2", ["暴击几率 +161.1%"], "2026-10-26T10:00:00", 1],
+        ])
+        board._dirty = 1
+        board._save(force=True)
+
+        reloaded, _market2, _http2 = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        rows = reloaded._quotes["riven"]["soma"]["c"]
+        self.assertEqual([row[0] for row in rows], [3000, 1200])
+        self.assertEqual(rows[0][1], 8)
+        self.assertEqual(rows[0][3], ["多重射击 +98.1%"])
+        self.assertEqual(reloaded._quotes["riven"]["soma"]["t"], 0.0)
 
 
 class BoardScanTest(unittest.TestCase):
