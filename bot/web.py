@@ -84,7 +84,7 @@ class AdminServer:
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.end_headers()
                 self.wfile.write(body)

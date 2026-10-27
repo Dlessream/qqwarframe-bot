@@ -185,6 +185,11 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
 }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+.panel-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.arbi-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 22px 10px; }
+.arbi-legend:empty { display: none; }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+.legend-item i { width: 7px; height: 7px; border-radius: 50%; }
 .panel-sub { margin-left: 10px; color: var(--muted); font-size: 11px; }
 .groups-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; padding: 20px 22px 8px; }
 .field { display: flex; flex-direction: column; gap: 9px; color: var(--text); font-size: 12px; }
@@ -313,7 +318,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px;
 }
 .arbi-list { max-height: 520px; overflow: auto; padding: 8px 22px 12px; }
-.arbi-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.arbi-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 9px 0 9px 10px; border-bottom: 1px solid rgba(255,255,255,.06); border-left: 2px solid var(--mission-color, transparent); }
 .arbi-row:last-child { border-bottom: 0; }
 .arbi-main { min-width: 0; }
 .arbi-name { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--text); }
@@ -335,10 +340,25 @@ a { color: inherit; text-decoration: none; }
 .mission-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 9px; background: #070c13; }
 .mission-row.is-custom { border-color: rgba(232,180,90,.45); }
 .mission-row input[type="color"] { width: 26px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: transparent; cursor: pointer; flex: none; }
-.mission-row .mission-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mission-row .mission-name { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mission-panel.is-flash { animation: panelFlash 1.2s ease-out; }
+@keyframes panelFlash {
+  0% { box-shadow: 0 0 0 2px rgba(232,180,90,.85); }
+  100% { box-shadow: 0 0 0 2px rgba(232,180,90,0); }
+}
 .mission-row code { font-size: 10px; color: var(--muted); letter-spacing: .02em; }
 .mission-row.is-custom code { color: var(--gold); }
 .mission-chip { font-size: 10px; }
+
+/* 节点列表：整行按任务类型铺淡色底，任务名后面跟一个可直接改色的色块 */
+.arbi-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--text); }
+.arbi-line .arbi-mission { font-weight: 650; letter-spacing: .01em; }
+.arbi-line .arbi-enemy { color: var(--muted); }
+.arbi-line .arbi-target { color: var(--text); opacity: .92; }
+.tier-pill { border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.mission-swatch { width: 14px; height: 14px; flex: none; padding: 0; border: 1px solid rgba(255,255,255,.4); border-radius: 4px; background: transparent; cursor: pointer; }
+.mission-swatch:hover { transform: scale(1.12); }
+.mission-swatch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 @media (max-width: 840px) {
   .shell { width: calc(100% - 28px); padding-top: 30px; }

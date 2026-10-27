@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Warframe Ops · 控制台</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"></div>
@@ -171,7 +171,10 @@
           <span class="card-label">仲裁评级</span>
           <span class="panel-sub">社区梯队 &gt; 人工评级 &gt; 本地推算（任务类型 + 敌人等级）</span>
         </div>
-        <button id="arbiRefresh" class="btn btn-ghost btn-sm" type="button">刷新列表</button>
+        <div class="panel-actions">
+          <button id="arbiMissionColors" class="btn btn-ghost btn-sm" type="button">任务配色</button>
+          <button id="arbiRefresh" class="btn btn-ghost btn-sm" type="button">刷新列表</button>
+        </div>
       </div>
       <div class="source-strip">
         <span id="arbiInfo">正在读取仲裁节点…</span>
@@ -181,6 +184,7 @@
         <input id="arbiFilter" class="input" type="text" placeholder="筛选节点 / 星球 / 任务，例如 生存、土星">
         <button id="arbiFilterBtn" class="btn btn-ghost btn-sm" type="button">筛选</button>
       </div>
+      <div class="arbi-legend" id="arbiLegend"></div>
       <div id="arbiList" class="arbi-list"></div>
     </section>
 
@@ -246,6 +250,6 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=5"></script>
 </body>
 </html>

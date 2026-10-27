@@ -256,6 +256,10 @@ class AdminServerTest(unittest.TestCase):
         status, body = self.request("/")
         self.assertEqual(status, 200)
         self.assertIn("Warframe Ops".encode("utf-8"), body)
+        # 仲裁列表整行按任务类型上色：图例容器 + 就地改色的入口都在
+        self.assertIn("arbiLegend".encode("utf-8"), body)
+        self.assertIn("arbiMissionColors".encode("utf-8"), body)
+        self.assertIn("?v=".encode("utf-8"), body)
 
     def test_auth(self):
         status, _ = self.request("/api/status")

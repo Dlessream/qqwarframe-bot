@@ -296,8 +296,8 @@
     try {
       const status = await api("/api/status");
       render(status);
-      if (!state.arbiNodes.length) loadArbi();
-      if (!state.missionEntries.length) loadMissionColors();
+      if (!state.missionEntries.length) await loadMissionColors();
+      if (!state.arbiNodes.length) await loadArbi();
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") {
         const pill = $("connPill");
@@ -685,6 +685,52 @@
     return "本地推算 " + node.local;
   }
 
+  function missionColorOf(name, fallbackTable) {
+    const table = state.missionColors || {};
+    if (name && table[name]) return table[name];
+    if (name && fallbackTable && fallbackTable[name]) return fallbackTable[name];
+    return "#8B98AA";
+  }
+
+  function makeSpan(text, className) {
+    const node = document.createElement("span");
+    node.className = className;
+    node.textContent = text;
+    return node;
+  }
+
+  function tierColor(tier) {
+    const table = {
+      "S": "#E8B45A", "A+": "#E27070", "A": "#E89B5A",
+      "A-": "#EBBC60", "B": "#8FB8D8", "C": "#8B98AA",
+    };
+    return table[tier] || "#6F7C8D";
+  }
+
+  function hexAlpha(hex, alpha) {
+    const text = String(hex || "").replace("#", "");
+    if (text.length !== 6) return "rgba(139,152,170," + alpha + ")";
+    const r = parseInt(text.slice(0, 2), 16);
+    const g = parseInt(text.slice(2, 4), 16);
+    const b = parseInt(text.slice(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
+  async function applyMissionColor(name, color) {
+    try {
+      const result = await api("/api/mission-colors", {
+        method: "POST",
+        body: { name, color },
+      });
+      state.missionColors[name] = result.color || color;
+      toast("已改「" + name + "」的显示色：" + (result.color || color));
+      await loadMissionColors();
+      await loadArbi();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("改色失败：" + exc.message);
+    }
+  }
+
   function renderArbi(data) {
     const counts = data.counts || {};
     const total = (data.nodes || []).length;
@@ -717,33 +763,85 @@
       return;
     }
 
+    // 顶部图例：这一屏里出现过哪些任务、各自是什么颜色
+    const legend = $("arbiLegend");
+    if (legend) {
+      legend.innerHTML = "";
+      const seen = new Set();
+      nodes.forEach((node) => {
+        const missionName = node.mission;
+        if (!missionName || seen.has(missionName)) return;
+        seen.add(missionName);
+        const color = missionColorOf(missionName, data.mission_colors);
+        const item = document.createElement("span");
+        item.className = "legend-item";
+        const dot = document.createElement("i");
+        dot.style.background = color;
+        item.append(dot, document.createTextNode(missionName));
+        legend.appendChild(item);
+      });
+    }
+
     nodes.forEach((node) => {
       const row = document.createElement("div");
       row.className = "arbi-row";
+      const missionName = node.mission || "—";
+      const missionColor = missionColorOf(missionName, data.mission_colors);
+      // 整行铺一层任务色的淡底（跟仲裁排期表一个观感），左边再压一条实色竖线
+      row.style.setProperty("--mission-color", missionColor);
+      row.style.background = "linear-gradient(90deg, "
+        + hexAlpha(missionColor, 0.34) + " 0%, "
+        + hexAlpha(missionColor, 0.16) + " 100%)";
 
       const main = document.createElement("div");
       main.className = "arbi-main";
-      const name = document.createElement("div");
-      name.className = "arbi-name";
-      const title = document.createElement("b");
-      title.textContent = node.name || node.key;
-      title.title = node.key;
-      const system = document.createElement("small");
-      system.textContent = node.system || "—";
-      name.append(title, system);
+      const line = document.createElement("div");
+      line.className = "arbi-line";
+
+      const mission = document.createElement("b");
+      mission.className = "arbi-mission";
+      mission.textContent = missionName;
+      mission.style.color = missionColor;
+
+      // 任务名后面直接跟一个取色器：点开就能改这个任务类型的显示色，改完立即保存
+      const swatch = document.createElement("input");
+      swatch.type = "color";
+      swatch.className = "mission-swatch";
+      swatch.value = /^#[0-9a-fA-F]{6}$/.test(missionColor) ? missionColor : "#8B98AA";
+      swatch.title = "点这里改「" + missionName + "」的显示颜色";
+      swatch.setAttribute("aria-label", "修改 " + missionName + " 的显示颜色");
+      swatch.addEventListener("input", () => {
+        row.style.setProperty("--mission-color", swatch.value.toUpperCase());
+        mission.style.color = swatch.value.toUpperCase();
+      });
+      swatch.addEventListener("change", () => {
+        applyMissionColor(missionName, swatch.value.toUpperCase());
+      });
+      line.append(mission, swatch);
+
+      if (node.faction) {
+        line.append(makeSpan("- " + node.faction, "arbi-enemy"));
+      }
+      line.append(makeSpan("@ " + (node.name || node.key)
+        + (node.system ? ", " + node.system : ""), "arbi-target"));
+
       const meta = document.createElement("div");
       meta.className = "arbi-meta";
-      const mission = document.createElement("span");
-      mission.className = "mission-chip";
-      mission.textContent = node.mission || "—";
-      const missionColor = (data.mission_colors || {})[node.mission];
-      if (missionColor) mission.style.color = missionColor;
-      meta.append(mission, document.createTextNode(
-        " · " + [node.levels || "—", "最终 " + (node.tier || "未评级")].join(" · ")));
-      main.append(name, meta);
+      meta.textContent = [node.key, node.levels || "—",
+        arbiStatusLabel(node)].join(" · ");
+      main.append(line, meta);
 
       const tags = document.createElement("div");
       tags.className = "arbi-tags";
+      const tier = node.tier || "未评级";
+      const pill = document.createElement("span");
+      pill.className = "tier-pill";
+      pill.textContent = tier;
+      pill.title = "最终评级 " + tier;
+      pill.style.color = tierColor(tier);
+      pill.style.borderColor = hexAlpha(tierColor(tier), 0.55);
+      pill.style.background = hexAlpha(tierColor(tier), 0.16);
+      tags.appendChild(pill);
       if (state.arbiCurrent && node.key === state.arbiCurrent) {
         const badge = document.createElement("span");
         badge.className = "arbi-tag is-current";
@@ -830,6 +928,7 @@
       const name = document.createElement("span");
       name.className = "mission-name";
       name.textContent = entry.name;
+      name.style.color = entry.color;
       const code = document.createElement("code");
       code.textContent = entry.color;
       input.addEventListener("input", () => {
@@ -934,6 +1033,14 @@
     $("missionSave").addEventListener("click", saveMissionColors);
     $("missionReset").addEventListener("click", resetMissionColors);
     $("arbiRefresh").addEventListener("click", loadArbi);
+    $("arbiMissionColors").addEventListener("click", () => {
+      const panel = document.querySelector(".mission-panel");
+      if (!panel) return;
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      panel.classList.remove("is-flash");
+      void panel.offsetWidth;
+      panel.classList.add("is-flash");
+    });
     $("arbiFilterBtn").addEventListener("click", () => {
       state.arbiQuery = $("arbiFilter").value.trim().toLowerCase();
       loadArbi();
