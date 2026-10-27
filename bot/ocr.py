@@ -1,4 +1,12 @@
-"""紫卡截图 OCR（可选）。
+"""紫卡截图 OCR。
+
+一张图会跑过几套预处理再各自识别，结果交给 `rivenocr` 合并投票：
+
+- 先把鲜艳像素（元素图标 🔥 之类）涂掉——图标正好卡在数值和词条中间，
+  不涂掉的话「火焰伤害」会被读成 `& RIBAS` 这种乱码；
+- 灰度 → 4/6 倍放大 → 自动对比度 → 锐化 → 反色（浅色字压在深色底上，
+  反色后 Tesseract 明显更准）→ 多档二值化；
+- 另外单独截出下半部分的词条区再跑一遍，小字更清楚。
 
 需要系统安装 Tesseract 与中文语言包：
   Debian/Ubuntu: tesseract-ocr tesseract-ocr-chi-sim
@@ -10,9 +18,8 @@ from __future__ import annotations
 
 import io
 import os
-import re
 import shutil
-from typing import List, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 try:  # 可选依赖
     import pytesseract
@@ -20,13 +27,12 @@ except Exception:  # pragma: no cover - 环境未安装
     pytesseract = None
 
 try:
-    from PIL import Image, ImageEnhance, ImageOps
+    from PIL import Image, ImageChops, ImageFilter, ImageOps
 except Exception:  # pragma: no cover - 环境缺 Pillow
     Image = None
+    ImageChops = None
+    ImageFilter = None
     ImageOps = None
-    ImageEnhance = None
-
-from .rivencalc import ALIASES, canonical_name
 
 
 class OcrError(Exception):
@@ -59,90 +65,139 @@ def available() -> bool:
     return True
 
 
-def image_to_text(png: bytes) -> str:
+# ---------------------------------------------------------------------- 预处理
+def _strip_icons(image: "Image.Image", sat: int = 88, bright: int = 70):
+    """把高饱和的彩色像素（元素图标）涂成底色，只留下浅色文字。"""
+    rgb = image.convert("RGB")
+    red, green, blue = rgb.split()
+    high = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+    low = ImageChops.darker(ImageChops.darker(red, green), blue)
+    chroma = ImageChops.subtract(high, low)
+    mask = chroma.point(lambda value: 255 if value > sat else 0)
+    mask = ImageChops.multiply(mask,
+                               high.point(lambda value: 255 if value > bright else 0))
+    background = Image.new("RGB", rgb.size, (8, 8, 10))
+    return Image.composite(background, rgb, mask)
+
+
+def _upscale(gray, scale: int, sharpen: bool = True):
+    # 放大后长边不超过 4800：再大只是徒增内存，Tesseract 也不会更准
+    longest = max(gray.width, gray.height)
+    if longest and longest * scale > 4800:
+        scale = max(1, 4800 // longest)
+    size = (max(1, gray.width * scale), max(1, gray.height * scale))
+    big = gray.resize(size, Image.LANCZOS)
+    big = ImageOps.autocontrast(big)
+    if sharpen:
+        big = big.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
+    return big
+
+
+_MAX_SIDE = 1200
+
+
+def _prepare(image, max_side: int = _MAX_SIDE):
+    """超大截图先缩到长边 1400——紫卡文字本来就大，缩完照样清楚；
+    不缩的话 4 倍放大能把 4K 截图吃成几亿像素，容器直接 OOM。"""
+    longest = max(image.width, image.height)
+    if longest <= max_side:
+        return image
+    ratio = float(max_side) / float(longest)
+    size = (max(1, int(image.width * ratio)), max(1, int(image.height * ratio)))
+    return image.resize(size, Image.LANCZOS)
+
+
+def _variants(image, angles: Sequence[float] = ()) -> List[Tuple[str, object, str]]:
+    """(变体名, 图片, tesseract 参数)。"""
+    source = _prepare(image)
+    if angles:
+        # 角度歪的截图：按 OSD 之外的几个候选角各转一次，交给投票挑选
+        return [("rot%+d_4x_th160" % angle,
+                 ImageOps.invert(_upscale(
+                     _strip_icons(source.rotate(angle, expand=True,
+                                                resample=Image.BICUBIC)
+                                  ).convert("L"), 4)).point(
+                     lambda value: 255 if value > 160 else 0),
+                 "--psm 6")
+                for angle in angles]
+
+    width, height = source.size
+    clean = _strip_icons(source)
+    gray = clean.convert("L")
+    jobs: List[Tuple[str, object, str]] = [("raw_psm6", source, "--psm 6")]
+
+    plain4 = _upscale(gray, 4)
+    jobs.append(("inv4x", ImageOps.invert(plain4), "--psm 6"))
+    for threshold in (150, 180):
+        jobs.append(("inv4x_th%d" % threshold,
+                     ImageOps.invert(plain4).point(
+                         lambda value, cut=threshold: 255 if value > cut else 0),
+                     "--psm 6"))
+
+    area = clean.crop((0, int(height * 0.36), width, height)).convert("L")
+    jobs.append(("area_inv5x", ImageOps.invert(_upscale(area, 5)), "--psm 6"))
+
+    jobs.append(("inv6x_th150",
+                 ImageOps.invert(_upscale(gray, 6)).point(
+                     lambda value: 255 if value > 150 else 0),
+                 "--psm 6"))
+    return jobs
+
+
+def _run(image, config: str) -> str:
+    try:
+        return pytesseract.image_to_string(image, lang="chi_sim+eng", config=config)
+    except Exception:  # pragma: no cover - 单次失败不影响其它变体
+        return ""
+
+
+def _rotate_hint(png: bytes) -> float:
+    """用 Tesseract 的 OSD 猜一下整张图的旋转角，失败就当 0 度。"""
+    if pytesseract is None:
+        return 0.0
+    try:
+        image = Image.open(io.BytesIO(png)).convert("RGB")
+        osd = pytesseract.image_to_osd(image)
+    except Exception:
+        return 0.0
+    for line in str(osd).splitlines():
+        if line.lower().startswith("rotate:"):
+            try:
+                angle = float(line.split(":")[1])
+            except ValueError:
+                return 0.0
+            return angle - 360.0 if angle > 180 else angle
+    return 0.0
+
+
+def extract_variants(png: bytes, angles: Sequence[float] = ()) -> List[str]:
+    """同一张图的多次识别结果；角度变体用于歪图兜底。"""
     if not available():
         raise OcrError(
             "图片识别未启用：请安装 Tesseract OCR（含 chi_sim 中文包），"
             "Docker 镜像已内置；Windows 需单独安装。")
     try:
         image = Image.open(io.BytesIO(png)).convert("RGB")
-        # 正负词条颜色不同，红色负面在灰度图里容易消失；多跑增强图和稀疏文本模式。
-        gray = ImageOps.autocontrast(image.convert("L"))
-        gray = gray.resize((max(1, gray.width * 3), max(1, gray.height * 3)))
-        gray = ImageEnhance.Contrast(gray).enhance(2.0)
-        binary = gray.point(lambda value: 255 if value > 150 else 0)
-        width, height = image.size
-        text_area = image.crop((0, int(height * 0.38), width, height))
-        text_area = ImageOps.autocontrast(text_area.convert("L"))
-        text_area = text_area.resize(
-            (max(1, text_area.width * 3), max(1, text_area.height * 3)))
-        text_area = ImageEnhance.Contrast(text_area).enhance(2.0)
-        jobs = (
-            (image, "--psm 6"),
-            (gray, "--psm 6"),
-            (gray, "--psm 11"),
-            (text_area, "--psm 6"),
-            (binary, "--psm 11"),
-        )
-        texts = []
-        for source, config in jobs:
-            try:
-                texts.append(pytesseract.image_to_string(
-                    source, lang="chi_sim+eng", config=config))
-            except Exception:
-                continue
-        if not texts:
-            raise OcrError("图片识别失败。")
-        return "\n".join(texts)
-    except OcrError:
-        raise
     except Exception as exc:
-        raise OcrError("图片识别失败：%s" % exc)
+        raise OcrError("图片打不开：%s" % exc)
+    texts: List[str] = []
+    for _tag, prepared, config in _variants(image, angles):
+        text = _run(prepared, config)
+        if text.strip():
+            texts.append(text)
+    if not texts:
+        raise OcrError("图片识别失败。")
+    return texts
 
 
-def _normalize_signs(text: str) -> str:
-    return (str(text or "")
-            .replace("−", "-").replace("–", "-").replace("—", "-")
-            .replace("－", "-").replace("﹣", "-")
-            .replace("％", "%"))
+def image_to_text(png: bytes) -> str:
+    """兼容旧接口：把多套识别结果拼起来。"""
+    return "\n".join(extract_variants(png))
 
 
+# ---------------------------------------------------------------------- 兼容接口
 def parse_rolls(text: str) -> List[Tuple[str, float]]:
-    """从 OCR 文本中提取“+165.2% 伤害”这类词条。
+    """单份文本 → [(词条, 数值)]；保留给旧调用方与测试。"""
+    from .rivenocr import parse_text
 
-    兼容红色负面词条常见的 OCR 问题：负号被识别成各种横线、
-    负号单独一行、百分号漏识别。
-    """
-    found: List[Tuple[str, float]] = []
-    index: dict = {}
-    for line in _normalize_signs(text).splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        # 游戏里的负面派系伤害显示为 x0.59（倍率），不是 -41%。
-        multiplier = re.search(r"[x×]\s*(\d+(?:\.\d+)?)", line, re.I)
-        if multiplier:
-            value = (float(multiplier.group(1)) - 1.0) * 100.0
-            match = multiplier
-        else:
-            match = re.search(r"([+-]?)\s*(\d+(?:\.\d+)?)\s*%?", line)
-            if not match:
-                continue
-            value = float(match.group(2))
-            before = line[:match.start()]
-            if match.group(1) == "-" or re.search(r"[-]", before):
-                value = -value
-        canonical = canonical_name(line)
-        if canonical not in ALIASES:
-            continue
-        # OCR 可能把 x 漏掉，只留下 0.59；派系伤害小于 1 仍是倍率。
-        if not multiplier and canonical == "对派系伤害" and 0 < value < 1:
-            value = (value - 1.0) * 100.0
-        if canonical in index:
-            position = index[canonical]
-            if value < 0 < found[position][1]:
-                found[position] = (canonical, value)
-            continue
-        index[canonical] = len(found)
-        found.append((canonical, value))
-    return found
+    return parse_text(text)

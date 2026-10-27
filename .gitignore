@@ -13,6 +13,7 @@ logs/
 *.log
 preview_*.png
 _preview.py
+render_*.py
 .build_commit
 
 # Python

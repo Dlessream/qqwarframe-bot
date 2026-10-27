@@ -188,7 +188,9 @@ def riven_ocr_reply(pairs, note: str = "") -> Reply:
 
 
 def riven_analysis_reply(analysis: RivenAnalysis,
-                         evaluations: Sequence[RollEvaluation]) -> Reply:
+                         evaluations: Sequence[RollEvaluation],
+                         notes: Sequence[str] = (),
+                         from_image: bool = False) -> Reply:
     lines = [
         "【%s】紫卡分析" % analysis.name,
         "倾向 %.2f（%s）｜ Lv.8 词条范围" % (analysis.disposition, analysis.dots or "—"),
@@ -207,12 +209,18 @@ def riven_analysis_reply(analysis: RivenAnalysis,
             lines.append("  %s %g%s：范围 %s，%s" % (
                 evaluation.name, evaluation.value, evaluation.stat.unit,
                 evaluation.stat.range_text(), evaluation.grade))
-        lines.append("提示：有负面词条时请写成负值（例如 变焦=-30）。")
+        if not from_image:
+            lines.append("提示：有负面词条时请写成负值（例如 变焦=-30）。")
 
     if evaluations:
         config_label = infer_config_label(evaluations)
     else:
         config_label = "2+"
+    if notes:
+        lines.append("")
+        lines.append("识别提示：")
+        for note in notes:
+            lines.append("  · %s" % note)
     if config_label.startswith("3"):
         group = analysis.three_neg if "+1" in config_label else analysis.three
     else:
@@ -232,7 +240,9 @@ def riven_analysis_reply(analysis: RivenAnalysis,
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.riven_analysis_card(
-            analysis, evaluations, "数据 Warframe Wiki · 本地计算"))
+            analysis, evaluations,
+            "数据 Warframe Wiki · 本地计算" +
+            (" ｜ " + notes[0] if notes else "")))
 
 
 # ---------------------------------------------------------------------- 世界状态

@@ -5,6 +5,7 @@ import time
 import unittest
 from unittest import mock
 
+from bot import rivenocr
 from bot.arbi import ArbiData, ArbiNode
 from bot.alerts import AlertStore
 from bot.commands import (CommandRouter, Context, split_platform, split_roll_args,
@@ -795,17 +796,39 @@ class RotationCommandTest(unittest.TestCase):
 class RivenImageOnlyTest(unittest.TestCase):
     def test_image_only_parses_four_stats(self):
         router, _, _ = make_router(riven=FakeImageRiven())
+        # 3+1 的合法数值：毒素/暴击 75.9~92.8，多重 101~123.4，对派系 -37.1~-30.4
         text = """视使之触 Sati-acritox
-+95.8% 毒素伤害
-+100.3% 暴击伤害
-+137.1% 多重射击
-x0.59 对 Grineer 的伤害"""
++85.0% 毒素伤害
++90.0% 暴击伤害
++110.0% 多重射击
+x0.66 对 Grineer 的伤害"""
         ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
-        with mock.patch("bot.commands.ocr.image_to_text", return_value=text):
+        result = rivenocr.ReadResult(
+            candidates=rivenocr.read_texts([text]), texts=[text])
+        with mock.patch("bot.rivenocr.read", return_value=result):
             reply = router.handle("#紫卡分析", ctx)[0]
         self.assertIn("3+1", reply.text)
         self.assertIn("对派系伤害", reply.text)
-        self.assertIn("-41", reply.text)
+        self.assertIn("-34", reply.text)
+
+    def test_nonsense_values_are_flagged(self):
+        """数值和这把武器的任何配置都对不上时，照实列出并提示核对原图。"""
+        router, _, _ = make_router(riven=FakeImageRiven())
+        text = "视使之触\n+95.8% 毒素伤害\n+100.3% 暴击伤害\n+137.1% 多重射击"
+        ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
+        result = rivenocr.ReadResult(
+            candidates=rivenocr.read_texts([text]), texts=[text])
+        with mock.patch("bot.rivenocr.read", return_value=result):
+            reply = router.handle("#紫卡分析", ctx)[0]
+        self.assertIn("核对原图", reply.text)
+
+    def test_image_with_no_stats_asks_for_a_better_shot(self):
+        router, _, _ = make_router(riven=FakeImageRiven())
+        ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
+        result = rivenocr.ReadResult(candidates=[], texts=["视使之触"])
+        with mock.patch("bot.rivenocr.read", return_value=result):
+            reply = router.handle("#紫卡分析", ctx)[0]
+        self.assertIn("没有识别到", reply.text)
 
 
 if __name__ == "__main__":

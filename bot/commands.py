@@ -19,6 +19,7 @@ from .market import Item, MarketClient, MarketError, SearchHit
 from .replies import Reply
 from .riven import RivenClient
 from .rivencalc import calculate, evaluate_roll, looks_like_stat
+from . import rivenocr
 from .updater import DataUpdater
 from .wiki import WikiClient, WikiError
 from .worldstate import Arbitration, WorldStateClient, WorldStateError
@@ -652,13 +653,16 @@ class CommandRouter:
         weapon_text, pairs = split_roll_args(argument)
         weapon_text, _platform = split_platform(weapon_text)
         ocr_text = ""
+        candidates: List[rivenocr.Candidate] = []
         if ctx.image:
             try:
-                ocr_text = ocr.image_to_text(ctx.image)
+                result = rivenocr.read(ctx.image)
             except ocr.OcrError as exc:
                 return present.error_reply(str(exc))
+            ocr_text = "\n".join(result.texts)
+            candidates = list(result.candidates)
             if not pairs:
-                pairs = ocr.parse_rolls(ocr_text)
+                pairs = [(item.name, item.value) for item in candidates]
         weapon = None
         if weapon_text:
             try:
@@ -693,8 +697,13 @@ class CommandRouter:
             return present.error_reply(
                 "图片里没有识别到有效紫卡词条，请发送完整、清晰的紫卡截图。")
         analysis = calculate(weapon)
+        notes: List[str] = []
+        if candidates:
+            # 有武器之后才能用它的词条表 / 数值范围校正符号、剔除不属于它的词条
+            pairs, notes = rivenocr.finalize(candidates, analysis)
         evaluations = evaluate_roll(analysis, pairs) if pairs else []
-        return present.riven_analysis_reply(analysis, evaluations)
+        return present.riven_analysis_reply(analysis, evaluations, notes,
+                                            from_image=bool(ctx.image))
 
     # ------------------------------------------------------------------ 数据更新
     def _update(self, argument: str, ctx: Context) -> Reply:
