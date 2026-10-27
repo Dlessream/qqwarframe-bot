@@ -336,6 +336,12 @@ class MultiplierStatTest(unittest.TestCase):
         values = {item.name: item.value for item in candidates}
         self.assertEqual(values["对派系伤害"], 50.0)
 
+    def test_lost_leading_zero(self):
+        """`x0.6` 被读成 `x.6`：小数位对了就还是 -40%（负面），不能当成 6%。"""
+        candidates = rivenocr.read_texts(["x.6 对Grineer的伤害"])
+        values = {item.name: item.value for item in candidates}
+        self.assertEqual(values["对派系伤害"], -40.0)
+
     def test_card_form_is_preserved(self):
         """输出照卡面写：`x1.5` / `x0.6`，不给它改成 `+50%`。"""
         self.assertEqual(rivencalc.multiplier_text(50.0), "x1.5")

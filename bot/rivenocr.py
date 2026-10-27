@@ -127,7 +127,7 @@ class ReadResult:
 
 # ---------------------------------------------------------------------- 数值
 _TOKEN_RE = re.compile(
-    r"(?P<mult>[x×X]\s*(?P<mnum>\d+(?:[.,]\d+)?))"
+    r"(?P<mult>[x×X]\s*(?P<mnum>[.,]?\d+(?:[.,]\d+)?))"
     r"|(?P<sign>[+\-−–—－﹣])?\s*(?P<num>\d{1,3}(?:[.,]\d{1,2})?)\s*(?P<pct>[%％])?")
 _SIGN_CHARS = "+-−–—－﹣"
 _NEG_CHARS = "-−–—－﹣"
@@ -159,8 +159,11 @@ class _Token:
 
 def _token_from_match(match) -> _Token:
     if match.group("mult"):
-        raw = match.group("mnum")
-        return _Token(value=(float(raw.replace(",", ".")) - 1.0) * 100.0,
+        raw = match.group("mnum").replace(",", ".")
+        # OCR 偶尔把 `x0.6` 读成 `x.6`，补回整数位
+        if raw.startswith("."):
+            raw = "0" + raw
+        return _Token(value=(float(raw) - 1.0) * 100.0,
                       raw=raw, start=match.start(), end=match.end(),
                       sign="", multiplier=True, percent=False)
     raw = match.group("num")
