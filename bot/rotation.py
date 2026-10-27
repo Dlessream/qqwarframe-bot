@@ -108,7 +108,7 @@ ACRITHIS_ITEMS: Dict[str, Tuple[str, str, int]] = {
     "Zaw Riven Mod": ("Zaw 裂罅 Mod", "Zaw 裂罅", 15),
     "Shotgun Riven Mod": ("霰弹枪裂罅 Mod", "霰弹裂罅", 15),
     "Companion Weapon Riven Mod": ("同伴武器裂罅 Mod", "同伴裂罅", 20),
-    "10,000 Kuva": ("10,000 赤毒", "赤毒", 10),
+    "10,000 Kuva": ("10,000 赤毒", "1 万赤毒", 10),
 }
 
 ACRITHIS_DAILY_HINT = "每日赋能 / Captura 每天 08:00（北京时间）换，wiki 没有上报，得进游戏看。"
