@@ -1457,6 +1457,10 @@ def junk_overview_reply(groups: Sequence[dict], platform: str = "PC") -> Reply:
             aligns=["left", "right", "right", "right", "right", "right"]))
 
 
+# 紫卡榜可能有上百把，文字消息只列前面这些，完整版走图片
+RIVEN_TEXT_ROWS = 20
+
+
 def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
                      limit: Optional[int] = None, platform: str = "PC") -> Reply:
     """Prime 战甲价格（高 → 低），默认全列。"""
@@ -1493,22 +1497,28 @@ def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 
 def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
-                     limit: int = 12) -> Reply:
-    """零洗紫卡价格榜（高 → 低）：每把武器取一张最贵的零洗卡。"""
+                     limit: Optional[int] = None) -> Reply:
+    """零洗紫卡价格榜（高 → 低）：每把武器取一张最贵的零洗卡，默认全列。"""
+    pool = list(quotes) if limit is None else list(quotes)[:limit]
     rows = []
     lines = ["【零洗紫卡价格】每把武器取最贵的零洗卡，从高到低"]
-    for index, quote in enumerate(list(quotes)[:limit], 1):
+    for index, quote in enumerate(pool, 1):
         attrs = " / ".join(quote.attributes[:3]) or "未洗词条"
         rank_tag = "" if not quote.rank or quote.rank >= 8 else " · %d 级" % quote.rank
-        lines.append("%d. %s  %dp（%s%s）· %s · %s" % (
-            index, name_of(quote.slug), quote.price,
-            "一口价" if quote.buyout else "起拍价", rank_tag, attrs, quote.seller))
+        if index <= RIVEN_TEXT_ROWS:
+            lines.append("%d. %s  %dp（%s%s）· %s · %s" % (
+                index, name_of(quote.slug), quote.price,
+                "一口价" if quote.buyout else "起拍价", rank_tag, attrs,
+                quote.seller))
         rows.append([
             "%d" % index,
             name_of(quote.slug),
             "%dp" % quote.price,
             " / ".join(quote.attributes[:2]) or "未洗词条",
         ])
+    if len(rows) > RIVEN_TEXT_ROWS:
+        # 榜单可能有上百把，文字只给前段，完整版在图片里
+        lines.append("…… 后面还有 %d 把，完整榜单见下图。" % (len(rows) - RIVEN_TEXT_ROWS))
     if not rows:
         lines.append("还没有拿到零洗紫卡报价，稍后再试。")
     ready, total = coverage if coverage else (0, 0)

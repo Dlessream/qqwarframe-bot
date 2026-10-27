@@ -841,6 +841,22 @@ class BoardCommandTest(unittest.TestCase):
         self.assertIn("零洗紫卡", reply.text)
         self.assertIn("5000p", reply.text)
 
+    def test_riven_rank_shows_every_row(self):
+        from bot.board import RivenQuote
+        board = FakeBoard()
+        quotes = [RivenQuote("weapon_%02d" % index, 900 - index * 10, 8, True,
+                             "seller", ("多重射击 +98.1%",), "", 0.0)
+                  for index in range(70)]
+        board.riven_quotes = lambda: quotes
+        router = self.router(board)
+        router.riven = FakeRiven()
+        reply = router.handle("#紫卡", self.ctx)[0]
+        lines = reply.text.strip().splitlines()
+        # 文字只给前 20 名 + 一行「后面还有」，完整榜单在图里
+        self.assertEqual(len(lines), 22)  # 标题 + 20 行 + 收尾提示
+        self.assertTrue(lines[-2].startswith("20. weapon 19"))
+        self.assertIn("后面还有 50 把", lines[-1])
+
     def test_scanning_hint_when_empty(self):
         reply = self.router(FakeBoard(ready=False)).handle("#银垃圾", self.ctx)[0]
         self.assertIn("后台扫描", reply.text)
