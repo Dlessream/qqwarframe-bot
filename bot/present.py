@@ -160,8 +160,8 @@ def riven_ocr_reply(analysis: RivenAnalysis,
                 stat = candidate
                 break
         unit = stat.unit if stat else "%"
-        rows.append([name, "%g%s" % (value, unit)])
-        lines.append("%s %g%s" % (name, value, unit))
+        rows.append([name, "%+g%s" % (value, unit)])
+        lines.append("%s %+g%s" % (name, value, unit))
     text = "【%s】紫卡截图识别\n倾向 %.2f（%s）\n%s\n\n只做截图词条识别，不计算范围/评分。" % (
         analysis.name, analysis.disposition, analysis.dots or "—",
         "\n".join(lines))
@@ -203,10 +203,10 @@ def riven_analysis_reply(analysis: RivenAnalysis,
         lines.append("你的词条（按 %s 配置比较）：" % infer_config_label(evaluations))
         for evaluation in evaluations:
             if evaluation.stat is None:
-                lines.append("  %s %g：未识别（该武器没有这个词条）" % (
+                lines.append("  %s %+g：未识别（该武器没有这个词条）" % (
                     evaluation.name, evaluation.value))
                 continue
-            lines.append("  %s %g%s：范围 %s，%s" % (
+            lines.append("  %s %+g%s：范围 %s，%s" % (
                 evaluation.name, evaluation.value, evaluation.stat.unit,
                 evaluation.stat.range_text(), evaluation.grade))
         if not from_image:

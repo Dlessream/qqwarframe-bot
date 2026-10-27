@@ -145,6 +145,73 @@ class DeskewTest(unittest.TestCase):
         self.assertTrue(all(abs(angle - 10.0) <= 3.0 for angle in angles))
 
 
+class SignTest(unittest.TestCase):
+    """卡面符号说了算：`+` 就是正向、`-` 就是负向。"""
+
+    def setUp(self):
+        self.analysis = calculate(FURIS)
+
+    def _card(self, ammo_options, ammo_signs):
+        return [
+            rivenocr.Candidate("多重射击", [(143.1, 15)], signs={"143.1": (6, 0)}),
+            rivenocr.Candidate("触发几率", [(102.9, 12)], signs={"102.9": (6, 0)}),
+            rivenocr.Candidate("火焰伤害", [(92.1, 9)], signs={"92.1": (6, 0)}),
+            rivenocr.Candidate("弹药最大值", ammo_options, signs=ammo_signs),
+        ]
+
+    def test_minus_stays_minus(self):
+        result = rivenocr.resolve(self._card([(-79.3, 8)], {"-79.3": (0, 8)}),
+                                  self.analysis)
+        self.assertEqual(result.config, "3+1")
+        self.assertEqual(dict(result.pairs)["弹药最大值"], -79.3)
+        self.assertEqual(result.notes, [])
+
+    def test_minus_is_not_flipped_when_it_looks_positive(self):
+        """数值更像正向范围也不许翻正——符号是卡面写明的。"""
+        result = rivenocr.resolve(self._card([(-101.0, 8)], {"-101.0": (0, 8)}),
+                                  self.analysis)
+        self.assertEqual(dict(result.pairs)["弹药最大值"], -101.0)
+        self.assertTrue(any("核对" in note for note in result.notes))
+
+    def test_minus_beats_a_more_popular_signless_reading(self):
+        """票更多的那个读数没读到符号，也不能盖掉读到 `-` 的那个。"""
+        result = rivenocr.resolve(
+            self._card([(79.3, 20), (-79.3, 3)], {"-79.3": (0, 3)}),
+            self.analysis)
+        self.assertEqual(dict(result.pairs)["弹药最大值"], -79.3)
+
+    def test_positive_only_stat_ignores_a_bogus_minus(self):
+        """火焰伤害不可能为负，把 `+` 读成 `-` 时按正向算。"""
+        cards = self._card([(-79.3, 8)], {"-79.3": (0, 8)})
+        cards[2] = rivenocr.Candidate("火焰伤害", [(-92.1, 9)],
+                                      signs={"-92.1": (0, 9)})
+        result = rivenocr.resolve(cards, self.analysis)
+        self.assertEqual(dict(result.pairs)["火焰伤害"], 92.1)
+
+    def test_lost_sign_still_comes_back_from_range(self):
+        """符号全丢了才用范围补，补出来照样是负的。"""
+        result = rivenocr.resolve(self._card([(79.3, 8)], {}), self.analysis)
+        self.assertEqual(dict(result.pairs)["弹药最大值"], -79.3)
+
+    def test_confusable_pair_is_mutually_exclusive(self):
+        """同一条数值 + 同一个词族，只能留一个（暴击伤害/暴击几率 读混）。"""
+        conflicts = rivenocr._conflicts([
+            rivenocr.Candidate("暴击伤害", [(11.2, 4)]),
+            rivenocr.Candidate("暴击几率", [(11.2, 3)]),
+            rivenocr.Candidate("多重射击", [(11.2, 3)]),
+        ])
+        self.assertEqual(conflicts, [[0, 1]])
+
+    def test_shadow_reading_does_not_add_a_line(self):
+        """多出来的一条同族同值候选，不能把结果撑成 5 条。"""
+        cards = self._card([(-79.3, 8)], {"-79.3": (0, 8)})
+        cards.append(rivenocr.Candidate("弹药效率", [(-79.3, 1)],
+                                        signs={"-79.3": (0, 1)}))
+        result = rivenocr.resolve(cards, self.analysis)
+        self.assertEqual(len(result.pairs), 4)
+        self.assertNotIn("弹药效率", [name for name, _value in result.pairs])
+
+
 class ResolveTest(unittest.TestCase):
     def setUp(self):
         self.analysis = calculate(FURIS)

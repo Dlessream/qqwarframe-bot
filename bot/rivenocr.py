@@ -10,8 +10,10 @@
    字符才算命中，而且校验阶段还会核对「这把武器到底有没有这个词条」。
 3. **数值读错一位**——`-79.3%` 有几次被读成 `-19.3%`。同一张图会跑 6 套
    预处理各识别一次，同一个词条的多个读数按票数排序，再交给数值范围裁决。
-4. **符号读反**——`+99.9%` 偶尔读成 `-99.9%`。校验阶段会看这个词条在
-   这把武器上是不是只可能是正面（或只可能负面），落错边就纠正过来。
+4. **符号读反**——`+99.9%` 偶尔读成 `-99.9%`，反过来 `-4.7%` 也会被翻成正的。
+   现在**以卡面上的符号为准**：`+` 就是正向、`-` 就是负向，数值范围不能推翻它。
+   只有符号压根没读到，或者符号和这条词条能对上的正负明显冲突（比如
+   「火焰伤害」不可能为负），才让范围出面定正负。
 5. **多读一位小数**——紫卡数值都是 1 位小数，`92.19` 其实是 `92.1%` 多吃了
    一个 9，截断后与正确读数合并成一票。
 6. **兜不住就直说**——数值怎么都对不上范围时只提示、不硬猜，宁可不给结论，
@@ -71,11 +73,17 @@ ALIAS_TABLE = _alias_table()
 # ---------------------------------------------------------------------- 结构
 @dataclass
 class Candidate:
-    """一个识别出来的词条；同一个词条可能有多个读数（不同变体读出来的）。"""
+    """一个识别出来的词条；同一个词条可能有多个读数（不同变体读出来的）。
+
+    `signs` 记的是「这个读数在图上带的是 + 还是 -」：键是数值，值是
+    (读到 + 的票数, 读到 - 的票数)。卡面上 `+` 就是正向、`-` 就是负向，
+    这是最硬的一条依据——比拿范围反推可靠得多，所以校验时优先听它的。
+    """
 
     name: str
     options: List[Tuple[float, int]] = field(default_factory=list)
     sample: str = ""
+    signs: Dict[str, Tuple[int, int]] = field(default_factory=dict)
 
     @property
     def value(self) -> float:
@@ -84,6 +92,23 @@ class Candidate:
     @property
     def votes(self) -> int:
         return self.options[0][1] if self.options else 0
+
+    @property
+    def votes_total(self) -> int:
+        return sum(count for _value, count in self.options)
+
+    def sign_of(self, value: float) -> Tuple[int, int]:
+        """某个读数在图上被读到几次 +、几次 -。"""
+        return self.signs.get("%.1f" % value, (0, 0))
+
+    def polarity(self, value: float) -> str:
+        """图上的符号：`+` / `-`，都没读到或两种都读到时返回空串。"""
+        plus, minus = self.sign_of(value)
+        if plus and not minus:
+            return "+"
+        if minus and not plus:
+            return "-"
+        return ""
 
     def __str__(self) -> str:  # pragma: no cover - 调试用
         detail = "、".join("%+.1f×%d" % (value, votes)
@@ -191,6 +216,19 @@ def _sign_before(line: str, token: _Token) -> str:
     return ""
 
 
+def _sign_flag(token: _Token, sign: str) -> str:
+    """把这个读数在图上带的是 + 还是 - 记下来。
+
+    卡面上 `+` 就是正向、`-` 就是负向，这是判定正负的第一依据。
+    `x1.5 对派系` 这类倍率写法只可能是正向，也算 `+`。
+    """
+    if token.multiplier:
+        return "+"
+    if not sign:
+        return ""
+    return "-" if sign in _NEG_CHARS else "+"
+
+
 # ---------------------------------------------------------------------- 词条名
 def _boundary_ok(text: str, start: int, end: int, alias: str) -> bool:
     if not _is_ascii(alias):
@@ -276,13 +314,13 @@ def _leading_variant(value: float):
     return -number if value < 0 else number
 
 
-def _line_rolls(line: str) -> List[Tuple[str, float, float]]:
-    """从一行里提取 [(标准名, 数值, 权重)]。"""
+def _line_rolls(line: str) -> List[Tuple[str, float, float, str]]:
+    """从一行里提取 [(标准名, 数值, 权重, 图上符号)]。"""
     stats = _find_stats(line)
     stats = stats + _fuzzy_stats(line, stats)
     stats.sort(key=lambda item: item[0])
 
-    entries: List[Tuple[int, int, int, str, float, float]] = []
+    entries: List[Tuple[int, int, int, str, float, float, str]] = []
     for order, (start, end, canonical, weight) in enumerate(stats):
         chunk = line[:start]
         token = _last_token(chunk, 18)
@@ -303,39 +341,45 @@ def _line_rolls(line: str) -> List[Tuple[str, float, float]]:
         if sign or token.multiplier:
             weight += 1.0
         entries.append((token.start, order, distance, canonical, weight,
-                        _quantize(value, token.raw)))
+                        _quantize(value, token.raw), _sign_flag(token, sign)))
 
     # 同一个数字只认离它最近的词条名：`x1.5 对 Grineer 的伤害` 里「Grineer」
     # 和尾部的「伤害」都会命中，但只能算一条对派系伤害。
-    best: Dict[int, Tuple[int, int, int, str, float, float]] = {}
+    best: Dict[int, Tuple[int, int, int, str, float, float, str]] = {}
     for entry in entries:
         previous = best.get(entry[0])
         if previous is None or entry[2] < previous[2]:
             best[entry[0]] = entry
 
-    result: List[Tuple[str, float, float]] = []
+    result: List[Tuple[str, float, float, str]] = []
     seen = set()
-    for _start, _order, _distance, canonical, weight, value in sorted(
+    for _start, _order, _distance, canonical, weight, value, flag in sorted(
             best.values(), key=lambda item: item[1]):
         if canonical in seen:
             continue
         seen.add(canonical)
-        result.append((canonical, value, weight))
+        result.append((canonical, value, weight, flag))
 
     # 顺带给「多读一位」的读数记一票（票力三分之一），
     # 494.1 / 143 1 这类偏差太大的，范围校验会把它挑掉
-    extra: List[Tuple[str, float, float]] = []
-    for canonical, value, weight in result:
+    extra: List[Tuple[str, float, float, str]] = []
+    for canonical, value, weight, flag in result:
         stripped = _leading_variant(value)
         if stripped is not None:
-            extra.append((canonical, stripped, max(1.0, weight / 3.0)))
+            extra.append((canonical, stripped, max(1.0, weight / 3.0), flag))
     return result + extra
 
 
 # ---------------------------------------------------------------------- 投票
 def read_texts(texts: Sequence[str]) -> List[Candidate]:
-    """多份 OCR 文本合并投票，得到去重后的词条列表。"""
+    """多份 OCR 文本合并投票，得到去重后的词条列表。
+
+    除了「数值是多少」投票，还会单独记「这个数值在图上带的是 + 还是 -」的票数，
+    校验阶段据此定正负。
+    """
     votes: Dict[str, Counter] = defaultdict(Counter)
+    signs: Dict[str, Dict[str, Counter]] = defaultdict(
+        lambda: defaultdict(Counter))
     samples: Dict[str, Dict[str, str]] = defaultdict(dict)
     order: List[str] = []
 
@@ -346,12 +390,14 @@ def read_texts(texts: Sequence[str]) -> List[Candidate]:
                 rolls = _line_rolls(line)
             except Exception:  # pragma: no cover - 识别异常不该拖垮整条消息
                 continue
-            for name, value, weight in rolls:
+            for name, value, weight, flag in rolls:
                 key = "%.1f" % value
                 if key in seen[name]:
                     continue
                 seen[name].add(key)
                 votes[name][key] += int(round(weight))
+                if flag:
+                    signs[name][key][flag] += 1
                 samples[name].setdefault(key, line[:44])
                 if name not in order:
                     order.append(name)
@@ -364,8 +410,13 @@ def read_texts(texts: Sequence[str]) -> List[Candidate]:
         options = sorted(((float(key), count) for key, count in counter.items()),
                          key=lambda item: (-item[1], -abs(item[0])))
         best_sample = samples[name].get("%.1f" % options[0][0], "")
+        candidate_signs = {
+            key: (flag["+"], flag["-"])
+            for key, flag in signs.get(name, {}).items()
+        }
         candidates.append(Candidate(name=name, options=options,
-                                    sample=best_sample))
+                                    sample=best_sample,
+                                    signs=candidate_signs))
     return candidates
 
 
@@ -450,20 +501,35 @@ class Resolution:
     config: str = ""
 
 
-def _pick(candidate: Candidate, config: _Config):
-    """在这套配置的范围里挑一个读数；返回 (成本, 数值, 是否负面) 或 None。"""
+def _pick(candidate: Candidate, config: _Config, strict: bool = True):
+    """在这套配置的范围里挑一个读数；返回 (成本, 数值, 是否负面) 或 None。
+
+    `strict` 为真时先听图上读到的符号：卡面写 `+` 就只往正向范围里放，
+    写 `-` 就只往负面范围里放。只有符号和这张卡的配置明显冲突时
+    （比如某个词条压根不可能为负），才退回只看范围。
+    """
     best = None
     for value, votes in candidate.options:
         magnitude = abs(value)
+        prefer = candidate.polarity(value)
+        positive_ok = (candidate.name in config.positives
+                       and not (strict and prefer == "-"))
+        negative_ok = (candidate.name in config.negatives
+                       and not (strict and prefer == "+"))
+        if not positive_ok and not negative_ok:
+            # 符号和这条词条能对上的正负冲突了，多半是符号被读错，退回只看范围
+            positive_ok = candidate.name in config.positives
+            negative_ok = candidate.name in config.negatives
+        if not positive_ok and not negative_ok:
+            return None
+
         choices = []
-        if candidate.name in config.positives:
+        if positive_ok:
             choices.append((_distance(magnitude, config.positives[candidate.name]),
                             False))
-        if candidate.name in config.negatives:
+        if negative_ok:
             choices.append((_distance(magnitude, config.negatives[candidate.name]),
                             True))
-        if not choices:
-            return None
         for gap, negative in choices:
             # 同样贴近时：票多的优先，其次保持图上读到的正负
             mismatch = 1 if (value < 0) != negative else 0
@@ -475,37 +541,47 @@ def _pick(candidate: Candidate, config: _Config):
 
 _MAX_CANDIDATES = 8
 
+
+def _family(name: str) -> str:
+    """词条名家族：中文名取前两字。
+
+    `暴击伤害` / `暴击几率` 同属「暴击」，`弹药最大值` / `弹药效率` 同属「弹药」。
+    OCR 把同族的两个词条读混时，同一条数值会投出两个词条——靠这个把它们标成互斥。
+    """
+    return str(name or "")[:2]
+
+
+def _family_key(candidate: Candidate) -> Tuple[str, str]:
+    return ("%.1f" % abs(candidate.value), _family(candidate.name))
+
+
+def _conflicts(candidates: Sequence[Candidate]) -> List[List[int]]:
+    """互相排斥的候选下标：同一条数值（卡上不可能重复）+ 同一个词族。
+
+    例如 6 份预处理里 3 份读成「暴击伤害 11.2」、2 份读成「暴击几率 11.2」，
+    两个都会进候选；不标互斥的话，结果里就会平白多出一条。
+    """
+    groups: Dict[Tuple[str, str], List[int]] = defaultdict(list)
+    for index, candidate in enumerate(candidates):
+        if candidate.options:
+            groups[_family_key(candidate)].append(index)
+    return [indices for indices in groups.values() if len(indices) > 1]
+
 # 「数值落在范围里」允许的误差：绝对 2.0，或者数值的 5%（取大的那个）。
 # 只用来吸收数据表与游戏内的四舍五入，读错一位（几十个百分点）不会混进来。
 _FIT_SLACK = 2.0
 
 
-def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolution:
-    """按这把武器的词条表与数值范围，挑读数、纠符号、丢掉多认的词条。
+def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
+            conflicts: Sequence[Sequence[int]], strict: bool,
+            allow_unfit: bool = False, rank: int = 0):
+    """枚举「用哪几条候选 + 哪套配置」，返回最贴合的一组。
 
-    四种配置（2+ / 2+1 / 3+ / 3+1）各自枚举「用哪几条候选」，数值全都贴得上
-    的那套胜出；配置也顺带决定了哪个词条该是负的——比单看符号可靠得多。
-    多认出来的词条（OCR 把杂质读成词条名）会因为凑不进任何配置而被丢掉。
+    `rank` 是这一轮的可信度（0 最可信），只在「保留的词条一样多」时才拿来分胜负：
+    先保证不漏词条，再看是不是听了卡面的符号。
+    `allow_unfit` 用于兜底轮：数值和理论范围对不上，但只要卡面上明明白白写着
+    `+` / `-`，就照卡面给，宁可提示「请核对」也不擅自改符号。
     """
-    notes: List[str] = []
-    usable: List[Candidate] = []
-    configs = _configs(analysis)
-    for candidate in candidates:
-        if not candidate.options:
-            continue
-        if not any(candidate.name in config.positives or
-                   candidate.name in config.negatives for config in configs):
-            notes.append("%s 不是 %s 的词条，已忽略" % (candidate.name, analysis.name))
-            continue
-        usable.append(candidate)
-
-    if not usable:
-        return Resolution(notes=notes)
-
-    if len(usable) > _MAX_CANDIDATES:
-        usable.sort(key=lambda item: -sum(count for _value, count in item.options))
-        del usable[_MAX_CANDIDATES:]
-
     total = len(usable)
     best = None
     for config in configs:
@@ -513,6 +589,11 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
         if size > total:
             continue
         for subset in combinations(range(total), size):
+            chosen = set(subset)
+            # 同一条数值 + 同一个词族只能留一个：OCR 读混出来的重影不能都要
+            if any(sum(1 for index in group if index in chosen) > 1
+                   for group in conflicts):
+                continue
             picks = []
             cost = 0.0
             votes = 0
@@ -522,7 +603,7 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
             failed = False
             for index in subset:
                 candidate = usable[index]
-                picked = _pick(candidate, config)
+                picked = _pick(candidate, config, strict=strict)
                 if picked is None:
                     failed = True
                     break
@@ -546,21 +627,83 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
                 continue
             # 宁可弃权也不硬凑：只要有一条数值对不上范围，这套配置就不算数，
             # 免得为了凑数量把负数读成正数、或者把读错的数值当真。
-            if unfit:
+            if unfit and not allow_unfit:
                 continue
-            # 先尽量少丢词条（漏读一条不该反过来把别的词条挤掉），再比贴合程度、
-            # 保留的票数、以及正负符是否和图上一致。
-            key = (total - size, round(cost, 1), -votes, mismatch)
+            # 先尽量少丢词条（漏读一条不该反过来把别的词条挤掉），再看这一轮
+            # 可不可信（听没听卡面的符号），然后才比贴合程度与票数。
+            key = (total - size, rank, round(cost, 1), -votes, mismatch)
             if best is None or key < best[0]:
                 dropped = [usable[i] for i in range(total) if i not in subset]
                 best = (key, config, picks, dropped)
+    return best
+
+
+def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolution:
+    """按这把武器的词条表与数值范围，挑读数、定正负、丢掉多认的词条。
+
+    正负**以图上的符号为准**：`+` 是正向、`-` 是负向，这是卡面直接写明的，
+    比拿范围反推可靠。范围只用来做两件事——在多个读数里挑出真正合规的那个
+    （`-19.3` / `79.3` 里挑 `-79.3`），以及把凑不进任何配置的词条丢掉。
+    符号全都没读到时，才退回用范围判断正负。
+    """
+    notes: List[str] = []
+    usable: List[Candidate] = []
+    configs = _configs(analysis)
+    for candidate in candidates:
+        if not candidate.options:
+            continue
+        if not any(candidate.name in config.positives or
+                   candidate.name in config.negatives for config in configs):
+            notes.append("%s 不是 %s 的词条，已忽略" % (candidate.name, analysis.name))
+            continue
+        usable.append(candidate)
+
+    if not usable:
+        return Resolution(notes=notes)
+
+    if len(usable) > _MAX_CANDIDATES:
+        usable.sort(key=lambda item: -item.votes_total)
+        del usable[_MAX_CANDIDATES:]
+
+    conflicts = _conflicts(usable)
+    has_signs = any(candidate.polarity(value)
+                    for candidate in usable
+                    for value, _count in candidate.options)
+    # 四轮按可信度排序，取「保留词条最多 + 最可信」的那一组：
+    #   0 听卡面符号，数值也要贴范围（正常情况）
+    #   1 听卡面符号，数值对不上也照给（`-` 就是负的，只提示核对）
+    #   2 符号没法用，退回按范围定正负
+    #   3 符号和范围都不靠谱，按范围定正负且放宽数值
+    passes = [(True, False, 0), (True, True, 1), (False, False, 2),
+              (False, True, 3)]
+    best = None
+    for strict, allow_unfit, rank in passes:
+        if allow_unfit and not has_signs:
+            continue  # 连符号都没读到，就不该放宽数值要求
+        found = _search(usable, configs, conflicts, strict=strict,
+                        allow_unfit=allow_unfit, rank=rank)
+        if found is not None and (best is None or found[0] < best[0]):
+            best = found
+    if best is not None:
+        rank = best[0][1]
+        if rank == 1:
+            notes.append("数值与理论范围对不上，已按卡面符号列出，请核对原图")
+        elif rank >= 2:
+            notes.append("正负号没和卡面对上，已按词条范围判断，请核对原图")
 
     if best is None:
         # 没有哪套配置能全部对上：按每行票最多的读数直出，并说明需要人工核对
         notes.append("没找到能对上的 2+/2+1/3+/3+1 配置，下面按图上读到的列出，"
                      "请核对原图")
-        return Resolution(pairs=[(item.name, item.value) for item in usable],
-                          notes=notes)
+        pairs: List[Tuple[str, float]] = []
+        taken = set()
+        for candidate in usable:
+            key = _family_key(candidate)
+            if key in taken:
+                continue
+            taken.add(key)
+            pairs.append((candidate.name, candidate.value))
+        return Resolution(pairs=pairs, notes=notes)
 
     _key, config, picks, dropped = best
     pairs: List[Tuple[str, float]] = []

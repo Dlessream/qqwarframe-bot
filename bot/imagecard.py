@@ -646,7 +646,7 @@ def riven_analysis_card(analysis, evaluations: Sequence = (),
             unit = evaluation.stat.unit if evaluation.stat else ""
             rows.append([
                 evaluation.name,
-                "%g%s" % (evaluation.value, unit),
+                "%+g%s" % (evaluation.value, unit),
                 evaluation.stat.range_text() if evaluation.stat else "—",
                 evaluation.grade,
             ])
