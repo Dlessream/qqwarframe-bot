@@ -316,8 +316,9 @@ class RivenBaitFilterTest(unittest.TestCase):
         board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
         self.assertEqual(board._quotes["riven"]["vesper_77"]["v"], 1)
         self.assertEqual(board._quotes["riven"]["vesper_77"]["t"], 0.0)
-        # 两条都是单候选，都标成待重扫；便宜的那条照常上榜
-        self.assertEqual(board._legacy_riven, 2)
+        # 只有那条高价的被当成待核实；便宜的那条照常展示，按 TTL 慢慢补候选
+        self.assertEqual(board._legacy_riven, 1)
+        self.assertNotIn("v", board._quotes["riven"]["soma"])
         self.assertEqual([(quote.slug, quote.price) for quote in board.riven_quotes()],
                          [("soma", 800)])
 

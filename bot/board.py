@@ -778,7 +778,8 @@ class BoardClient:
                     # v2：[抓取时间, [[价格, 等级, 卖家, 词条, 上架时间, 一口价], ...], 标志位]
                     # 标志位 bit0=老缓存待重扫，bit1=已按新接口完整抓过。
                     # 没有标志位且只有一条候选的，都是迁移前只存了冠军价的条目：
-                    # 那条价格很可能是议价占位单，先当老缓存处理（不上榜 + 优先重扫）。
+                    # 那条高价很可能是议价占位单，先当老缓存处理（不上榜 + 优先重扫）。
+                    # 便宜的单条价格不算可疑，照常展示（按 TTL 慢慢补候选）。
                     candidates = []
                     for row in entry[1]:
                         if not isinstance(row, list) or len(row) < 6:
@@ -790,7 +791,8 @@ class BoardClient:
                         flags = _as_int(entry[2]) if len(entry) >= 3 else 0
                         legacy = bool(flags & 1)
                         full = bool(flags & 2)
-                        if not flags and len(candidates) <= 1:
+                        if (not flags and len(candidates) <= 1
+                                and _as_int(candidates[0][0]) >= self.bait_price_floor):
                             legacy = True
                         if legacy and not full:
                             self._legacy_riven += 1
