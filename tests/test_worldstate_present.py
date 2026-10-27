@@ -67,6 +67,30 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("古纪", reply.text)
         self.assertNotIn("Ani", reply.text)
 
+    def test_circuit_shows_chinese_names(self):
+        """无尽回廊的可选战甲/武器必须显示国服中文名（截图里全是英文的那次反馈）。"""
+        reply = present.circuit_reply({
+            "state": "joy",
+            "choices": [
+                {"category": "normal", "choices": ["Mesa", "Chroma", "Atlas"]},
+                {"category": "hard",
+                 "choices": ["Vectis", "Stug", "Ballistica", "Destreza", "Obex"]},
+            ],
+        })
+        self.assertIn("普通 · 战甲", reply.text)
+        self.assertIn("钢铁 · 武器", reply.text)
+        for text in ("圣枪弥撒", "怒炎龙骑", "撼天刑者",
+                     "守望者", "史特克", "布里斯提卡", "技巧之剑", "奥比克斯"):
+            self.assertIn(text, reply.text)
+        # 文字兜底带上英文原名，方便对照 wiki / 交易站
+        self.assertIn("圣枪弥撒（Mesa）", reply.text)
+        self.assertIn("守望者（Vectis）", reply.text)
+
+    def test_circuit_keeps_unknown_names(self):
+        reply = present.circuit_reply({
+            "choices": [{"category": "normal", "choices": ["Tennocon 2026 Frame"]}]})
+        self.assertIn("Tennocon 2026 Frame", reply.text)
+
     def test_summary(self):
         reply = present.worldstate_reply({
             "alerts": [1, 2, 3],            "invasions": [1],

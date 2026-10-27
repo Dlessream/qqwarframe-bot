@@ -6,6 +6,7 @@ import time
 from typing import List, Optional, Sequence
 
 from . import autotrans, conquest, imagecard, render, terms
+from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
 from .replies import Reply
@@ -710,16 +711,26 @@ def events_reply(raw) -> Reply:
 
 
 def circuit_reply(raw) -> Reply:
+    """无尽回廊本周灵化：普通模式给战甲、钢铁模式给武器，名字一律翻成国服中文。"""
     if not isinstance(raw, dict):
         raw = {}
     rows = []
+    lines = []
     for group in _as_list(raw.get("choices")):
-        category = "普通" if group.get("category") == "normal" else "钢铁"
-        rows.append([category, "、".join(str(item) for item in group.get("choices") or [])])
+        hard = str(group.get("category") or "").lower() != "normal"
+        picked = [str(item) for item in group.get("choices") or []]
+        kinds = {names_db.kind(name) for name in picked}
+        kind = kinds.pop() if len(kinds) == 1 else ""
+        mode = "钢铁" if hard else "普通"
+        label = "%s · %s" % (mode, kind) if kind else mode
+        # 卡面只放中文名，一行放得下；英文原名留给文字兜底，方便对照 wiki / 交易站
+        rows.append([label, "、".join(names_db.chinese(name) for name in picked)])
+        lines.append("%s：%s" % (
+            label, "、".join(names_db.label(name) for name in picked)))
     return _world_reply(
         "无尽回廊", "本周灵化 · %s" % _state_label(raw.get("state")),
         ["模式", "可选"], rows,
-        "数据 世界状态聚合源", "回廊",
+        "数据 世界状态聚合源 · 国服译名", "回廊", text_lines=lines,
         ratios=[0.8, 2.8], accent=imagecard.PURPLE)
 
 
