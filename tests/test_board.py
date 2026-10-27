@@ -258,6 +258,29 @@ class RivenBaitFilterTest(unittest.TestCase):
         quotes = {quote.slug: quote.price for quote in board.riven_quotes()}
         self.assertEqual(set(quotes.values()), {900})
 
+    def test_legacy_cheap_price_still_listed(self):
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"version": 1, "riven": {
+                "soma": [800, 1, "seller", ["多重射击 +98.1%"],
+                         "2026-10-26T10:00:00", 1e9]}}, handle)
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        quotes = board.riven_quotes()
+        self.assertEqual([(quote.slug, quote.price) for quote in quotes],
+                         [("soma", 800)])
+
+    def test_legacy_entry_rescanned_first(self):
+        board = self.board()
+        board._targets["riven"] = ["fresh_one", "legacy_one"]
+        self.put(board, "fresh_one", [[1200, 8, "a", [], "", 1]] * 2)
+        board._quotes["riven"]["fresh_one"]["t"] = time.time()
+        self.put(board, "legacy_one", [[9000, 0, "b", [], "", 1]])
+        board._quotes["riven"]["legacy_one"]["v"] = 1
+        board._quotes["riven"]["legacy_one"]["t"] = time.time()
+        self.assertEqual(board._next_stale("riven", board._targets["riven"],
+                                           board.riven_ttl, time.time()),
+                         "legacy_one")
+
     def test_cheap_prices_not_filtered(self):
         board = self.board()
         for slug in ("a", "b", "c"):
@@ -276,7 +299,10 @@ class RivenBaitFilterTest(unittest.TestCase):
         entry = board._quotes["riven"]["soma"]
         self.assertEqual(entry["c"][0][0], 50000)
         self.assertEqual(entry["t"], 0.0)          # 立刻进重扫队列
+        self.assertEqual(entry["v"], 1)            # 未核实标记
         self.assertEqual(board._legacy_riven, 1)
+        # 未核实的高价（>= 3000）先不上榜，避免假价霸榜
+        self.assertEqual(board.riven_quotes(), [])
 
     def test_cache_roundtrip_keeps_candidates(self):
         path = os.path.join(tempfile.mkdtemp(), "board.json")

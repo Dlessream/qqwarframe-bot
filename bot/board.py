@@ -360,11 +360,20 @@ class BoardClient:
         quotes = self._quotes[kind]
         count = len(slugs)
         cursor = self._cursor.get(kind, 0) % count
-        for offset in range(count):
-            slug = slugs[(cursor + offset) % count]
+        order = [(cursor + offset) % count for offset in range(count)]
+        if kind == _KIND_RIVEN:
+            # 老格式（只有一条候选）先补：榜单上那些可疑的高价就藏在这里
+            for position in order:
+                entry = quotes.get(slugs[position])
+                if entry is None or (entry.get("v")
+                                     and len(entry.get("c") or []) <= 1):
+                    self._cursor[kind] = (position + 1) % count
+                    return slugs[position]
+        for position in order:
+            slug = slugs[position]
             entry = quotes.get(slug)
             if entry is None or now - entry.get("t", 0) >= ttl:
-                self._cursor[kind] = (cursor + offset + 1) % count
+                self._cursor[kind] = (position + 1) % count
                 return slug
         return None
 
@@ -563,15 +572,16 @@ class BoardClient:
         （50000、11111 刷在几十把武器上），不剔掉就会整榜都是它们。
         """
         with self._lock:
-            entries = {slug: (_as_float(entry.get("t")), [list(row) for row in
-                                                          (entry.get("c") or [])])
+            entries = {slug: (_as_float(entry.get("t")),
+                              [list(row) for row in (entry.get("c") or [])],
+                              bool(entry.get("v")))
                        for slug, entry in self._quotes[_KIND_RIVEN].items()}
         if not entries:
             return []
         floor = self.bait_price_floor
         price_weapons: Counter = Counter()
         seller_weapons: Counter = Counter()
-        for _ts, rows in entries.values():
+        for _ts, rows, _legacy in entries.values():
             high = [_as_int(row[0]) for row in rows if _as_int(row[0]) >= floor]
             for price in set(high):
                 price_weapons[price] += 1
@@ -579,8 +589,12 @@ class BoardClient:
                            if _as_int(row[0]) >= floor} - {""}:
                 seller_weapons[seller] += 1
         quotes: List[RivenQuote] = []
-        for slug, (updated, rows) in entries.items():
+        for slug, (updated, rows, legacy) in entries.items():
             prices = [_as_int(row[0]) for row in rows]
+            if legacy and len(prices) == 1 and prices[0] >= floor:
+                # 老缓存只有一条候选，判断不了是不是议价占位单；
+                # 这种高价先不上榜，等重扫补全候选（下方 _next_stale 会优先扫它）
+                continue
             for index, row in enumerate(rows):
                 price = prices[index]
                 if price <= 0:
@@ -623,7 +637,8 @@ class BoardClient:
         """给控制台看的「被判为钓鱼价」清单，方便确认过滤没误伤。"""
         with self._lock:
             entries = {slug: [list(row) for row in (entry.get("c") or [])]
-                       for slug, entry in self._quotes[_KIND_RIVEN].items()}
+                       for slug, entry in self._quotes[_KIND_RIVEN].items()
+                       if len(entry.get("c") or []) > 1}
         floor = self.bait_price_floor
         price_weapons: Counter = Counter()
         seller_weapons: Counter = Counter()
@@ -742,6 +757,7 @@ class BoardClient:
                     # 但把时间置 0 让它立刻进入重扫队列，按限流慢慢补全候选。
                     self._quotes[_KIND_RIVEN][slug] = {
                         "t": 0.0,
+                        "v": 1,
                         "c": [[_as_int(entry[0]), 0, str(entry[2]),
                                list(entry[3] or []), str(entry[4]),
                                1 if _as_int(entry[1]) else 0]],
@@ -758,8 +774,10 @@ class BoardClient:
                                            str(row[2] or ""), list(row[3] or []),
                                            str(row[4] or ""), _as_int(row[5])])
                     if candidates:
-                        self._quotes[_KIND_RIVEN][slug] = {
-                            "t": _as_float(entry[0]), "c": candidates}
+                        record = {"t": _as_float(entry[0]), "c": candidates}
+                        if len(entry) >= 3 and _as_int(entry[2]):
+                            record["v"] = 1
+                        self._quotes[_KIND_RIVEN][slug] = record
         if self._legacy_riven:
             self.log.info("紫卡缓存是旧格式（%d 把），已标记为待重扫", self._legacy_riven)
 
@@ -778,11 +796,12 @@ class BoardClient:
                 _KIND_FRAME: {slug: [entry.get("p", 0), entry.get("b", 0),
                                      entry.get("n", 0), round(entry.get("t", 0), 1)]
                               for slug, entry in self._quotes[_KIND_FRAME].items()},
-                _KIND_RIVEN: {slug: [round(entry.get("t", 0), 1),
-                                     [[_as_int(row[0]), _as_int(row[1]),
-                                       str(row[2] or ""), list(row[3] or []),
-                                       str(row[4] or ""), _as_int(row[5])]
-                                      for row in (entry.get("c") or [])]]
+                _KIND_RIVEN: {slug: ([round(entry.get("t", 0), 1),
+                                      [[_as_int(row[0]), _as_int(row[1]),
+                                        str(row[2] or ""), list(row[3] or []),
+                                        str(row[4] or ""), _as_int(row[5])]
+                                       for row in (entry.get("c") or [])]]
+                                      + ([1] if entry.get("v") else []))
                               for slug, entry in self._quotes[_KIND_RIVEN].items()},
             }
             self._dirty = 0
