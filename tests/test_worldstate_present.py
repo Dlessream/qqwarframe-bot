@@ -68,7 +68,7 @@ class WorldPresentTest(unittest.TestCase):
         self.assertNotIn("Ani", reply.text)
 
     def test_circuit_shows_chinese_names(self):
-        """无尽回廊的可选战甲/武器必须显示国服中文名（截图里全是英文的那次反馈）。"""
+        """无尽回廊的战甲写玩家别名 + 英文，武器写国服中文名。"""
         reply = present.circuit_reply({
             "state": "joy",
             "choices": [
@@ -79,12 +79,21 @@ class WorldPresentTest(unittest.TestCase):
         })
         self.assertIn("普通 · 战甲", reply.text)
         self.assertIn("钢铁 · 武器", reply.text)
-        for text in ("圣枪弥撒", "怒炎龙骑", "撼天刑者",
-                     "守望者", "史特克", "布里斯提卡", "技巧之剑", "奥比克斯"):
+        for text in ("守望者", "史特克", "布里斯提卡", "技巧之剑", "奥比克斯"):
             self.assertIn(text, reply.text)
-        # 文字兜底带上英文原名，方便对照 wiki / 交易站
-        self.assertIn("圣枪弥撒（Mesa）", reply.text)
+        # 战甲：别名（English），两者同时出现
+        self.assertIn("女枪（Mesa）", reply.text)
+        self.assertIn("龙骑（Chroma）", reply.text)
+        self.assertIn("土甲（Atlas）", reply.text)
+        # 武器沿用「中文名（English）」，方便对照 wiki / 交易站
         self.assertIn("守望者（Vectis）", reply.text)
+
+    def test_circuit_alias_fallback(self):
+        """没收录别名的战甲退回国服译名，不编造别名。"""
+        reply = present.circuit_reply({
+            "choices": [{"category": "normal", "choices": ["Caliban", "Mesa Prime"]}]})
+        self.assertIn("卡利班（Caliban）", reply.text)
+        self.assertIn("女枪P（Mesa Prime）", reply.text)
 
     def test_circuit_keeps_unknown_names(self):
         reply = present.circuit_reply({

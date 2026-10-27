@@ -42,6 +42,29 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(names.label("Mesa", with_english=False), "圣枪弥撒")
         self.assertEqual(names.label(""), "—")
 
+    def test_alias(self):
+        # 玩家俗称：回廊战甲那一栏显示「别名（English）」
+        self.assertEqual(names.alias("Mesa"), "女枪")
+        self.assertEqual(names.alias("  chroma "), "龙骑")
+        self.assertEqual(names.alias("Atlas"), "土甲")
+        self.assertEqual(names.alias("Excalibur Umbra"), "黑咖喱")
+        self.assertIsNone(names.alias("Vectis"))          # 武器没有别名
+        self.assertIsNone(names.alias("Tennocon 2026 Frame"))
+
+    def test_alias_prime(self):
+        # 圣装沿用基础名 + P（国服习惯：牛P / 女枪P）
+        self.assertEqual(names.alias("Mesa Prime"), "女枪P")
+        self.assertEqual(names.alias("Rhino Prime Set"), "犀牛P")
+
+    def test_alias_label(self):
+        self.assertEqual(names.alias_label("Mesa"), "女枪（Mesa）")
+        self.assertEqual(names.alias_label("Vectis"), "守望者（Vectis）")  # 无别名退回译名
+        self.assertEqual(names.alias_label("Caliban"), "卡利班（Caliban）")
+        self.assertEqual(names.alias_label("Tennocon 2026 Frame"),
+                         "Tennocon 2026 Frame")
+        self.assertEqual(names.alias_label("Mesa", with_english=False), "女枪")
+        self.assertEqual(names.alias_label(""), "—")
+
 
 if __name__ == "__main__":
     unittest.main()

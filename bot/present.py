@@ -711,7 +711,11 @@ def events_reply(raw) -> Reply:
 
 
 def circuit_reply(raw) -> Reply:
-    """无尽回廊本周灵化：普通模式给战甲、钢铁模式给武器，名字一律翻成国服中文。"""
+    """无尽回廊本周灵化：普通模式给战甲、钢铁模式给武器。
+
+    战甲显示「别名（English）」（女枪（Mesa）），武器显示国服中文名；
+    认不出的名字保留英文。
+    """
     if not isinstance(raw, dict):
         raw = {}
     rows = []
@@ -723,14 +727,20 @@ def circuit_reply(raw) -> Reply:
         kind = kinds.pop() if len(kinds) == 1 else ""
         mode = "钢铁" if hard else "普通"
         label = "%s · %s" % (mode, kind) if kind else mode
-        # 卡面只放中文名，一行放得下；英文原名留给文字兜底，方便对照 wiki / 交易站
-        rows.append([label, "、".join(names_db.chinese(name) for name in picked)])
+        # 卡面：战甲写「别名（English）」（女枪（Mesa）），武器写中文名，一行放得下
+        if kind == "战甲":
+            cells = "、".join(names_db.alias_label(name) for name in picked)
+        else:
+            cells = "、".join(names_db.chinese(name) for name in picked)
+        rows.append([label, cells])
         lines.append("%s：%s" % (
-            label, "、".join(names_db.label(name) for name in picked)))
+            label, "、".join(
+                names_db.alias_label(name) if kind == "战甲" else names_db.label(name)
+                for name in picked)))
     return _world_reply(
         "无尽回廊", "本周灵化 · %s" % _state_label(raw.get("state")),
         ["模式", "可选"], rows,
-        "数据 世界状态聚合源 · 国服译名", "回廊", text_lines=lines,
+        "数据 世界状态聚合源 · 国服译名 / 别名", "回廊", text_lines=lines,
         ratios=[0.8, 2.8], accent=imagecard.PURPLE)
 
 
