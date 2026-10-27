@@ -402,6 +402,18 @@ class ArbiClient:
         now = time.time() if now is None else now
         return self.schedule_entries(now, now + 86400)
 
+    def upcoming(self, days: int = 7, now: Optional[float] = None
+                 ) -> List[Tuple[float, float, ArbiNode, str]]:
+        """未来 N 天（1 - 7）的完整仲裁排期，含当前这一场。"""
+        try:
+            days = int(days)
+        except (TypeError, ValueError):
+            days = 7
+        days = max(1, min(days, 7))
+        now = time.time() if now is None else now
+        # 恰好 days × 24 场：末尾那一场可能已经跨到下一天的同一时刻
+        return self.schedule_entries(now, now + days * 86400)[:days * 24]
+
     def effective(self, now: Optional[float] = None, hours: int = 24
                   ) -> List[Tuple[float, float, ArbiNode, str]]:
         now = time.time() if now is None else now

@@ -86,6 +86,23 @@ class ImageCardTest(unittest.TestCase):
         self.assertEqual(width, 860)
         self.assertGreater(height, 1500)
 
+    def test_schedule_table(self):
+        days = []
+        for day in range(7):
+            rows = [[imagecard.Cell("%02d:00" % hour), "Callisto（木星）",
+                     imagecard.Cell("拦截", color=imagecard.PURPLE, bold=True),
+                     imagecard.Cell("A+", color=imagecard.GREEN, bold=True)]
+                    for hour in range(24)]
+            days.append({"label": "10-%02d 周三" % (day + 28), "badge": "24 场 · S×2",
+                         "rows": rows})
+        png = imagecard.schedule_table(
+            "仲裁表", "未来 7 天共 168 场", days, "arbi.wf.wiki", chip="7 天")
+        width, height = png_size(png)
+        self.assertEqual(width, 860)
+        # 两列排布：每天 12 行，七天不会堆成一张超长图
+        self.assertLess(height, 4200)
+        self.assertGreater(height, 2500)
+
     def test_wiki_card(self):
         png = imagecard.wiki_card(
             "高斯", "高斯是一款以速度为主题的战甲。" * 30,

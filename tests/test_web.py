@@ -134,6 +134,31 @@ class FakeApp:
         self.arbi_saved = (key, tier)
         return {"ok": True, "key": key, "tier": tier or "S", "source": "manual"}
 
+    def arbi_schedule(self, days=7):
+        self.arbi_schedule_days = days
+        return {
+            "enabled": True,
+            "days": days,
+            "total": days * 2,
+            "groups": [{
+                "date": "2026-10-28",
+                "label": "今天 · 10-28 周三",
+                "count": 2,
+                "highlights": [{"tier": "S", "count": 1}],
+                "entries": [
+                    {"start": 0, "end": 3600, "time": "00:00",
+                     "node": "Callisto（木星）", "key": "SolNode1",
+                     "system": "木星", "mission": "拦截",
+                     "faction": "Corpus", "level": "15 - 20", "tier": "S"},
+                    {"start": 3600, "end": 7200, "time": "01:00",
+                     "node": "Everest（地球）", "key": "SolNode39",
+                     "system": "地球", "mission": "挖掘",
+                     "faction": "Grineer", "level": "1 - 6", "tier": "A+"},
+                ],
+            }],
+            "missions": {"拦截": "#A889E2", "挖掘": "#EBBC60"},
+        }
+
     def mission_colors_snapshot(self):
         return {
             "entries": [
@@ -200,6 +225,24 @@ class AdminServerTest(unittest.TestCase):
         self.assertEqual(payload["nodes"][0]["key"], "SolNode1")
         self.assertEqual(payload["current"], "SolNode1")
         status, _ = self.request("/api/arbi")
+        self.assertEqual(status, 401)
+
+    def test_arbi_schedule(self):
+        status, body = self.request(
+            "/api/arbi-schedule?days=3", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["days"], 3)
+        self.assertEqual(payload["groups"][0]["entries"][0]["node"],
+                         "Callisto（木星）")
+        self.assertEqual(self.app.arbi_schedule_days, 3)
+        # 天数非法时回落 7 天
+        status, body = self.request(
+            "/api/arbi-schedule?days=xx", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.app.arbi_schedule_days, 7)
+        status, _ = self.request("/api/arbi-schedule")
         self.assertEqual(status, 401)
 
     def test_arbi_post(self):

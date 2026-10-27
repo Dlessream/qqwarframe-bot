@@ -260,6 +260,7 @@ def render_help(prefix: str = "#") -> str:
         "%s深层科研 / %s时光科研 / %s科研" % (prefix, prefix, prefix),
         "%s仲裁评级           仲裁梯队（加「本地」看推算结果）" % prefix,
         "%s今日仲裁 / %s高效仲裁  未来 24 小时轮换、高价值仲裁" % (prefix, prefix),
+        "%s仲裁表 [天数]     未来 7 天完整仲裁排期（1 - 7 天）" % prefix,
         "%s提醒 <名称> <价>   降价提醒" % prefix,
         "%s提醒列表 / %s取消提醒 <编号|all>" % (prefix, prefix),
         "%s订阅 <类型> [筛选]  新内容出现就推送到群" % prefix,

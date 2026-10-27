@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import datetime
 import time
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import autotrans, conquest, imagecard, missioncolors, render, terms
 from . import names as names_db
@@ -794,6 +795,87 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 �
         "数据 arbi.wf.wiki · 轮换表", "仲裁",
         text_lines=lines, ratios=[1.0, 0.8, 1.6, 0.9, 0.5],
         accent=imagecard.GOLD, note="时间按本机时区显示。")
+
+
+def _arbi_day_label(start: float) -> str:
+    """2026-10-28 周三 · 今天 / 明天。"""
+    local = time.localtime(start)
+    today = time.localtime()
+    text = "%02d-%02d 周%s" % (local.tm_mon, local.tm_mday,
+                               "一二三四五六日"[local.tm_wday])
+    delta = (datetime.date(local.tm_year, local.tm_mon, local.tm_mday)
+             - datetime.date(today.tm_year, today.tm_mon, today.tm_mday)).days
+    if delta == 0:
+        return "今天 · " + text
+    if delta == 1:
+        return "明天 · " + text
+    return text
+
+
+def arbitration_week_reply(entries, days: int = 7) -> Reply:
+    """仲裁表：未来 N 天完整排期，按天分组、每天两列铺开。"""
+    entries = list(entries or [])
+    if not entries:
+        return Reply(text="未来 %d 天没有可用的仲裁排期。" % days)
+
+    buckets: List[Tuple[str, List]] = []
+    index: Dict[str, List] = {}
+    for start, end, node, tier in entries:
+        key = time.strftime("%Y-%m-%d", time.localtime(start))
+        if key not in index:
+            index[key] = []
+            buckets.append((key, index[key]))
+        index[key].append((start, end, node, tier))
+
+    sections = []
+    text_lines = []
+    total = len(entries)
+    for key, rows in buckets:
+        day_rows = []
+        best = {}
+        for start, _end, node, tier in rows:
+            mission = _arbi_mission(node.mission)
+            color = missioncolors.rgb(mission) if mission not in ("", "—") else None
+            day_rows.append([
+                imagecard.Cell(time.strftime("%H:00", time.localtime(start)),
+                               color=imagecard.DIM),
+                imagecard.Cell(node.display_name),
+                imagecard.Cell(mission, color=color, bold=bool(color)),
+                imagecard.Cell(tier, color=_rating_color(tier), bold=True),
+            ])
+            if tier:
+                best[tier] = best.get(tier, 0) + 1
+        badge = "%d 场" % len(rows)
+        highs = [tier for tier in ("S", "A+") if best.get(tier)]
+        if highs:
+            badge += " · " + " / ".join(
+                "%s×%d" % (tier, best[tier]) for tier in highs)
+        sections.append({
+            "label": _arbi_day_label(rows[0][0]),
+            "badge": badge,
+            "rows": day_rows,
+        })
+        # 文本只列 S / A+ 的重点场次，完整 168 场在图片里
+        text_lines.append("—— %s · %d 场 ——" % (_arbi_day_label(rows[0][0]),
+                                              len(rows)))
+        for start, _end, node, tier in rows:
+            if tier not in ("S", "A+"):
+                continue
+            text_lines.append("  %s %s · %s · %s" % (
+                time.strftime("%H:00", time.localtime(start)),
+                node.display_name, _arbi_mission(node.mission), tier))
+        rest = sum(1 for _s, _e, _n, tier in rows if tier not in ("S", "A+"))
+        if rest:
+            text_lines.append("  另有 %d 场 A / A- / B / C" % rest)
+
+    subtitle = "未来 %d 天共 %d 场 · 每场 1 小时 · 按本机时区" % (days, total)
+    note = "S / A+ 级已标出；任务颜色与仲裁卡片、控制台配色一致。"
+    return Reply(
+        text="【仲裁表】\n%s\n%s" % (subtitle, "\n".join(text_lines)),
+        image=lambda: imagecard.schedule_table(
+            "仲裁表", subtitle, sections,
+            "数据 arbi.wf.wiki · 轮换表", accent=imagecard.GOLD,
+            chip="%d 天" % days, note=note))
 
 
 def _conquest_entry(group: str, key: str, kind: str, raw) -> dict:

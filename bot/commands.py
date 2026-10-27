@@ -58,6 +58,9 @@ COMMANDS: Dict[str, str] = {
     "仲裁": "arbitration", "arbitration": "arbitration",
     "仲裁评级": "arbi_tiers", "仲裁梯队": "arbi_tiers",
     "arbitrationrating": "arbi_tiers",
+    "仲裁表": "arbi_schedule", "仲裁排期": "arbi_schedule",
+    "未来仲裁": "arbi_schedule", "七天仲裁": "arbi_schedule",
+    "arbischedule": "arbi_schedule", "arbitable": "arbi_schedule",
     "世界状态": "world_summary", "worldstate": "world_summary",
     "警报": "world_alerts", "入侵": "world_invasions",
     "钢铁侵袭": "steel_path", "电波": "nightwave", "午夜电波": "nightwave",
@@ -372,6 +375,8 @@ class CommandRouter:
                 return [self._arbitration(ctx)]
             if command == "arbi_tiers":
                 return [self._arbi_tiers(argument, ctx)]
+            if command == "arbi_schedule":
+                return [self._arbi_schedule(argument, ctx)]
             if command == "world_summary":
                 return [self._world_summary(ctx)]
             if command == "world_alerts":
@@ -818,6 +823,20 @@ class CommandRouter:
         return present.arbitration_schedule_reply(
             entries, "高效仲裁（未来 24 小时 S/A 级）",
             empty="未来 24 小时没有 S/A 级仲裁。")
+
+    def _arbi_schedule(self, argument: str, ctx: Context) -> Reply:
+        """仲裁表：未来 N 天（默认 7 天）的完整排期。"""
+        if self.arbi is None:
+            return present.error_reply("仲裁评级未启用（arbi.enabled = false）。")
+        days = 7
+        matched = re.search(r"\d+", str(argument or ""))
+        if matched:
+            days = max(1, min(int(matched.group()), 7))
+        try:
+            entries = self.arbi.upcoming(days)
+        except ArbiError as exc:
+            return present.error_reply(str(exc))
+        return present.arbitration_week_reply(entries, days)
 
     def _research(self, type_key, label: str) -> Reply:
         if self.worldstate is None:

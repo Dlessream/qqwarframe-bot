@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Warframe Ops · 控制台</title>
-  <link rel="stylesheet" href="/static/style.css?v=5">
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"></div>
@@ -180,12 +180,25 @@
         <span id="arbiInfo">正在读取仲裁节点…</span>
         <span id="arbiCount" class="source-count"></span>
       </div>
-      <div class="alias-tools">
-        <input id="arbiFilter" class="input" type="text" placeholder="筛选节点 / 星球 / 任务，例如 生存、土星">
-        <button id="arbiFilterBtn" class="btn btn-ghost btn-sm" type="button">筛选</button>
+      <div class="arbi-tabs" id="arbiTabs">
+        <button class="arbi-tab is-active" type="button" data-arbi-view="ratings">评级总表</button>
+        <button class="arbi-tab" type="button" data-arbi-view="schedule">仲裁表 · 未来 7 天</button>
       </div>
-      <div class="arbi-legend" id="arbiLegend"></div>
-      <div id="arbiList" class="arbi-list"></div>
+      <div id="arbiRatingsView">
+        <div class="alias-tools">
+          <input id="arbiFilter" class="input" type="text" placeholder="筛选节点 / 星球 / 任务，例如 生存、土星">
+          <button id="arbiFilterBtn" class="btn btn-ghost btn-sm" type="button">筛选</button>
+        </div>
+        <div class="arbi-legend" id="arbiLegend"></div>
+        <div id="arbiList" class="arbi-list"></div>
+      </div>
+      <div id="arbiScheduleView" hidden>
+        <div class="source-strip">
+          <span id="arbiScheduleInfo">正在读取未来 7 天排期…</span>
+          <span id="arbiScheduleCount" class="source-count"></span>
+        </div>
+        <div id="arbiSchedule" class="sched-list"></div>
+      </div>
     </section>
 
     <section class="panel mission-panel">
@@ -250,6 +263,6 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>

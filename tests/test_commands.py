@@ -630,6 +630,11 @@ class FakeArbi:
     def node(self, key):
         return self.data_obj.nodes.get(key)
 
+    def upcoming(self, days=7, now=None):
+        base = 1793116800.0
+        return [(base + i * 3600, base + (i + 1) * 3600,
+                 self.everest, "A+") for i in range(int(days) * 24)]
+
 
 class FakeWorld:
     def arbitration(self):
@@ -658,6 +663,35 @@ class ArbitrationCommandTest(unittest.TestCase):
         replies = router.handle("#仲裁", self.ctx)
         self.assertIn("Everest", replies[0].text)
         self.assertIn("推算", replies[0].text)
+
+    def test_parse_schedule(self):
+        router, _, _ = make_router()
+        self.assertEqual(router.parse("#仲裁表"), ("arbi_schedule", ""))
+        self.assertEqual(router.parse("#仲裁表 3"), ("arbi_schedule", "3"))
+        self.assertEqual(router.parse("七天仲裁", allow_bare=True),
+                         ("arbi_schedule", ""))
+        # 裸词带疑问句仍然不接
+        self.assertIsNone(router.parse("仲裁表怎么看", allow_bare=True))
+
+    def test_schedule_reply(self):
+        router, _, _ = make_router(arbi=FakeArbi())
+        replies = router.handle("#仲裁表", self.ctx)
+        self.assertIn("仲裁表", replies[0].text)
+        self.assertIn("未来 7 天共 168 场", replies[0].text)
+        self.assertIsNotNone(replies[0].image)
+
+    def test_schedule_days_argument(self):
+        router, _, _ = make_router(arbi=FakeArbi())
+        replies = router.handle("#仲裁表 3", self.ctx)
+        self.assertIn("未来 3 天共 72 场", replies[0].text)
+        # 超出范围夹到 7 天
+        replies = router.handle("#仲裁表 99", self.ctx)
+        self.assertIn("未来 7 天共 168 场", replies[0].text)
+
+    def test_schedule_disabled(self):
+        router, _, _ = make_router(arbi=None)
+        replies = router.handle("#仲裁表", self.ctx)
+        self.assertIn("未启用", replies[0].text)
 
 
 class FakeBoard:

@@ -121,6 +121,20 @@ class ClientTest(unittest.TestCase):
         # SolNode4 现在有本地推算评级（生存），也会出现在高效仲裁里
         self.assertEqual([entry[3] for entry in entries], ["S", "S", "A+"])
 
+    def test_upcoming(self):
+        client = self.make_client()
+        week = client.upcoming(7, now=3600)
+        # 7 天 × 24 场，含当前这一场
+        self.assertEqual(len(week), 168)
+        self.assertEqual(week[0][0], 3600.0)
+        self.assertEqual(week[-1][0], 3600.0 + 167 * 3600)
+        # 天数会被夹到 1 - 7
+        self.assertEqual(len(client.upcoming(0, now=3600)), 24)
+        self.assertEqual(len(client.upcoming(99, now=3600)), 168)
+        self.assertEqual(len(client.upcoming("3", now=3600)), 72)
+        self.assertEqual(len(client.upcoming("abc", now=3600)), 168)
+
+
     def test_find_node(self):
         client = self.make_client()
         self.assertEqual(client.find_node("Callisto（木星）").key, "SolNode1")

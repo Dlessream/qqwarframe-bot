@@ -893,6 +893,122 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
+def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
+                   footer: str, accent=GOLD, chip: str = "",
+                   note: str = "") -> bytes:
+    """按天分组的排期表：每天一节，条目分左右两列铺开。
+
+    days: [{"label": "10-28 周三", "badge": "24 场 · S×1",
+            "rows": [[时间, 节点, 任务, 评级], ...]}, ...]
+    每行四格，接受 str 或 Cell。条目多时自动折成两列，避免长图过高。
+    """
+    days = list(days or [])
+    per_col = 1
+    for item in days:
+        per_col = max(per_col, (len(list(item.get("rows") or [])) + 1) // 2)
+    height = max(700, 300 + len(days) * (62 + per_col * 32) + 120)
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    y = _header(draw, title, subtitle, chip, accent)
+    y += 12
+
+    usable = WIDTH - 2 * PAD
+    gap = 26
+    col_w = (usable - gap) // 2
+    right = WIDTH - PAD
+    label_font = _font(18, bold=True)
+    badge_font = _font(12, bold=True)
+    head_font = _font(11, bold=True)
+    time_font = _font(13)
+    node_font = _font(14)
+    mission_font = _font(13)
+    rating_font = _font(13, bold=True)
+    row_h = 32
+
+    # 每列内部的列坐标：时间 / 节点 / 任务 / 评级
+    time_x, node_x = 8, 56
+    mission_x = col_w - 118
+    node_w = mission_x - node_x - 6
+    headers = [("时间", time_x), ("节点", node_x),
+               ("任务", mission_x), ("评级", col_w - 8)]
+
+    for item in days:
+        label = str(item.get("label") or "")
+        badge = str(item.get("badge") or "")
+        rows = list(item.get("rows") or [])
+        if label:
+            draw.rectangle([PAD, y + 3, PAD + 4, y + 22], fill=accent)
+            draw.text((PAD + 14, y), _fit(draw, label, label_font, usable - 300),
+                      font=label_font, fill=TEXT)
+            if badge:
+                badge_width, badge_height = _tsize(draw, badge, badge_font)
+                _chip(draw, right - badge_width - 22, y - 2, badge, accent,
+                      font_size=12)
+            y += 34
+        if not rows:
+            draw.text((PAD + 14, y + 2), "这一天的排期还没算出来。",
+                      font=_font(13), fill=DIM)
+            y += 34
+            continue
+
+        # 列头：左右两列各画一次
+        for col in range(2):
+            cx = PAD + col * (col_w + gap)
+            for name, dx in headers:
+                text_width, _ = _tsize(draw, name, head_font)
+                pos = cx + dx - text_width if dx > col_w - 60 else cx + dx
+                draw.text((pos, y), name, font=head_font, fill=DIM)
+        y += 20
+        _divider(draw, y)
+        y += 4
+
+        for index in range(per_col):
+            for col in range(2):
+                pos = index + col * per_col
+                if pos >= len(rows):
+                    continue
+                cx = PAD + col * (col_w + gap)
+                if index % 2 == 0:
+                    _rrect(draw, (cx - 6, y - 4, cx + col_w + 6, y + row_h - 9),
+                           8, fill=PANEL)
+                cells = list(rows[pos])[:4]
+                while len(cells) < 4:
+                    cells.append("")
+                cx = PAD + col * (col_w + gap)
+                time_color, _tb, time_text = _cell_parts(cells[0])
+                node_color, node_bold, node_text = _cell_parts(cells[1])
+                mission_color, mission_bold, mission_text = _cell_parts(cells[2])
+                rating_color, _rb, rating_text_raw = _cell_parts(cells[3])
+                if mission_color:
+                    draw.rectangle([cx + 4, y + 3, cx + 6, y + row_h - 13],
+                                   fill=mission_color)
+                draw.text((cx + time_x, y + 2),
+                          _fit(draw, time_text, time_font, 46),
+                          font=time_font, fill=time_color or MUTED)
+                draw.text((cx + node_x, y + 1),
+                          _fit(draw, node_text, node_font, node_w),
+                          font=node_font,
+                          fill=node_color or TEXT)
+                draw.text((cx + mission_x, y + 2),
+                          _fit(draw, mission_text, mission_font, 78),
+                          font=mission_font,
+                          fill=mission_color or TEXT)
+                rating_text = _fit(draw, rating_text_raw, rating_font, 44)
+                rating_width, _ = _tsize(draw, rating_text, rating_font)
+                draw.text((cx + col_w - 10 - rating_width, y + 2), rating_text,
+                          font=rating_font, fill=rating_color or MUTED)
+            y += row_h
+        y += 20
+
+    if note:
+        draw.text((PAD, y + 2), _fit(draw, note, _font(14), usable),
+                  font=_font(14), fill=MUTED)
+        y += 28
+
+    y = _footer(draw, y + 10, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
 def _encode(image: "Image.Image") -> bytes:
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="PNG", optimize=True)

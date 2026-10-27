@@ -157,6 +157,23 @@ class AdminServer:
                         return
                     self._json({"ok": True, **payload})
                     return
+                if path == "/api/arbi-schedule":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    params = parse_qs(parsed.query)
+                    try:
+                        days = int(params.get("days", ["7"])[0])
+                    except ValueError:
+                        days = 7
+                    try:
+                        payload = server.app.arbi_schedule(days)
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, **payload})
+                    return
                 if path == "/api/alias-groups":
                     if not self._authorized():
                         self._unauthorized()

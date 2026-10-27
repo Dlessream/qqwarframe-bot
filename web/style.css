@@ -332,6 +332,46 @@ a { color: inherit; text-decoration: none; }
 .arbi-tag.is-local { color: #8fb8d8; border-color: rgba(143,184,216,.32); }
 .arbi-tag.is-current { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
 .arbi-select { height: 32px; min-width: 92px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: #070c13; font-size: 11px; outline: none; }
+
+/* 仲裁表（未来 7 天排期） */
+.arbi-tabs { display: flex; gap: 6px; padding: 4px 22px 10px; }
+.arbi-tab {
+  padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--muted); font-size: 11px; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.arbi-tab:hover { color: var(--text); border-color: rgba(255,255,255,.28); }
+.arbi-tab.is-active {
+  color: var(--gold); border-color: rgba(232,180,90,.55); background: var(--gold-soft);
+}
+.sched-list { padding: 0 22px 14px; display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow: auto; }
+.sched-day { border: 1px solid var(--line); border-radius: 11px; background: #070c13; overflow: hidden; }
+.sched-day[open] { border-color: rgba(255,255,255,.16); }
+.sched-day-head {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  cursor: pointer; list-style: none; font-size: 12px; color: var(--text);
+}
+.sched-day-head::-webkit-details-marker { display: none; }
+.sched-day-head::before {
+  content: "▸"; color: var(--muted); font-size: 10px; transition: transform .15s ease;
+}
+.sched-day[open] > .sched-day-head::before { transform: rotate(90deg); }
+.sched-day-label { font-weight: 600; }
+.sched-day-highs { display: flex; gap: 5px; flex-wrap: wrap; flex: 1; }
+.sched-day-count { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.sched-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; padding: 2px 8px 8px; }
+.sched-row {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) 88px auto auto;
+  gap: 8px; align-items: center; padding: 5px 8px;
+  border-left: 2px solid var(--mission-color, transparent);
+  border-radius: 6px; margin-bottom: 2px;
+}
+.sched-row.is-live { box-shadow: inset 0 0 0 1px rgba(232,180,90,.6); }
+.sched-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sched-node { font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sched-mission { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sched-tier { grid-column: 5; justify-self: end; }
+.sched-live { font-size: 9px; color: var(--gold); border: 1px solid rgba(232,180,90,.5); border-radius: 999px; padding: 1px 6px; }
 .arbi-select:focus { border-color: rgba(232,180,90,.6); }
 .arbi-empty { padding: 14px 0; color: var(--muted); font-size: 11px; }
 
@@ -375,6 +415,8 @@ a { color: inherit; text-decoration: none; }
   .alias-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .alias-row { grid-template-columns: 1fr 1.6fr auto; }
   .arbi-row { grid-template-columns: 1fr auto; }
+  .sched-rows { grid-template-columns: 1fr; }
+  .sched-list { max-height: none; }
   .arbi-tags { justify-content: flex-start; }
   .alias-slug { display: none; }
   .card-main { gap: 20px; }

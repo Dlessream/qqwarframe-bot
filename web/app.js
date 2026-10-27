@@ -21,6 +21,8 @@
     arbiTiers: [],
     arbiQuery: "",
     arbiCurrent: "",
+    arbiView: "ratings",
+    arbiSchedule: null,
     missionEntries: [],
     missionColors: {},
     timer: null,
@@ -731,6 +733,8 @@
       toast("已改「" + name + "」的显示色：" + (result.color || color));
       await loadMissionColors();
       await loadArbi();
+      state.arbiSchedule = null;
+      if (state.arbiView === "schedule") await loadArbiSchedule(false);
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") toast("改色失败：" + exc.message);
     }
@@ -894,6 +898,110 @@
     });
   }
 
+  async function loadArbiSchedule(force) {
+    if (state.arbiSchedule && !force) return;
+    try {
+      const data = await api("/api/arbi-schedule?days=7");
+      state.arbiSchedule = data;
+      if (data.missions) {
+        state.missionColors = Object.assign({}, state.missionColors, data.missions);
+      }
+      renderArbiSchedule(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("arbiScheduleInfo", "读取排期失败：" + exc.message);
+      }
+    }
+  }
+
+  function schedRow(entry) {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const row = document.createElement("div");
+    row.className = "sched-row";
+    const color = missionColorOf(entry.mission, state.missionColors);
+    row.style.setProperty("--mission-color", color);
+    row.style.background = "linear-gradient(90deg, " + hexAlpha(color, 0.30)
+      + " 0%, " + hexAlpha(color, 0.10) + " 100%)";
+
+    const time = makeSpan(entry.time || "—", "sched-time");
+    const node = makeSpan(entry.node || entry.key || "—", "sched-node");
+    const mission = makeSpan(entry.mission || "—", "sched-mission");
+    mission.style.color = color;
+
+    const tierText = entry.tier || "未评级";
+    const tier = document.createElement("span");
+    tier.className = "tier-pill sched-tier";
+    tier.textContent = tierText;
+    tier.title = "评级 " + tierText;
+    tier.style.color = tierColor(tierText);
+    tier.style.borderColor = hexAlpha(tierColor(tierText), 0.55);
+    tier.style.background = hexAlpha(tierColor(tierText), 0.16);
+
+    row.append(time, node, mission);
+    if (entry.start <= nowSec && entry.end > nowSec) {
+      row.classList.add("is-live");
+      row.appendChild(makeSpan("进行中", "sched-live"));
+    }
+    row.appendChild(tier);
+    return row;
+  }
+
+  function renderArbiSchedule(data) {
+    const box = $("arbiSchedule");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!data.enabled) {
+      setText("arbiScheduleInfo", data.message || "仲裁排期未启用");
+      setText("arbiScheduleCount", "");
+      return;
+    }
+    const groups = data.groups || [];
+    const total = data.total || 0;
+    $("arbiScheduleInfo").innerHTML = "未来 <b>" + (data.days || 7) +
+      "</b> 天 · 每小时一场 · 共 <b>" + total + "</b> 场";
+    setText("arbiScheduleCount", groups.length + " 天");
+
+    groups.forEach((group, index) => {
+      const day = document.createElement("details");
+      day.className = "sched-day";
+      if (index === 0) day.open = true;
+
+      const head = document.createElement("summary");
+      head.className = "sched-day-head";
+      head.appendChild(makeSpan(group.label || group.date, "sched-day-label"));
+      const highs = document.createElement("span");
+      highs.className = "sched-day-highs";
+      (group.highlights || []).forEach((item) => {
+        const pill = document.createElement("span");
+        pill.className = "tier-pill";
+        pill.textContent = item.tier + " × " + item.count;
+        pill.style.color = tierColor(item.tier);
+        pill.style.borderColor = hexAlpha(tierColor(item.tier), 0.55);
+        pill.style.background = hexAlpha(tierColor(item.tier), 0.16);
+        highs.appendChild(pill);
+      });
+      head.appendChild(highs);
+      head.appendChild(makeSpan((group.count || 0) + " 场", "sched-day-count"));
+      day.appendChild(head);
+
+      const rows = document.createElement("div");
+      rows.className = "sched-rows";
+      (group.entries || []).forEach((entry) => rows.appendChild(schedRow(entry)));
+      day.appendChild(rows);
+      box.appendChild(day);
+    });
+  }
+
+  function setArbiView(view) {
+    state.arbiView = view === "schedule" ? "schedule" : "ratings";
+    document.querySelectorAll("#arbiTabs .arbi-tab").forEach((tab) => {
+      tab.classList.toggle("is-active", tab.dataset.arbiView === state.arbiView);
+    });
+    $("arbiRatingsView").hidden = state.arbiView !== "ratings";
+    $("arbiScheduleView").hidden = state.arbiView !== "schedule";
+    if (state.arbiView === "schedule") loadArbiSchedule(false);
+  }
+
   async function loadMissionColors() {
     try {
       const data = await api("/api/mission-colors");
@@ -1041,7 +1149,13 @@
     $("dataRefresh").addEventListener("click", refreshData);
     $("missionSave").addEventListener("click", saveMissionColors);
     $("missionReset").addEventListener("click", resetMissionColors);
-    $("arbiRefresh").addEventListener("click", loadArbi);
+    $("arbiRefresh").addEventListener("click", () => {
+      if (state.arbiView === "schedule") loadArbiSchedule(true);
+      else loadArbi();
+    });
+    document.querySelectorAll("#arbiTabs .arbi-tab").forEach((tab) => {
+      tab.addEventListener("click", () => setArbiView(tab.dataset.arbiView));
+    });
     $("arbiMissionColors").addEventListener("click", () => {
       const panel = document.querySelector(".mission-panel");
       if (!panel) return;

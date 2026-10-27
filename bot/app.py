@@ -524,6 +524,66 @@ class BotApp:
             raise ValueError("仲裁评级未启用（arbi.enabled）。")
         return self.arbi.set_rating(key, tier)
 
+    def arbi_schedule(self, days: int = 7) -> Dict[str, Any]:
+        """控制台「仲裁表」：未来 N 天完整排期，按天分组。"""
+        if self.arbi is None:
+            return {"enabled": False, "days": [], "missions": {},
+                    "message": "仲裁评级未启用（arbi.enabled）。"}
+        try:
+            days = max(1, min(int(days or 7), 7))
+        except (TypeError, ValueError):
+            days = 7
+        entries = self.arbi.upcoming(days)
+        groups: List[Dict[str, Any]] = []
+        index: Dict[str, Dict[str, Any]] = {}
+        for start, end, node, tier in entries:
+            key = time.strftime("%Y-%m-%d", time.localtime(start))
+            group = index.get(key)
+            if group is None:
+                local = time.localtime(start)
+                group = {
+                    "date": key,
+                    "label": time.strftime("%m-%d", local) + " 周" +
+                             "一二三四五六日"[local.tm_wday],
+                    "entries": [],
+                }
+                index[key] = group
+                groups.append(group)
+            mission = str(node.mission or "")
+            group["entries"].append({
+                "start": int(start),
+                "end": int(end),
+                "time": time.strftime("%H:%M", time.localtime(start)),
+                "node": node.display_name,
+                "key": node.key,
+                "system": node.system,
+                "mission": mission,
+                "faction": node.faction,
+                "level": node.level_text,
+                "tier": tier or "",
+            })
+        today = time.strftime("%Y-%m-%d", time.localtime())
+        for group in groups:
+            if group["date"] == today:
+                group["label"] = "今天 · " + group["label"]
+            highs = {}
+            for entry in group["entries"]:
+                if entry["tier"]:
+                    highs[entry["tier"]] = highs.get(entry["tier"], 0) + 1
+            group["count"] = len(group["entries"])
+            group["highlights"] = [
+                {"tier": tier, "count": highs[tier]}
+                for tier in ("S", "A+", "A", "A-", "B", "C") if highs.get(tier)
+            ]
+        return {
+            "enabled": True,
+            "days": days,
+            "total": len(entries),
+            "groups": groups,
+            "missions": missioncolors.mapping(),
+            "updated": int(time.time()),
+        }
+
     # ------------------------------------------------------------------ 任务配色
     def mission_colors_snapshot(self) -> Dict[str, Any]:
         """控制台「任务配色」：每种任务类型的当前色 / 默认色。"""
