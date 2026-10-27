@@ -687,8 +687,13 @@
 
   function missionColorOf(name, fallbackTable) {
     const table = state.missionColors || {};
-    if (name && table[name]) return table[name];
-    if (name && fallbackTable && fallbackTable[name]) return fallbackTable[name];
+    const raw = String(name || "").trim();
+    // 老数据里带英文前缀（INFESTED 资源回收），去掉前缀再查一次
+    const keys = [raw, raw.replace(/^INFESTED\s+/i, "")];
+    for (const key of keys) {
+      if (key && table[key]) return table[key];
+      if (key && fallbackTable && fallbackTable[key]) return fallbackTable[key];
+    }
     return "#8B98AA";
   }
 
@@ -810,9 +815,13 @@
       swatch.value = /^#[0-9a-fA-F]{6}$/.test(missionColor) ? missionColor : "#8B98AA";
       swatch.title = "点这里改「" + missionName + "」的显示颜色";
       swatch.setAttribute("aria-label", "修改 " + missionName + " 的显示颜色");
+      const rowTint = (hex) => "linear-gradient(90deg, " + hexAlpha(hex, 0.34)
+        + " 0%, " + hexAlpha(hex, 0.16) + " 100%)";
       swatch.addEventListener("input", () => {
-        row.style.setProperty("--mission-color", swatch.value.toUpperCase());
-        mission.style.color = swatch.value.toUpperCase();
+        const hex = swatch.value.toUpperCase();
+        row.style.setProperty("--mission-color", hex);
+        row.style.background = rowTint(hex);
+        mission.style.color = hex;
       });
       swatch.addEventListener("change", () => {
         applyMissionColor(missionName, swatch.value.toUpperCase());
