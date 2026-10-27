@@ -18,6 +18,7 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures",
 
 FURIS = RivenWeapon("furis", "盗贼", "Furis", "pistol", "secondary", 1.2, 5)
 MAGISTAR = RivenWeapon("magistar", "执法者", "Magistar", "melee", "melee", 1.2, 5)
+STRUN = RivenWeapon("strun", "斯特朗", "Strun", "shotgun", "primary", 1.2, 5)
 
 
 def load_variants() -> dict:
@@ -143,6 +144,49 @@ class DeskewTest(unittest.TestCase):
         angles = ocr.retry_angles(self._barred(-10.0))
         self.assertEqual(len(angles), 3)
         self.assertTrue(all(abs(angle - 10.0) <= 3.0 for angle in angles))
+
+
+class UnrankedCardTest(unittest.TestCase):
+    """没升满的紫卡：卡面显示的是当前等级的数值，只有满级的 1/9 ~ 8/9。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.analysis = calculate(STRUN)
+
+    def _candidates(self):
+        """斯特朗 Sati-vexitis 的真实卡面（Lv.0），含一条读混出来的重影。"""
+        return [
+            rivenocr.Candidate("电击伤害", [(11.6, 12)], signs={"11.6": (6, 0)}),
+            rivenocr.Candidate("暴击伤害", [(11.2, 10)], signs={"11.2": (4, 0)}),
+            rivenocr.Candidate("暴击几率", [(11.2, 3)], signs={"11.2": (2, 0)}),
+            rivenocr.Candidate("多重射击", [(16.1, 12)], signs={"16.1": (6, 0)}),
+            rivenocr.Candidate("弹匣容量", [(-4.7, 8)], signs={"-4.7": (0, 6)}),
+        ]
+
+    def test_card_values_are_reported_verbatim(self):
+        """输出必须和卡面逐字一致：`-` 就是负的，一条不多一条不少。"""
+        result = rivenocr.resolve(self._candidates(), self.analysis)
+        self.assertEqual(result.config, "3+1")
+        self.assertEqual(sorted(result.pairs), sorted([
+            ("电击伤害", 11.6), ("暴击伤害", 11.2),
+            ("多重射击", 16.1), ("弹匣容量", -4.7)]))
+
+    def test_unranked_card_is_detected(self):
+        result = rivenocr.resolve(self._candidates(), self.analysis)
+        self.assertAlmostEqual(result.scale, 1.0 / 9.0, places=6)
+        self.assertTrue(any("还没升满" in note for note in result.notes))
+
+    def test_shadow_crit_stat_is_dropped(self):
+        """「暴击伤害 / 暴击几率」读混出来的重影不能变成第五条。"""
+        names = [name for name, _value in
+                 rivenocr.resolve(self._candidates(), self.analysis).pairs]
+        self.assertEqual(len(names), 4)
+        self.assertNotIn("暴击几率", names)
+
+    def test_rank_for_scale(self):
+        self.assertEqual(rivenocr.rank_for_scale(1.0 / 9.0), 0)
+        self.assertEqual(rivenocr.rank_for_scale(1.0), 8)
+        self.assertEqual(rivenocr.rank_for_scale(5.0 / 9.0), 4)
 
 
 class SignTest(unittest.TestCase):

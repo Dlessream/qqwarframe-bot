@@ -187,13 +187,29 @@ def riven_ocr_reply(pairs, note: str = "") -> Reply:
     return Reply(text="\n".join(lines))
 
 
+def rivencalc_rank(scale: float) -> int:
+    """换算系数 → 紫卡等级；这里只用来显示，避免 present 直接依赖 rivenocr。"""
+    return max(0, min(8, int(round(scale * 9.0)) - 1))
+
+
 def riven_analysis_reply(analysis: RivenAnalysis,
                          evaluations: Sequence[RollEvaluation],
                          notes: Sequence[str] = (),
                          from_image: bool = False) -> Reply:
+    scale = 1.0
+    for item in evaluations or ():
+        scale = getattr(item, "scale", 1.0) or 1.0
+        break
+    if scale < 1.0:
+        level = "倾向 %.2f（%s）｜ 卡面约 Lv.%d，评分按 Lv.8" % (
+            analysis.disposition, analysis.dots or "—",
+            rivencalc_rank(scale))
+    else:
+        level = "倾向 %.2f（%s）｜ Lv.8 词条范围" % (
+            analysis.disposition, analysis.dots or "—")
     lines = [
         "【%s】紫卡分析" % analysis.name,
-        "倾向 %.2f（%s）｜ Lv.8 词条范围" % (analysis.disposition, analysis.dots or "—"),
+        level,
     ]
     if analysis.name_en and analysis.name_en.lower() != analysis.name.lower():
         lines.append("英文：%s" % analysis.name_en)
@@ -208,7 +224,8 @@ def riven_analysis_reply(analysis: RivenAnalysis,
                 continue
             lines.append("  %s %+g%s：范围 %s，%s" % (
                 evaluation.name, evaluation.value, evaluation.stat.unit,
-                evaluation.stat.range_text(), evaluation.grade))
+                evaluation.stat.range_text(getattr(evaluation, "scale", 1.0)),
+                evaluation.grade))
         if not from_image:
             lines.append("提示：有负面词条时请写成负值（例如 变焦=-30）。")
 

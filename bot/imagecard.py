@@ -647,7 +647,8 @@ def riven_analysis_card(analysis, evaluations: Sequence = (),
             rows.append([
                 evaluation.name,
                 "%+g%s" % (evaluation.value, unit),
-                evaluation.stat.range_text() if evaluation.stat else "—",
+                (evaluation.stat.range_text(getattr(evaluation, "scale", 1.0))
+                 if evaluation.stat else "—"),
                 evaluation.grade,
             ])
             colors[(index, 1)] = RED if evaluation.negative else GREEN

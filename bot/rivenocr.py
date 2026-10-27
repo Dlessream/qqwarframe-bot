@@ -494,23 +494,26 @@ def _configs(analysis: RivenAnalysis) -> List[_Config]:
 
 @dataclass
 class Resolution:
-    """校验结果：最终词条 + 提示 + 命中的配置。"""
+    """校验结果：最终词条 + 提示 + 命中的配置 + 卡面等级换算系数。"""
 
     pairs: List[Tuple[str, float]] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     config: str = ""
+    scale: float = 1.0
 
 
-def _pick(candidate: Candidate, config: _Config, strict: bool = True):
+def _pick(candidate: Candidate, config: _Config, strict: bool = True,
+          scale: float = 1.0):
     """在这套配置的范围里挑一个读数；返回 (成本, 数值, 是否负面) 或 None。
 
     `strict` 为真时先听图上读到的符号：卡面写 `+` 就只往正向范围里放，
     写 `-` 就只往负面范围里放。只有符号和这张卡的配置明显冲突时
     （比如某个词条压根不可能为负），才退回只看范围。
+    `scale` 是「卡面数值 / 满级数值」：没升满的卡要先除掉它再比范围。
     """
     best = None
     for value, votes in candidate.options:
-        magnitude = abs(value)
+        magnitude = abs(value) / (scale or 1.0)
         prefer = candidate.polarity(value)
         positive_ok = (candidate.name in config.positives
                        and not (strict and prefer == "-"))
@@ -535,11 +538,28 @@ def _pick(candidate: Candidate, config: _Config, strict: bool = True):
             mismatch = 1 if (value < 0) != negative else 0
             score = (gap, -votes, mismatch)
             if best is None or score < best[0]:
-                best = (score, magnitude, negative)
+                # 返回的是「换算到满级」的数值（用来比范围），
+                # 卡面原值单独带出去——最终要按卡面输出
+                best = (score, magnitude, negative, abs(value))
     return best
 
 
 _MAX_CANDIDATES = 8
+
+# 紫卡没升满时，卡面上显示的是**当前等级**的数值，不是满级（Lv.8）的。
+# 实测：一张未升级的紫卡，四条数值正好都是满级范围的 1/9，说明等级 0~8
+# 对应 1/9 ~ 9/9 线性递增。不换算的话，这类卡的数值怎么都套不进 Lv.8 范围，
+# 只能走兜底分支——之前「弹匣容量 -4.7%」被当成 +4.7%、还多出一条词条，
+# 根子就在这里。
+RIVEN_MAX_RANK = 8
+RANK_SCALES = [(rank + 1) / 9.0 for rank in range(RIVEN_MAX_RANK + 1)]
+# 先按满级算；只有满级套不上，才往低等级试（从高到低）
+_SCALE_ORDER = [1.0] + [scale for scale in reversed(RANK_SCALES) if scale < 1.0]
+
+
+def rank_for_scale(scale: float) -> int:
+    """换算系数 → 紫卡等级（1/9 是 0 级，9/9 是 8 级）。"""
+    return max(0, min(RIVEN_MAX_RANK, int(round(scale * 9.0)) - 1))
 
 
 def _family(name: str) -> str:
@@ -574,15 +594,17 @@ _FIT_SLACK = 2.0
 
 def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
             conflicts: Sequence[Sequence[int]], strict: bool,
-            allow_unfit: bool = False, rank: int = 0):
+            allow_unfit: bool = False, rank: int = 0, scale: float = 1.0):
     """枚举「用哪几条候选 + 哪套配置」，返回最贴合的一组。
 
     `rank` 是这一轮的可信度（0 最可信），只在「保留的词条一样多」时才拿来分胜负：
-    先保证不漏词条，再看是不是听了卡面的符号。
+    先保证不漏词条，再看是不是听了卡面的符号、是不是满级的数值。
     `allow_unfit` 用于兜底轮：数值和理论范围对不上，但只要卡面上明明白白写着
     `+` / `-`，就照卡面给，宁可提示「请核对」也不擅自改符号。
+    `scale` 是「卡面数值 / 满级数值」，用来认没升满的紫卡。
     """
     total = len(usable)
+    scale_penalty = 0 if scale >= 1.0 else 1
     best = None
     for config in configs:
         size = config.want_positive + config.want_negative
@@ -603,11 +625,11 @@ def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
             failed = False
             for index in subset:
                 candidate = usable[index]
-                picked = _pick(candidate, config, strict=strict)
+                picked = _pick(candidate, config, strict=strict, scale=scale)
                 if picked is None:
                     failed = True
                     break
-                score, magnitude, negative = picked
+                score, magnitude, negative, raw = picked
                 gap = score[0]
                 cost += gap
                 votes += -score[1]
@@ -620,7 +642,7 @@ def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
                     negatives += 1
                 else:
                     positives += 1
-                picks.append((candidate.name, magnitude, negative, gap))
+                picks.append((candidate.name, raw, negative, gap))
             if failed:
                 continue
             if (positives, negatives) != (config.want_positive, config.want_negative):
@@ -630,8 +652,9 @@ def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
             if unfit and not allow_unfit:
                 continue
             # 先尽量少丢词条（漏读一条不该反过来把别的词条挤掉），再看这一轮
-            # 可不可信（听没听卡面的符号），然后才比贴合程度与票数。
-            key = (total - size, rank, round(cost, 1), -votes, mismatch)
+            # 可不可信（听没听卡面的符号、是不是满级），然后才比贴合程度与票数。
+            key = (total - size, rank, scale_penalty, round(cost, 1),
+                   -votes, mismatch)
             if best is None or key < best[0]:
                 dropped = [usable[i] for i in range(total) if i not in subset]
                 best = (key, config, picks, dropped)
@@ -676,14 +699,27 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
     #   3 符号和范围都不靠谱，按范围定正负且放宽数值
     passes = [(True, False, 0), (True, True, 1), (False, False, 2),
               (False, True, 3)]
-    best = None
-    for strict, allow_unfit, rank in passes:
-        if allow_unfit and not has_signs:
-            continue  # 连符号都没读到，就不该放宽数值要求
-        found = _search(usable, configs, conflicts, strict=strict,
-                        allow_unfit=allow_unfit, rank=rank)
-        if found is not None and (best is None or found[0] < best[0]):
-            best = found
+
+    def run(scale: float):
+        found = None
+        for strict, allow_unfit, rank in passes:
+            if allow_unfit and not has_signs:
+                continue  # 连符号都没读到，就不该放宽数值要求
+            result = _search(usable, configs, conflicts, strict=strict,
+                             allow_unfit=allow_unfit, rank=rank, scale=scale)
+            if result is not None and (found is None or result[0] < found[0]):
+                found = result
+        return found
+
+    best = run(1.0)
+    best_scale = 1.0 if best is not None else 0.0
+    # 满级套不上时，再按「这张卡没升满」试一遍：等级 0~8 对应 1/9~9/9
+    if best is None or best[0][0] or best[0][1]:
+        for scale in _SCALE_ORDER[1:]:
+            found = run(scale)
+            if found is not None and (best is None or found[0] < best[0]):
+                best, best_scale = found, scale
+
     if best is not None:
         rank = best[0][1]
         if rank == 1:
@@ -706,6 +742,7 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
         return Resolution(pairs=pairs, notes=notes)
 
     _key, config, picks, dropped = best
+    scale = best_scale or 1.0
     pairs: List[Tuple[str, float]] = []
     for name, magnitude, negative, gap in picks:
         value = -magnitude if negative else magnitude
@@ -715,7 +752,11 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
         pairs.append((name, value))
     for candidate in dropped:
         notes.append("%s 与 %s 的词条数量对不上，已忽略" % (candidate.name, config.label))
-    return Resolution(pairs=pairs, notes=notes, config=config.label)
+    if scale < 1.0:
+        notes.insert(0, "这张紫卡还没升满（约 Lv.%d）：数值按卡面显示，"
+                        "评分已换算到 Lv.8 比较" % rank_for_scale(scale))
+    return Resolution(pairs=pairs, notes=notes, config=config.label,
+                      scale=scale)
 
 
 def finalize(candidates: Sequence[Candidate],

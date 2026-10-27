@@ -53,8 +53,12 @@ class RivenStat:
     def high(self) -> float:
         return max(self.minimum, self.maximum)
 
-    def range_text(self) -> str:
-        return "%s ~ %s%s" % (_fmt(self.minimum), _fmt(self.maximum), self.unit)
+    def range_text(self, scale: float = 1.0) -> str:
+        """`scale` 用来把满级范围换算到当前等级（没升满的紫卡显示的是当前等级数值）。"""
+        if not scale or abs(scale - 1.0) < 1e-9:
+            return "%s ~ %s%s" % (_fmt(self.minimum), _fmt(self.maximum), self.unit)
+        return "%s ~ %s%s" % (_fmt(self.minimum * scale),
+                              _fmt(self.maximum * scale), self.unit)
 
 
 @dataclass
@@ -66,6 +70,7 @@ class RollEvaluation:
     grade: str
     note: str = ""
     negative: bool = False
+    scale: float = 1.0
 
 
 @dataclass
@@ -394,9 +399,15 @@ def infer_config_label(evaluations: Sequence[RollEvaluation]) -> str:
 
 
 def evaluate_roll(analysis: RivenAnalysis,
-                  pairs: Sequence[Tuple[str, float]]) -> List[RollEvaluation]:
+                  pairs: Sequence[Tuple[str, float]],
+                  scale: float = 1.0) -> List[RollEvaluation]:
+    """`scale` 是「卡面数值 / 满级数值」：没升满的紫卡要先换算到满级再评分，
+    但 `value` 仍保留卡面上的数字——用户要的是和图片一模一样的结果。
+    """
     if not pairs:
         return []
+    if not scale:
+        scale = 1.0
 
     classified = [(name, value, is_negative_effect(name, value))
                   for name, value in pairs]
@@ -420,7 +431,9 @@ def evaluate_roll(analysis: RivenAnalysis,
         canonical = canonical_name(raw_name)
         stats = negative_stats if negative else positive_stats
         stat = find_stat(stats, canonical) if stats else None
-        results.append(_evaluate_one(canonical or raw_name, value, stat, negative))
+        item = _evaluate_one(canonical or raw_name, value / scale, stat, negative)
+        results.append(RollEvaluation(item.name, value, item.stat, item.percentile,
+                                      item.grade, item.note, item.negative, scale))
     return results
 
 

@@ -698,6 +698,7 @@ class CommandRouter:
                 "图片里没有识别到有效紫卡词条，请发送完整、清晰的紫卡截图。")
         analysis = calculate(weapon)
         notes: List[str] = []
+        resolution = None
         if candidates:
             # 有武器之后才能用它的词条表 / 数值范围校正符号、剔除不属于它的词条
             resolution = rivenocr.resolve(candidates, analysis)
@@ -706,7 +707,8 @@ class CommandRouter:
                 # 歪着拍的图字会糊，认不准就别装作认准了
                 notes.append("图片倾斜约 %d°，字迹有损失，建议正着截图再发一次"
                              % abs(result.tilt))
-        evaluations = evaluate_roll(analysis, pairs) if pairs else []
+        scale = resolution.scale if resolution is not None else 1.0
+        evaluations = evaluate_roll(analysis, pairs, scale) if pairs else []
         return present.riven_analysis_reply(analysis, evaluations, notes,
                                             from_image=bool(ctx.image))
 
