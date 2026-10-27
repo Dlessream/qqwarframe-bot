@@ -798,6 +798,100 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
+def _cell_parts(cell) -> Tuple[Optional[tuple], bool, str]:
+    """接受 str 或 Cell，返回 (颜色, 是否加粗, 文本)。"""
+    if isinstance(cell, Cell):
+        return cell.color, cell.bold, cell.text
+    return None, False, str(cell)
+
+
+def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
+                   footer: str, accent=GOLD, chip: str = "",
+                   note: str = "") -> bytes:
+    """分组表格卡：每组一个小标题（右侧可带倒计时）＋ 若干行。
+
+    sections: [{"label": 小标题, "badge": 右侧胶囊, "columns": [(表头, 比例), ...],
+                "rows": [[str | Cell, ...], ...]}, ...]
+    每组最后一行按右对齐绘制，其余列左对齐。
+    """
+    sections = list(sections or [])
+    total_rows = sum(len(item.get("rows") or []) for item in sections)
+    height = max(700, 320 + total_rows * 38 + len(sections) * 80 + 120)
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    y = _header(draw, title, subtitle, chip, accent)
+    y += 12
+
+    usable = WIDTH - 2 * PAD
+    label_font = _font(19, bold=True)
+    head_font = _font(13, bold=True)
+    text_font = _font(16)
+    bold_font = _font(16, bold=True)
+    row_height = 38
+    right = WIDTH - PAD
+
+    for item in sections:
+        label = str(item.get("label") or "")
+        badge = str(item.get("badge") or "")
+        if label:
+            draw.rectangle([PAD, y + 4, PAD + 4, y + 24], fill=accent)
+            draw.text((PAD + 14, y), _fit(draw, label, label_font, usable - 250),
+                      font=label_font, fill=TEXT)
+            if badge:
+                badge_width, _ = _tsize(draw, badge, _font(14, bold=True))
+                _chip(draw, right - badge_width - 16, y - 1, badge, accent)
+            y += 36
+
+        columns = list(item.get("columns") or [])
+        rows = list(item.get("rows") or [])
+        if not columns:
+            columns = [("", 1.0)] * max(1, len(rows[0]) if rows else 1)
+        total_ratio = sum(ratio for _, ratio in columns) or 1.0
+        widths = [int(usable * ratio / total_ratio) for _, ratio in columns]
+
+        x = PAD
+        for index, (name, _) in enumerate(columns):
+            if name:
+                if index == len(columns) - 1:
+                    name_width, _ = _tsize(draw, name, head_font)
+                    draw.text((x + widths[index] - 12 - name_width, y), name,
+                              font=head_font, fill=DIM)
+                else:
+                    draw.text((x + 10, y), name, font=head_font, fill=DIM)
+            x += widths[index]
+        y += 22
+        _divider(draw, y)
+        y += 6
+
+        for row_index, row in enumerate(rows):
+            if row_index % 2 == 0:
+                _rrect(draw, (PAD - 6, y - 4, WIDTH - PAD + 6, y + row_height - 10),
+                       8, fill=PANEL)
+            x = PAD
+            for index, cell in enumerate(list(row)[:len(widths)]):
+                color, bold, value = _cell_parts(cell)
+                font = bold_font if bold else text_font
+                value = _fit(draw, value, font, widths[index] - 20)
+                if index == len(widths) - 1:
+                    value_width, _ = _tsize(draw, value, font)
+                    draw.text((x + widths[index] - 12 - value_width, y + 8),
+                              value, font=font, fill=color or TEXT)
+                else:
+                    draw.text((x + 10, y + 8), value, font=font,
+                              fill=color or TEXT)
+                x += widths[index]
+            y += row_height
+        y += 16
+
+    if note:
+        draw.text((PAD, y + 2), _fit(draw, note, _font(14), usable),
+                  font=_font(14), fill=MUTED)
+        y += 28
+
+    y = _footer(draw, y + 10, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
 def _encode(image: "Image.Image") -> bytes:
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="PNG", optimize=True)

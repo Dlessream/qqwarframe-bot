@@ -1375,69 +1375,111 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 
 # ---------------------------------------------------------------------- 轮换
-def _acrithis_line(view: dict) -> str:
-    rows = view.get("rows") or []
-    if not rows:
-        return "本周 5 件还没抓到"
-    return "、".join(row.get("short") or row.get("name") or "？" for row in rows)
-
-
-def _bonus_top(rows: Sequence[dict]) -> str:
-    best = None
+def _weapon_cell_rows(rows: Sequence[dict], accent) -> List[List[object]]:
+    """武器行：名字 / 元素 / 加成，缺数据时写「未上报」。"""
+    result = []
     for row in rows:
-        if not row.get("element"):
-            continue
-        if best is None or row.get("percent", 0) > best.get("percent", 0):
-            best = row
-    if best is None:
-        return ""
-    return "最高 %s %.1f%%" % (best.get("element"), best.get("percent", 0.0))
+        percent = row.get("percent") or 0.0
+        result.append([
+            row.get("name") or "？",
+            imagecard.Cell(row.get("element") or "未上报", color=accent),
+            imagecard.Cell("%.1f%%" % percent if percent else "—",
+                           color=imagecard.GOLD, bold=True),
+        ])
+    return result
 
 
 def rotation_overview_reply(acrithis: dict, glast: dict, eleanor: dict,
                             error: str = "") -> Reply:
-    """三店轮换总览。"""
-    lines = ["【轮换商店】言录使 · 埃尔戈·格拉斯 · 埃莉诺"]
+    """三店轮换总览：三个货架全部列全，武器逐把给数值。"""
+    acrithis_rows = acrithis.get("rows") or []
+    glast_rows = glast.get("rows") or []
+    eleanor_rows = eleanor.get("rows") or []
+    batch = eleanor.get("batch", "A")
 
     acrithis_rest = countdown(acrithis.get("next", 0))
     glast_rest = countdown(glast.get("next", 0))
     eleanor_rest = countdown(eleanor.get("next", 0))
-    eleanor_head = "%s 批 %d 把终幕武器" % (eleanor.get("batch", "?"),
-                                          len(eleanor.get("rows") or []))
-    eleanor_top = _bonus_top(eleanor.get("rows") or [])
-    if eleanor_top:
-        eleanor_head += " · " + eleanor_top
-    glast_head = "%d 把信条近战" % len(glast.get("rows") or [])
-    glast_top = _bonus_top(glast.get("rows") or [])
-    if glast_top:
-        glast_head += " · " + glast_top
 
-    lines.append("言录使（双衍王境）：%s —— 剩 %s" % (
-        _acrithis_line(acrithis), acrithis_rest))
-    lines.append("埃尔戈·格拉斯（佩兰数列）：%s —— 剩 %s" % (glast_head, glast_rest))
-    lines.append("埃莉诺（1999）：%s —— 剩 %s" % (eleanor_head, eleanor_rest))
+    lines = ["【轮换商店】言录使 · 埃尔戈·格拉斯 · 埃莉诺"]
+    lines.append("")
+    lines.append("言录使（双衍王境 · 剩 %s）" % acrithis_rest)
+    if acrithis_rows:
+        for index, row in enumerate(acrithis_rows, 1):
+            cost = row.get("cost") or 0
+            lines.append("%d. %s  %s" % (index, row.get("name"),
+                                        "%d 苦栓" % cost if cost else "价格未上报"))
+    else:
+        lines.append("本周清单还没抓到")
+    if acrithis.get("observed"):
+        lines.append("（wiki 上报日期：%s）" % acrithis.get("observed"))
+
+    lines.append("")
+    lines.append("格拉斯（佩兰数列 · 剩 %s）" % glast_rest)
+    if glast_rows:
+        for row in glast_rows:
+            if row.get("element"):
+                lines.append("%s：%s %.1f%%" % (row.get("name"), row.get("element"),
+                                                row.get("percent", 0.0)))
+            else:
+                lines.append("%s：加成未上报" % row.get("name"))
+    else:
+        lines.append("5 把信条近战还没抓到")
+
+    lines.append("")
+    lines.append("埃莉诺（1999 · %s 批 · 剩 %s）" % (batch, eleanor_rest))
+    if eleanor_rows:
+        for row in eleanor_rows:
+            if row.get("element"):
+                lines.append("%s：%s %.1f%%" % (row.get("name"), row.get("element"),
+                                                row.get("percent", 0.0)))
+            else:
+                lines.append("%s：加成未上报" % row.get("name"))
+    else:
+        lines.append("当前批次的终幕武器还没抓到")
+
     lines.append("")
     lines.append("明细发 #轮换 言录使 / #轮换 格拉斯 / #轮换 埃莉诺")
 
-    rows = [
-        ["言录使 · 双衍王境", _acrithis_line(acrithis), acrithis_rest],
-        ["格拉斯 · 佩兰数列", glast_head, glast_rest],
-        ["埃莉诺 · 1999", eleanor_head, eleanor_rest],
-    ]
+    acrithis_section = {
+        "label": "言录使 · 双衍王境",
+        "badge": "剩 " + acrithis_rest,
+        "columns": [("商品", 3.1), ("价格", 1.0)],
+        "rows": [[row.get("name") or "？",
+                  imagecard.Cell("%d 苦栓" % (row.get("cost") or 0),
+                                 color=imagecard.GOLD, bold=True)
+                  if row.get("cost") else imagecard.Cell("价格未上报",
+                                                         color=imagecard.MUTED)]
+                 for row in acrithis_rows] or [["本周清单还没抓到", "—"]],
+    }
+    weapon_columns = [("武器", 2.9), ("元素", 1.0), ("加成", 1.0)]
+    glast_section = {
+        "label": "格拉斯 · 佩兰数列",
+        "badge": "剩 " + glast_rest,
+        "columns": weapon_columns,
+        "rows": _weapon_cell_rows(glast_rows, imagecard.CYAN)
+                or [["5 把信条近战还没抓到", "—", "—"]],
+    }
+    eleanor_section = {
+        "label": "埃莉诺 · 1999 · %s 批" % batch,
+        "badge": "剩 " + eleanor_rest,
+        "columns": weapon_columns,
+        "rows": _weapon_cell_rows(eleanor_rows, imagecard.PURPLE)
+                or [["当前批次的终幕武器还没抓到", "—", "—"]],
+    }
+
     updated = max(acrithis.get("fetched", 0), glast.get("fetched", 0),
                   eleanor.get("fetched", 0))
-    note = "言录使每周一、格拉斯与埃莉诺每 4 天的 08:00（北京时间）刷新；明细见分店命令。"
+    note = "言录使每周一、格拉斯与埃莉诺每 4 天的 08:00（北京时间）刷新；数值由玩家上报。"
     if error:
         note = "wiki 抓取失败，下面是上次快照：%s" % error[:60]
     return Reply(
         text="\n".join(lines),
-        image=lambda: imagecard.build_table(
-            "轮换商店", "三个商店的当期货架与倒计时", ["商店", "本轮内容", "下次轮换"],
-            rows, "数据 wiki.warframe.com ｜ 玩家上报 ｜ %s" % _fresh(updated),
-            accent=imagecard.GOLD, chip="轮换", note=note,
-            highlights=[[None, None, imagecard.CYAN]] * len(rows),
-            ratios=[1.6, 3.7, 1.4],
-            aligns=["left", "left", "right"]))
+        image=lambda: imagecard.sections_table(
+            "轮换商店", "三个商店的当期货架与倒计时",
+            [acrithis_section, glast_section, eleanor_section],
+            "数据 wiki.warframe.com ｜ 玩家上报 ｜ %s" % _fresh(updated),
+            accent=imagecard.GOLD, chip="轮换", note=note))
 
 
 def acrithis_reply(view: dict) -> Reply:
