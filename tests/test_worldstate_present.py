@@ -140,12 +140,31 @@ class BountyStaticTest(unittest.TestCase):
 
     def test_tier_levels_and_counts(self):
         reply = present.bounties_reply(list(self.RAW))
-        lines = [line for line in reply.text.splitlines() if "T" in line]
+        lines = [line for line in reply.text.splitlines()
+                 if line.startswith(("坚守者 · 扎里曼", "六人组 · 霍瓦尼亚",
+                                     "卡维亚 · 解剖圣所"))]
         # 5（扎里曼）+ 7（霍瓦尼亚）+ 5（圣所）= 17 档
         self.assertEqual(len(lines), 17)
         self.assertIn("130", reply.text)          # 霍瓦尼亚 T7 125–130
         self.assertIn("115–120", reply.text)      # 圣所 T5
         self.assertIn("虚空羽翎", reply.text)      # 扎里曼奖励
+
+    def test_mission_names_replace_tier_labels(self):
+        reply = present.bounties_reply(list(self.RAW))
+        self.assertNotIn("T1 赏金", reply.text)
+        self.assertNotIn("T7 赏金", reply.text)
+        # 任务列写的是真实任务类型，不是「T 几赏金」
+        self.assertIn("虚空瀑流", reply.text)      # 扎里曼
+        self.assertIn("生存", reply.text)          # 解剖圣所
+        self.assertIn("地狱净化", reply.text)      # 霍瓦尼亚
+
+    def test_mission_line_stays_short(self):
+        from bot import bountystatic
+        for key in bountystatic.keys():
+            for tier in bountystatic.tiers(key):
+                line = present._mission_line(tier.get("missions"))
+                self.assertTrue(line)
+                self.assertLessEqual(present._cell_width(line), 13.0)
 
     def test_single_location(self):
         reply = present.bounties_reply(list(self.RAW), location="The Hex")
@@ -163,7 +182,7 @@ class BountyStaticTest(unittest.TestCase):
         self.assertEqual(bountystatic.tiers("Cavia")[0]["level"], "55–60")
         self.assertEqual(bountystatic.tiers("The Holdfasts")[-1]["level"], "110–115")
         self.assertEqual(bountystatic.tiers("The Hex")[-1]["reward"],
-                         "7500 现金 + 反病毒模组")
+                         "7500 现金·反病毒")
         self.assertEqual(bountystatic.tiers("Ostrons"), [])
 
 

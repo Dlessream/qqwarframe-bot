@@ -42,6 +42,7 @@ def _table(path: str = DEFAULT_FILE) -> Dict[str, Any]:
         for key, row in (raw.get("locations") or {}).items():
             if not isinstance(row, dict):
                 continue
+            missions = [str(name) for name in (row.get("missions") or [])]
             tiers = []
             for item in row.get("tiers") or []:
                 if not isinstance(item, dict):
@@ -56,12 +57,15 @@ def _table(path: str = DEFAULT_FILE) -> Dict[str, Any]:
                     "tier": tier,
                     "level": str(item.get("level") or "—"),
                     "reward": str(item.get("reward") or "—"),
+                    # 档位没单独写任务池时，用整个据点的任务类型
+                    "missions": [str(name) for name in (item.get("missions") or [])]
+                                or list(missions),
                 })
             tiers.sort(key=lambda item: item["tier"])
             locations[str(key)] = {
                 "label": str(row.get("label") or key),
                 "npc": str(row.get("npc") or ""),
-                "missions": [str(name) for name in (row.get("missions") or [])],
+                "missions": missions,
                 "tiers": tiers,
             }
         data = {
