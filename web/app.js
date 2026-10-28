@@ -28,6 +28,7 @@
     arbiSchedule: null,
     missionEntries: [],
     missionColors: {},
+    subs: null,
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -360,6 +361,147 @@
     } finally {
       button.disabled = false;
       button.textContent = "检查更新";
+    }
+  }
+
+  // ---------------------------------------------------------------- 订阅
+  function renderSubs(data) {
+    state.subs = data;
+    const kinds = Array.isArray(data.kinds) ? data.kinds : [];
+    const subs = Array.isArray(data.subs) ? data.subs : [];
+    const known = Array.isArray(data.known_chats) ? data.known_chats : [];
+
+    setText("subsInfo", data.enabled === false
+      ? "订阅功能已在配置里关闭（subscriptions.enabled = false）"
+      : (data.summary || "订阅"));
+    setText("subsCount", subs.length ? subs.length + " 条" : "");
+
+    // 类型目录：一行一个，点一下就把类型填进表单
+    const kindsBox = $("subsKinds");
+    if (kindsBox) {
+      kindsBox.innerHTML = kinds.map((row) => (
+        '<button class="subs-kind" type="button" data-kind="' +
+          escapeHtml(row.kind) + '" title="' + escapeHtml(row.desc || "") +
+          '｜可筛 ' + escapeHtml(row.filters || "不限") +
+          '｜示例 ' + escapeHtml(row.label + " " + (row.sample || "")) + '">' +
+          '<b>' + escapeHtml(row.label) + '</b>' +
+          '<small>' + escapeHtml(row.desc || "") + '</small>' +
+          '<span class="subs-kind-filter">' +
+            (row.filters && row.filters !== "不限"
+              ? "可筛 " + escapeHtml(row.filters) : "不限筛选") +
+            ' · ' + escapeHtml(row.push || "图片") +
+          '</span>' +
+        '</button>'
+      )).join("");
+    }
+
+    const select = $("subsKind");
+    if (select && select.options.length !== kinds.length) {
+      select.innerHTML = kinds.map((row) => (
+        '<option value="' + escapeHtml(row.kind) + '">' +
+          escapeHtml(row.label) + '</option>'
+      )).join("");
+    }
+
+    const options = $("subsChatOptions");
+    if (options) {
+      options.innerHTML = known.map((chat) => (
+        '<option value="' + escapeHtml(chat.chat_id) + '">' +
+          escapeHtml(chat.label) + '</option>'
+      )).join("");
+    }
+
+    const list = $("subsList");
+    if (!list) return;
+    if (!subs.length) {
+      list.innerHTML = '<p class="subs-empty">还没有任何订阅。' +
+        '选一个会话 + 类型，点「添加订阅」就行。</p>';
+      return;
+    }
+    const groups = {};
+    subs.forEach((row) => {
+      const key = row.chat_type + ":" + row.chat_id;
+      if (!groups[key]) {
+        groups[key] = { label: row.chat_label || row.chat_id, chat_type: row.chat_type,
+                        chat_id: row.chat_id, rows: [] };
+      }
+      groups[key].rows.push(row);
+    });
+    list.innerHTML = Object.keys(groups).map((key) => {
+      const group = groups[key];
+      const rows = group.rows.map((row) => (
+        '<div class="subs-row">' +
+          '<span class="subs-row-title">' + escapeHtml(row.title) + '</span>' +
+          '<span class="subs-row-kw">' +
+            (row.keyword ? escapeHtml(row.keyword) : "全部") + '</span>' +
+          '<span class="subs-row-user">' + escapeHtml(row.user || "—") + '</span>' +
+          '<span class="subs-row-time">' + escapeHtml(row.created_text || "—") + '</span>' +
+          '<button class="btn btn-ghost btn-sm" type="button" data-subs-del="1"' +
+            ' data-chat-type="' + escapeHtml(row.chat_type) + '"' +
+            ' data-chat-id="' + escapeHtml(row.chat_id) + '"' +
+            ' data-ident="' + escapeHtml(row.id) + '">取消</button>' +
+        '</div>'
+      )).join("");
+      return '<div class="subs-chat">' +
+        '<div class="subs-chat-head"><b>' + escapeHtml(group.label) + '</b>' +
+          '<small>' + group.rows.length + ' 条</small>' +
+          '<button class="btn btn-ghost btn-sm" type="button" data-subs-del="1"' +
+            ' data-chat-type="' + escapeHtml(group.chat_type) + '"' +
+            ' data-chat-id="' + escapeHtml(group.chat_id) + '"' +
+            ' data-ident="all">全部取消</button>' +
+        '</div>' + rows + '</div>';
+    }).join("");
+  }
+
+  async function loadSubs() {
+    try {
+      const data = await api("/api/subscriptions");
+      renderSubs(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") setText("subsInfo", "读取订阅失败：" + exc.message);
+    }
+  }
+
+  async function addSub() {
+    const button = $("subsAdd");
+    const chatId = ($("subsChatId").value || "").trim();
+    if (!/^\d{5,20}$/.test(chatId)) {
+      toast("群号 / QQ 号填 5–20 位数字");
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "添加中…";
+    try {
+      const result = await api("/api/subscriptions", {
+        method: "POST",
+        body: {
+          chat_type: $("subsChatType").value || "group",
+          chat_id: chatId,
+          kind: $("subsKind").value || "",
+          keyword: $("subsKeyword").value || "",
+        },
+      });
+      renderSubs(result);
+      toast(result.message || "已添加");
+      $("subsKeyword").value = "";
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("添加失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "添加订阅";
+    }
+  }
+
+  async function deleteSub(chatType, chatId, ident) {
+    try {
+      const result = await api("/api/subscriptions/delete", {
+        method: "POST",
+        body: { chat_type: chatType, chat_id: chatId, ident: ident },
+      });
+      renderSubs(result);
+      toast(result.message || "已取消");
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("取消失败：" + exc.message);
     }
   }
 
@@ -1176,6 +1318,29 @@
     $("restartBtn").addEventListener("click", () => openModal("restart"));
     $("logRefresh").addEventListener("click", refreshLogs);
     $("groupSave").addEventListener("click", saveGroups);
+    $("subsRefresh").addEventListener("click", loadSubs);
+    $("subsAdd").addEventListener("click", addSub);
+    $("subsKeyword").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addSub();
+    });
+    $("subsKinds").addEventListener("click", (event) => {
+      const chip = event.target.closest(".subs-kind");
+      if (!chip) return;
+      const kind = chip.getAttribute("data-kind") || "";
+      if ($("subsKind")) $("subsKind").value = kind;
+      const row = ((state.subs || {}).kinds || []).find((item) => item.kind === kind);
+      if (row && $("subsKeyword") && !$("subsKeyword").value) {
+        $("subsKeyword").placeholder = "留空=全部；示例：" + (row.sample || row.label);
+      }
+      $("subsChatId").focus();
+    });
+    $("subsList").addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-subs-del]");
+      if (!btn) return;
+      deleteSub(btn.getAttribute("data-chat-type") || "group",
+                btn.getAttribute("data-chat-id") || "",
+                btn.getAttribute("data-ident") || "");
+    });
     $("aliasSearch").addEventListener("click", searchItems);
     $("aliasTranslate").addEventListener("click", translateTarget);
     $("aliasSave").addEventListener("click", saveAlias);
@@ -1281,6 +1446,7 @@
       localStorage.setItem("qqwf_admin_token", value);
       hideLogin();
       refresh();
+      loadSubs();
     });
     $("tokenInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter") $("tokenSave").click();
@@ -1293,6 +1459,7 @@
   bind();
   refresh();
   refreshLogs();
+  loadSubs();
   state.timer = setInterval(refresh, 10000);
   state.logTimer = setInterval(refreshLogs, 5000);
 })();

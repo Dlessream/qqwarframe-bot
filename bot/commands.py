@@ -991,7 +991,7 @@ class CommandRouter:
             "　警报＝新警报出现　入侵＝新入侵出现　特惠＝每日特惠上架\n"
             "例如：%s订阅 裂缝 生存\n"
             "　　　%s订阅 仲裁\n"
-            "%s订阅列表 查看　%s取消订阅 <编号|类型|all> 取消" % (
+            "%s订阅列表 查看　%s取消订阅 <内容>（例如 防御裂缝）取消" % (
                 ctx.prefix, kind_names(), ctx.prefix, ctx.prefix,
                 ctx.prefix, ctx.prefix))
 
@@ -1004,7 +1004,8 @@ class CommandRouter:
         lines = ["本群订阅（%d 条）：" % len(subs)]
         for index, sub in enumerate(subs, 1):
             lines.append("%d. %s　#%s" % (index, sub.title, sub.id))
-        lines.append("取消：%s取消订阅 <编号|类型|all>" % ctx.prefix)
+        lines.append("取消：%s取消订阅 <内容>，例如 %s取消订阅 防御裂缝"
+                     % (ctx.prefix, ctx.prefix))
         return "\n".join(lines)
 
     def _subscribe_panel(self, ctx: Context, headline: str = "") -> Reply:
@@ -1057,10 +1058,16 @@ class CommandRouter:
         ident = (argument or "").strip()
         if not ident:
             return self._subscribe_panel(
-                ctx, "用法：%s取消订阅 <编号|类型|all>" % ctx.prefix)
+                ctx, "写法：%s取消订阅 <内容>，例如「%s取消订阅 防御裂缝」"
+                     "「%s取消订阅 裂缝」「%s取消订阅 生存」；\n"
+                     "清空本群全部订阅用 %s取消订阅 all。"
+                     % (ctx.prefix, ctx.prefix, ctx.prefix, ctx.prefix,
+                        ctx.prefix))
         removed = self.subscriptions.store.remove(ctx.chat_type, ctx.chat_id, ident)
         if not removed:
-            return self._subscribe_panel(ctx, "没有找到「%s」对应的订阅。" % ident)
+            return self._subscribe_panel(
+                ctx, "本群没有和「%s」对得上的订阅，看看下面这张表里的类型和筛选词。"
+                     % ident)
         names = "、".join(sub.title for sub in removed)
         return self._subscribe_panel(ctx, "已取消：%s" % names)
 

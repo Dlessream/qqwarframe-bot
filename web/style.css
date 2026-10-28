@@ -432,6 +432,51 @@ a { color: inherit; text-decoration: none; }
 .mission-swatch:hover { transform: scale(1.12); }
 .mission-swatch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+/* 订阅面板：类型目录 + 添加表单 + 按会话分组的订阅列表 */
+.subs-kinds {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+  gap: 8px; padding: 12px 22px 4px;
+}
+.subs-kind {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 9px 11px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .02);
+  color: var(--text); transition: border-color .15s, background .15s;
+}
+.subs-kind:hover { border-color: var(--line-strong); background: var(--gold-soft); }
+.subs-kind b { font-size: 12px; font-weight: 650; }
+.subs-kind small { color: var(--muted); font-size: 10px; line-height: 1.55; }
+.subs-kind-filter { color: var(--gold); font-size: 10px; opacity: .85; }
+.subs-form {
+  display: grid; grid-template-columns: 110px 1.4fr 1fr 1.6fr auto;
+  gap: 10px; align-items: end; padding: 14px 22px 4px;
+  border-top: 1px solid var(--line); margin-top: 10px;
+}
+.subs-form .field { margin: 0; }
+.subs-form .btn { height: 34px; white-space: nowrap; }
+.subs-list { padding: 12px 22px 16px; display: flex; flex-direction: column; gap: 12px; }
+.subs-chat { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.subs-chat-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; background: rgba(255, 255, 255, .03);
+  border-bottom: 1px solid var(--line); font-size: 12px;
+}
+.subs-chat-head b { color: var(--text); font-weight: 650; }
+.subs-chat-head small { color: var(--muted); }
+.subs-chat-head .btn { margin-left: auto; color: var(--red); }
+.subs-row {
+  display: grid; grid-template-columns: 1.5fr 1fr 1fr .9fr auto;
+  gap: 10px; align-items: center; padding: 7px 12px; font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, .04);
+}
+.subs-row:last-child { border-bottom: 0; }
+.subs-row-title { color: var(--text); font-weight: 600; }
+.subs-row-kw { color: var(--gold); font-variant-numeric: tabular-nums; }
+.subs-row-user, .subs-row-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.subs-row .btn { color: var(--muted); }
+.subs-row .btn:hover { color: var(--red); }
+.subs-empty { color: var(--muted); font-size: 11px; padding: 8px 2px; }
+
 @media (max-width: 840px) {
   .shell { width: calc(100% - 28px); padding-top: 30px; }
   .hero { align-items: flex-start; flex-direction: column; }
@@ -457,4 +502,8 @@ a { color: inherit; text-decoration: none; }
   .card-main { gap: 20px; }
   .footer { flex-direction: column; }
   .logs { min-height: 200px; }
+  .subs-form { grid-template-columns: 1fr 1fr; }
+  .subs-form .btn { grid-column: 1 / -1; }
+  .subs-row { grid-template-columns: 1fr auto; }
+  .subs-row-kw, .subs-row-user { display: none; }
 }

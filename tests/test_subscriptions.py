@@ -53,6 +53,22 @@ class ParseTest(unittest.TestCase):
         for label in ("裂缝", "仲裁", "特惠"):
             self.assertIn(label, text)
 
+    def test_kind_catalog_is_complete(self):
+        """后端和群里的图共用这份目录：9 类、都有说明和推送形式。"""
+        from bot import subkind
+        rows = subkind.catalog()
+        self.assertEqual(len(rows), 9)
+        self.assertEqual([row["kind"] for row in rows], list(subkind.KIND_ORDER))
+        for row in rows:
+            self.assertTrue(row["label"])
+            self.assertTrue(row["desc"])
+            self.assertEqual(row["push"], "图片")
+            self.assertTrue(row["aliases"])
+        self.assertEqual(subkind.resolve_kind("裂缝"), "fissure")
+        self.assertEqual(subkind.resolve_kind("九重天"), "storm")
+        self.assertEqual(subkind.resolve_kind("fissure"), "fissure")
+        self.assertEqual(subkind.resolve_kind("绝路"), "")
+
 
 class StoreTest(unittest.TestCase):
     def setUp(self):
@@ -84,6 +100,42 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(len(self.store.list_for("group", "1")), 1)
         self.assertEqual(len(self.store.remove("group", "1", "all")), 1)
         self.assertEqual(self.store.list_for("group", "1"), [])
+
+    def test_remove_by_content_any_order(self):
+        """用户要的写法：直接说内容，顺序随意，不用记编号。"""
+        self.store.add("group", "1", "9", "fissure", "防御")
+        self.store.add("group", "1", "9", "fissure", "生存")
+        removed = self.store.remove("group", "1", "防御裂缝")
+        self.assertEqual([sub.keyword for sub in removed], ["防御"])
+        left = [sub.keyword for sub in self.store.list_for("group", "1")]
+        self.assertEqual(left, ["生存"])
+
+    def test_remove_by_keyword_only(self):
+        self.store.add("group", "1", "9", "fissure", "防御")
+        self.store.add("group", "1", "9", "storm", "防御")
+        removed = self.store.remove("group", "1", "防御")
+        self.assertEqual(len(removed), 2)
+
+    def test_remove_type_with_keyword_separated(self):
+        self.store.add("group", "1", "9", "fissure", "防御")
+        self.store.add("group", "1", "9", "storm", "防御")
+        removed = self.store.remove("group", "1", "裂缝 防御")
+        self.assertEqual([sub.kind for sub in removed], ["fissure"])
+
+    def test_remove_keeps_others_when_keyword_mismatch(self):
+        self.store.add("group", "1", "9", "fissure", "生存")
+        self.assertEqual(self.store.remove("group", "1", "防御裂缝"), [])
+        self.assertEqual(len(self.store.list_for("group", "1")), 1)
+
+    def test_remove_by_title_like_text(self):
+        self.store.add("group", "1", "9", "storm", "冥王")
+        removed = self.store.remove("group", "1", "虚空风暴冥王")
+        self.assertEqual(len(removed), 1)
+
+    def test_remove_by_id_still_works(self):
+        sub, _ = self.store.add("group", "1", "9", "circuit")
+        self.assertEqual([item.id for item in
+                          self.store.remove("group", "1", sub.id)], [sub.id])
 
     def test_persist(self):
         sub, _ = self.store.add("group", "1", "9", "circuit")

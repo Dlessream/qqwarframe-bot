@@ -180,6 +180,13 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_groups()})
                     return
+                if path == "/api/subscriptions":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True,
+                                **server.app.subscriptions_snapshot()})
+                    return
                 if path == "/api/mission-colors":
                     if not self._authorized():
                         self._unauthorized()
@@ -385,6 +392,42 @@ class AdminServer:
                     except Exception as exc:
                         self._json({"ok": False, "message": str(exc)},
                                    HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/subscriptions":
+                    try:
+                        result = server.app.add_subscription(
+                            str(data.get("chat_type") or "group"),
+                            str(data.get("chat_id") or ""),
+                            str(data.get("user") or ""),
+                            str(data.get("kind") or ""),
+                            str(data.get("keyword") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.INTERNAL_SERVER_ERROR)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/subscriptions/delete":
+                    try:
+                        result = server.app.remove_subscription(
+                            str(data.get("chat_type") or "group"),
+                            str(data.get("chat_id") or ""),
+                            str(data.get("ident") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.INTERNAL_SERVER_ERROR)
                         return
                     self._json(result)
                     return

@@ -15,7 +15,7 @@ import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
-from . import __version__, imagecard, missioncolors, ocr, present
+from . import __version__, imagecard, missioncolors, ocr, present, subkind
 from .alerts import AlertStore
 from .aliases import AliasStore
 from .arbi import ArbiClient, ArbiError
@@ -714,6 +714,126 @@ class BotApp:
             "missions": missioncolors.mapping(),
             "updated": int(time.time()),
         }
+
+    # ------------------------------------------------------------------ 订阅
+    def subscriptions_snapshot(self) -> Dict[str, Any]:
+        """控制台「订阅」面板：完整可订阅类型 + 各群现有订阅。"""
+        catalog = subkind.catalog()
+        subs: List[Dict[str, Any]] = []
+        chats: Dict[str, Dict[str, Any]] = {}
+        enabled = self.subscriptions is not None and self._subs_enabled()
+        if self.subscriptions is not None:
+            for sub in self.subscriptions.store.active():
+                label = subkind.kind_label(sub.kind)
+                subs.append({
+                    "id": sub.id,
+                    "chat_type": sub.chat_type,
+                    "chat_id": sub.chat_id,
+                    "chat_label": self._chat_label(sub.chat_type, sub.chat_id),
+                    "user": sub.user_id,
+                    "kind": sub.kind,
+                    "kind_label": label,
+                    "keyword": sub.keyword,
+                    "title": sub.title,
+                    "created": sub.created_at,
+                    "created_text": time.strftime(
+                        "%m-%d %H:%M", time.localtime(sub.created_at or 0)),
+                })
+                key = "%s:%s" % (sub.chat_type, sub.chat_id)
+                chat = chats.setdefault(key, {
+                    "chat_type": sub.chat_type,
+                    "chat_id": sub.chat_id,
+                    "label": self._chat_label(sub.chat_type, sub.chat_id),
+                    "count": 0,
+                })
+                chat["count"] += 1
+        subs.sort(key=lambda row: (row["chat_type"], row["chat_id"],
+                                   row["created"]))
+        for chat in list(chats.values()):
+            chat["count_text"] = "%d 条" % chat["count"]
+        known: List[Dict[str, Any]] = []
+        whitelist, blacklist = self._group_lists()
+        for group_id in sorted(whitelist | blacklist):
+            known.append({
+                "chat_type": "group",
+                "chat_id": group_id,
+                "label": "%s（%s）" % (
+                    group_id,
+                    "白名单" if group_id in whitelist else "黑名单"),
+                "count": chats.get("group:%s" % group_id, {}).get("count", 0),
+            })
+        return {
+            "enabled": enabled,
+            "kinds": catalog,
+            "subs": subs,
+            "chats": list(chats.values()),
+            "known_chats": known,
+            "summary": ("%d 类可订阅 · 当前 %d 条订阅 · %d 个会话" %
+                        (len(catalog), len(subs), len(chats))),
+        }
+
+    def _subs_enabled(self) -> bool:
+        cfg = (self.cfg or {}).get("subscriptions", {}) or {}
+        return bool(cfg.get("enabled", True))
+
+    def _chat_label(self, chat_type: str, chat_id: str) -> str:
+        if chat_type == "private":
+            return "私聊 %s" % chat_id
+        return "群 %s" % chat_id
+
+    def _check_chat(self, chat_type: str, chat_id: str) -> Tuple[str, str]:
+        chat_type = str(chat_type or "group").strip().lower()
+        if chat_type not in ("group", "private"):
+            chat_type = "group"
+        chat_id = str(chat_id or "").strip()
+        if not re.fullmatch(r"\d{5,20}", chat_id):
+            raise ValueError("会话号不对：%s（5–20 位数字）" % (chat_id or "空"))
+        return chat_type, chat_id
+
+    def add_subscription(self, chat_type: str, chat_id: str, user: str,
+                         kind: str, keyword: str = "") -> Dict[str, Any]:
+        """控制台加订阅：和群里发 `#订阅 裂缝 防御` 等价。"""
+        if self.subscriptions is None or not self._subs_enabled():
+            raise ValueError("订阅功能未启用（config.subscriptions.enabled）。")
+        chat_type, chat_id = self._check_chat(chat_type, chat_id)
+        resolved = subkind.resolve_kind(kind)
+        if not resolved:
+            raise ValueError("不认识的订阅类型：%s（可选项：%s）" % (
+                kind, subkind.kind_names()))
+        keyword = " ".join(str(keyword or "").split())
+        if len(keyword) > 24:
+            raise ValueError("筛选词太长了（最多 24 个字）。")
+        user = " ".join(str(user or "").split()) or "控制台"
+        sub, created = self.subscriptions.store.add(
+            chat_type, chat_id, user, resolved, keyword)
+        if created:
+            # 和群里订阅一样先记基线，避免把当前已有内容一次性推一遍
+            self.subscriptions.seed(sub)
+        self.log.info("控制台%s订阅：%s %s %s", "新增" if created else "已有",
+                      chat_type, chat_id, sub.title)
+        return {"ok": True, "created": created,
+                "message": ("已添加：%s → %s" % (
+                    self._chat_label(chat_type, chat_id), sub.title))
+                if created else "这条订阅已经存在了。",
+                **self.subscriptions_snapshot()}
+
+    def remove_subscription(self, chat_type: str, chat_id: str,
+                            ident: str) -> Dict[str, Any]:
+        """控制台取消订阅：ident 可以是编号、类型、筛选词或「防御裂缝」。"""
+        if self.subscriptions is None or not self._subs_enabled():
+            raise ValueError("订阅功能未启用（config.subscriptions.enabled）。")
+        chat_type, chat_id = self._check_chat(chat_type, chat_id)
+        ident = str(ident or "").strip()
+        if not ident:
+            raise ValueError("要取消哪一条？可以填编号、类型或「防御裂缝」。")
+        removed = self.subscriptions.store.remove(chat_type, chat_id, ident)
+        if not removed:
+            raise ValueError("这个会话里没有和「%s」对得上的订阅。" % ident)
+        names = "、".join(sub.title for sub in removed)
+        self.log.info("控制台取消订阅：%s %s %s", chat_type, chat_id, names)
+        return {"ok": True, "removed": len(removed),
+                "message": "已取消：%s" % names,
+                **self.subscriptions_snapshot()}
 
     # ------------------------------------------------------------------ 任务配色
     def mission_colors_snapshot(self) -> Dict[str, Any]:

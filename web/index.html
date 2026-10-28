@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Warframe Ops · 控制台</title>
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=8">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"></div>
@@ -139,6 +139,45 @@
         </div>
         <div id="groupBlockedList" class="group-blocked-list"></div>
       </div>
+    </section>
+
+    <section class="panel subs-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">订阅推送</span>
+          <span class="panel-sub">在这里加订阅等于群里发「#订阅 裂缝 防御」；推送形式是图片</span>
+        </div>
+        <button id="subsRefresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+      </div>
+      <div class="source-strip">
+        <span id="subsInfo">正在读取订阅…</span>
+        <span id="subsCount" class="source-count"></span>
+      </div>
+      <div id="subsKinds" class="subs-kinds"></div>
+      <div class="subs-form">
+        <label class="field">
+          <span>会话</span>
+          <select id="subsChatType" class="input">
+            <option value="group">群聊</option>
+            <option value="private">私聊</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>群号 / QQ 号 <small>点上面已知的群可直接带进来</small></span>
+          <input id="subsChatId" class="input" type="text" list="subsChatOptions" placeholder="123456789" autocomplete="off">
+          <datalist id="subsChatOptions"></datalist>
+        </label>
+        <label class="field">
+          <span>订阅类型</span>
+          <select id="subsKind" class="input"></select>
+        </label>
+        <label class="field">
+          <span>筛选词 <small>留空 = 全部；多个词用空格分开</small></span>
+          <input id="subsKeyword" class="input" type="text" placeholder="生存" autocomplete="off">
+        </label>
+        <button id="subsAdd" class="btn btn-primary btn-sm" type="button">添加订阅</button>
+      </div>
+      <div id="subsList" class="subs-list"></div>
     </section>
 
     <section class="panel aliases-panel">
@@ -281,6 +320,6 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js?v=7"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

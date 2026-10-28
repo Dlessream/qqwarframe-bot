@@ -194,6 +194,43 @@ class FakeApp:
             "total": 2,
         }
 
+    def subscriptions_snapshot(self):
+        return {
+            "enabled": True,
+            "kinds": [
+                {"kind": "fissure", "label": "裂缝", "aliases": ["裂缝", "裂隙"],
+                 "command": "裂缝", "desc": "新裂缝", "filters": "任务、节点",
+                 "sample": "裂缝 防御", "push": "图片", "filterable": True},
+                {"kind": "arbitration", "label": "仲裁", "aliases": ["仲裁"],
+                 "command": "仲裁", "desc": "仲裁节点", "filters": "不限",
+                 "sample": "仲裁", "push": "图片", "filterable": False},
+            ],
+            "subs": [{"id": "a1", "chat_type": "group", "chat_id": "123456789",
+                      "chat_label": "群 123456789", "user": "9",
+                      "kind": "fissure", "kind_label": "裂缝", "keyword": "防御",
+                      "title": "裂缝·防御", "created": 1.0,
+                      "created_text": "10-28 01:00"}],
+            "chats": [{"chat_type": "group", "chat_id": "123456789",
+                       "label": "群 123456789", "count": 1, "count_text": "1 条"}],
+            "known_chats": [{"chat_type": "group", "chat_id": "123456789",
+                             "label": "123456789（白名单）", "count": 1}],
+            "summary": "2 类可订阅 · 1 条订阅 · 1 个会话",
+        }
+
+    def add_subscription(self, chat_type, chat_id, user, kind, keyword=""):
+        if not str(chat_id or "").isdigit() or kind != "fissure":
+            raise ValueError("参数不对：%s %s" % (chat_id, kind))
+        self.subs_added = (chat_type, chat_id, kind, keyword)
+        return {"ok": True, "created": True, "message": "已添加：裂缝·防御",
+                **self.subscriptions_snapshot()}
+
+    def remove_subscription(self, chat_type, chat_id, ident):
+        if not str(ident or "").strip():
+            raise ValueError("要取消哪一条？")
+        self.subs_removed = (chat_type, chat_id, ident)
+        return {"ok": True, "removed": 1, "message": "已取消：裂缝·防御",
+                **self.subscriptions_snapshot()}
+
     def save_mission_color(self, name, color):
         if not name:
             raise ValueError("缺少任务类型名称。")
@@ -315,6 +352,51 @@ class AdminServerTest(unittest.TestCase):
         status, body = self.request(
             "/api/mission-colors", method="POST",
             headers={"X-Admin-Token": "secret"}, body={"name": ""})
+        self.assertEqual(status, 400)
+
+    def test_subscriptions(self):
+        status, body = self.request(
+            "/api/subscriptions", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["enabled"])
+        self.assertEqual([row["label"] for row in payload["kinds"]],
+                         ["裂缝", "仲裁"])
+        self.assertEqual(payload["subs"][0]["title"], "裂缝·防御")
+        self.assertEqual(payload["known_chats"][0]["chat_id"], "123456789")
+
+        status, _ = self.request("/api/subscriptions")
+        self.assertEqual(status, 401)
+
+        status, body = self.request(
+            "/api/subscriptions", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"chat_type": "group", "chat_id": "123456789",
+                  "kind": "fissure", "keyword": "防御"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.app.subs_added,
+                         ("group", "123456789", "fissure", "防御"))
+
+        status, body = self.request(
+            "/api/subscriptions", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"chat_type": "group", "chat_id": "abc", "kind": "fissure"})
+        self.assertEqual(status, 400)
+
+        status, body = self.request(
+            "/api/subscriptions/delete", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"chat_type": "group", "chat_id": "123456789",
+                  "ident": "防御裂缝"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.app.subs_removed,
+                         ("group", "123456789", "防御裂缝"))
+
+        status, _ = self.request(
+            "/api/subscriptions/delete", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"chat_type": "group", "chat_id": "123456789", "ident": ""})
         self.assertEqual(status, 400)
 
     def test_html(self):

@@ -24,33 +24,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from . import present
 from . import terms
 from .replies import Reply
+from .subkind import (KIND_ORDER, KINDS, kind_aliases, kind_label,  # noqa: F401
+                      kind_names)
 from .worldstate import Arbitration, parse_timestamp
 
 LOGGER = logging.getLogger("qqwarframe.subscriptions")
-
-# 订阅类型 → (中文名, 命令里可用的别名)
-KINDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
-    "fissure": ("裂缝", ("裂缝", "裂隙")),
-    "storm": ("虚空风暴", ("风暴", "虚空风暴", "九重天", "storm")),
-    "arbitration": ("仲裁", ("仲裁",)),
-    "sortie": ("突击", ("突击",)),
-    "circuit": ("回廊", ("回廊", "灵化", "无尽回廊")),
-    "rotation": ("轮换", ("轮换", "商店", "言录使", "格拉斯", "埃莉诺")),
-    "alert": ("警报", ("警报",)),
-    "invasion": ("入侵", ("入侵",)),
-    "deal": ("特惠", ("特惠", "折扣", "每日特惠")),
-}
-
-KIND_ORDER = ("fissure", "storm", "arbitration", "sortie", "circuit",
-              "rotation", "alert", "invasion", "deal")
-
-
-def kind_label(kind: str) -> str:
-    return KINDS.get(kind, (kind, ()))[0]
-
-
-def kind_names() -> str:
-    return " / ".join(kind_label(kind) for kind in KIND_ORDER)
 
 
 def parse_kind(text: str) -> Tuple[Optional[str], str]:
@@ -83,6 +61,78 @@ def _match(keyword: str, text: str) -> bool:
         return True
     haystack = (text or "").lower()
     return all(token in haystack for token in keyword.split())
+
+
+_REMOVE_SEPARATORS = " \t　、，,/|·-—+：:()（）[]【】"
+
+
+def parse_remove(text: str) -> Tuple[Optional[str], str]:
+    """把「取消订阅 …」后面的内容拆成 (类型, 筛选词)，顺序随意。
+
+    `防御裂缝` → (fissure, 防御)   `裂缝 防御` → (fissure, 防御)
+    `裂缝`     → (fissure, "")     `防御`     → (None, 防御)
+    `九重天冥王` → (storm, 冥王)
+    """
+    raw = (text or "").strip().lstrip("#＃").strip()
+    if not raw:
+        return None, ""
+    low = raw.lower()
+
+    def longest(candidates):
+        best = ""
+        for alias in candidates:
+            if alias and alias in low and len(alias) > len(best):
+                best = alias
+        return best
+
+    # 先看是不是以类型名开头（「裂缝 防御」），再退化成「包含」（「防御裂缝」）
+    heads = []
+    contains = []
+    for kind in KIND_ORDER:
+        for alias in kind_aliases(kind):
+            alias_low = alias.lower()
+            if not alias_low:
+                continue
+            heads.append((alias_low, kind))
+            contains.append((alias_low, kind))
+    starts = [(alias, kind) for alias, kind in heads if low.startswith(alias)]
+    hit = longest([alias for alias, _kind in starts]) if starts else ""
+    kind = next((kind for alias, kind in starts if alias == hit), None)
+    if not kind:
+        hit = longest([alias for alias, _kind in contains])
+        kind = next((kind for alias, kind in contains if alias == hit), None)
+    if not kind:
+        return None, " ".join(raw.split())
+    index = low.find(hit)
+    rest = raw[:index] + " " + raw[index + len(hit):]
+    keyword = " ".join(rest.strip(_REMOVE_SEPARATORS).split())
+    return kind, keyword
+
+
+def _content_hit(text_low: str, sub: Subscription) -> bool:
+    """筛选词 / 标题是否被这段文字命中（双向包含，容忍有无分隔符）。"""
+    text = (text_low or "").strip().lower()
+    if not text:
+        return False
+    keyword = (sub.keyword or "").strip().lower()
+    if keyword and (keyword in text or text in keyword):
+        return True
+    return _title_hit(text, sub)
+
+
+def _title_hit(text_low: str, sub: Subscription) -> bool:
+    compact_text = _compact(text_low)
+    compact_title = _compact(sub.title)
+    if not compact_text or not compact_title:
+        return False
+    return compact_text in compact_title or compact_title in compact_text
+
+
+def _compact(value: str) -> str:
+    text = (value or "").lower()
+    for char in _REMOVE_SEPARATORS:
+        text = text.replace(char, "")
+    return text
 
 
 @dataclass
@@ -208,31 +258,55 @@ class SubscriptionStore:
             return sub, True
 
     def remove(self, chat_type: str, chat_id: str, ident: str) -> List[Subscription]:
-        """按编号、类型名或 `all` 取消；返回被取消的订阅。"""
-        ident = (ident or "").strip().lstrip("#").lower()
+        """按内容取消订阅；返回被取消的订阅。
+
+        认这些写法（顺序无关，不用记编号）：
+        `取消订阅 防御裂缝` / `取消订阅 裂缝 防御` / `取消订阅 裂缝` /
+        `取消订阅 防御`（只给筛选词）/ `取消订阅 编号` / `取消订阅 all`。
+        """
+        raw = (ident or "").strip().lstrip("#＃").strip()
+        low = raw.lower()
         with self._lock:
             target = [sub for sub in self._subs
                       if sub.active and sub.chat_type == chat_type
                       and sub.chat_id == str(chat_id)]
             if not target:
                 return []
-            if ident in ("all", "全部", "所有"):
-                removed = target
+            if low in ("all", "全部", "所有", "*", "清空"):
+                removed = list(target)
             else:
-                removed = [sub for sub in target if sub.id.lower() == ident]
-                if not removed:
-                    for sub in target:
-                        if kind_label(sub.kind) == ident or sub.kind == ident:
-                            removed.append(sub)
-                if not removed:
-                    for sub in target:
-                        if _match(ident, sub.keyword.lower()):
-                            removed.append(sub)
+                removed = self._pick_remove(target, raw, low)
             for sub in removed:
                 sub.active = False
             if removed:
                 self._save()
             return removed
+
+    @staticmethod
+    def _pick_remove(target: Sequence[Subscription], raw: str,
+                     low: str) -> List[Subscription]:
+        if not raw:
+            return []
+        # 1) 编号（老用法照样能用）
+        by_id = [sub for sub in target if sub.id.lower() == low]
+        if by_id:
+            return by_id
+        kind, keyword = parse_remove(raw)
+        keyword_low = keyword.lower()
+        # 2) 认出类型：给了筛选词就只取消匹配的那几条，没给就取消该类型全部
+        if kind:
+            pool = [sub for sub in target if sub.kind == kind]
+            if not keyword_low:
+                return pool
+            narrowed = [sub for sub in pool
+                        if _content_hit(keyword_low, sub)]
+            return narrowed
+        # 3) 只给了内容（比如「防御」「生存」）：按筛选词 / 标题模糊匹配
+        hits = [sub for sub in target if _content_hit(low, sub)]
+        if hits:
+            return hits
+        # 4) 兜底：把类型名也拼进去再比一次（「虚空风暴」这类长名字）
+        return [sub for sub in target if _title_hit(low, sub)]
 
     def mark_seen(self, sub: Subscription, keys: Sequence[str]) -> None:
         with self._lock:

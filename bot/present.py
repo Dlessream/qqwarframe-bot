@@ -6,7 +6,8 @@ import datetime
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import autotrans, conquest, imagecard, missioncolors, render, terms
+from . import (autotrans, conquest, imagecard, missioncolors, render,
+               subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -1539,18 +1540,9 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 
 # ---------------------------------------------------------------------- 订阅
-# 订阅说明卡：9 类事件一次列全（类型 / 群里收到什么 / 能筛什么 / 推送形式）
-SUBSCRIBE_KINDS: Sequence[Tuple[str, str, str]] = (
-    ("裂缝", "新裂缝：任务 / 星球 / 等级 / 剩余时间", "任务、节点、遗物、敌人"),
-    ("虚空风暴", "新风暴：星域 / 节点 / 任务 / 剩余时间", "任务、节点、星域"),
-    ("仲裁", "仲裁节点 + 任务 + 评级（每小时换）", "—"),
-    ("突击", "每日突击三关 + 奖励", "—"),
-    ("回廊", "本周回廊灵化战甲 / 武器", "—"),
-    ("轮换", "言录使 / 格拉斯 / 埃莉诺 换批", "商店名"),
-    ("警报", "新警报 + 奖励 + 剩余时间", "奖励、节点"),
-    ("入侵", "新入侵 + 阵营进度", "阵营"),
-    ("特惠", "每日特惠折扣", "—"),
-)
+# 订阅说明卡：类型目录来自 subkind（和后端控制台同一份数据）
+SUBSCRIBE_KINDS: Sequence[Tuple[str, str, str]] = tuple(
+    (row["label"], row["desc"], row["filters"]) for row in subkind.catalog())
 
 
 def _stamp(ts: float) -> str:
@@ -1569,7 +1561,7 @@ def subscribe_panel_reply(prefix: str, subs: Sequence[dict],
     kind_rows = [[
         imagecard.Cell(kind, color=imagecard.CYAN, bold=True),
         desc,
-        ("可筛 " + filters) if filters and filters != "—" else "不限",
+        ("可筛 " + filters) if filters and filters not in ("—", "不限") else "不限",
         imagecard.Cell("图片", color=imagecard.GREEN),
     ] for kind, desc, filters in SUBSCRIBE_KINDS]
 
@@ -1603,8 +1595,9 @@ def subscribe_panel_reply(prefix: str, subs: Sequence[dict],
             sections,
             "数据 warframe worldstate ｜ 每 2 分钟检查一次",
             accent=imagecard.CYAN, chip="订阅",
-            note=note or ("%s订阅 <类型> [筛选词] 添加，%s取消订阅 <编号|类型|all> 取消；"
-                          "每个事件只推一次，重启不补推。" % (prefix, prefix))))
+            note=note or ("%s订阅 <类型> [筛选词] 添加，%s取消订阅 <内容> 取消"
+                          "（例：%s取消订阅 防御裂缝）；每个事件只推一次，重启不补推。"
+                          % (prefix, prefix, prefix))))
 
 
 # ---------------------------------------------------------------------- 轮换
