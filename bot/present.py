@@ -6,8 +6,8 @@ import datetime
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import (autotrans, conquest, imagecard, missioncolors, render,
-               subkind, terms)
+from . import (autotrans, bountystatic, conquest, imagecard,
+               missioncolors, render, subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -1060,6 +1060,13 @@ BOUNTY_LOCATIONS = {
 BOUNTY_ORDER = ["Ostrons", "Solaris United", "Entrati", "Cavia",
                 "The Hex", "The Holdfasts"]
 
+# 表格里位置有限：太长的团体名用简称，免得被省略号截断
+BOUNTY_OWNER_LABELS = {"Solaris United": "索拉里斯"}
+
+
+def _bounty_owner(name: str) -> str:
+    return BOUNTY_OWNER_LABELS.get(name) or terms.localize_syndicate(name)
+
 
 def _bounty_level(job) -> str:
     levels = _as_list(job.get("enemyLevels"))
@@ -1168,7 +1175,28 @@ def translation_reply(query: str, zh: str, en: str,
             chip="翻译", ratios=[0.9, 4.0]))
 
 
-def bounties_reply(raw) -> Reply:
+def _static_bounty_rows(name: str, syndicate) -> List[list]:
+    """官方 Jobs 为空的三处据点：按固定档位补出「几档 / 多少级 / 给什么」。"""
+    tiers = bountystatic.tiers(name)
+    if not tiers:
+        return []
+    location = BOUNTY_LOCATIONS.get(name, terms.localize_syndicate(name))
+    expiry = countdown(parse_timestamp(
+        (syndicate or {}).get("expiry"))) if syndicate else "—"
+    rows = []
+    for item in tiers:
+        rows.append([
+            "%s · %s" % (_bounty_owner(name), location),
+            "T%d 赏金" % item["tier"],
+            item["level"],
+            item["reward"],
+            expiry,
+        ])
+    return rows
+
+
+def bounties_reply(raw, location: str = "") -> Reply:
+    """location 传据点英文名（Cavia / The Hex / The Holdfasts）时只看那一处。"""
     rows = []
     seen = set()
     by_name = {}
@@ -1179,15 +1207,22 @@ def bounties_reply(raw) -> Reply:
 
     ordered = list(BOUNTY_ORDER) + [
         name for name in by_name if name not in BOUNTY_ORDER]
+    if location:
+        ordered = [location]
+    static_used = False
     for name in ordered:
         syndicate = by_name.get(name)
-        if not syndicate:
+        if not syndicate and not bountystatic.tiers(name):
             continue
-        jobs = _as_list(syndicate.get("jobs"))
-        location = BOUNTY_LOCATIONS.get(name, terms.localize_syndicate(name))
+        jobs = _as_list((syndicate or {}).get("jobs"))
+        place = BOUNTY_LOCATIONS.get(name, terms.localize_syndicate(name))
         if not jobs:
-            if name in BOUNTY_ORDER:
-                rows.append(["%s · %s" % (terms.localize_syndicate(name), location),
+            static_rows = _static_bounty_rows(name, syndicate)
+            if static_rows:
+                static_used = True
+                rows.extend(static_rows)
+            elif name in BOUNTY_ORDER and not location:
+                rows.append(["%s · %s" % (_bounty_owner(name), place),
                              "暂无可接赏金", "—", "—", "—"])
             continue
         for job in jobs:
@@ -1205,21 +1240,38 @@ def bounties_reply(raw) -> Reply:
             if not rewards:
                 rewards = [str(value) for value in _as_list(job.get("rewardPool"))[:2]]
             rows.append([
-                "%s · %s" % (terms.localize_syndicate(name), location),
+                "%s · %s" % (_bounty_owner(name), place),
                 title,
                 _bounty_level(job),
                 "、".join(rewards) or "—",
                 countdown(parse_timestamp(job.get("expiry"))),
             ])
-    rows = rows[:30]
+    rows = rows[:40]
     if not rows:
         return _world_reply("赏金", "当前没有可接赏金", [], [],
                             "数据 世界状态聚合源", "赏金")
+    if location:
+        label = BOUNTY_LOCATIONS.get(location, terms.localize_syndicate(location))
+        headline = "%s · %s 赏金" % (terms.localize_syndicate(location), label)
+        missions = bountystatic.missions(location)
+        note = ""
+        if missions:
+            note = "任务类型：%s；每 %s 小时换一批" % (
+                " / ".join(missions), ("%g" % bountystatic.refresh_hours()))
+        footer = "数据 WARFRAME Wiki · 固定档位" if static_used else "数据 世界状态聚合源"
+        return _world_reply(
+            "赏金", headline,
+            ["NPC / 地点", "任务", "等级", "奖励", "剩余"], rows,
+            footer, "赏金", ratios=[1.4, 1.45, 0.72, 1.5, 0.85],
+            accent=imagecard.GREEN, note=note)
+    subtitle = "各据点可接的赏金"
+    if static_used:
+        subtitle += "（后三处为固定档位）"
     return _world_reply(
-        "赏金", "各据点可接的赏金",
+        "赏金", subtitle,
         ["NPC / 地点", "任务", "等级", "奖励", "剩余"], rows,
-        "数据 世界状态聚合源", "赏金",
-        ratios=[1.5, 1.9, 0.6, 1.5, 0.7], accent=imagecard.GREEN)
+        "数据 世界状态聚合源 + WARFRAME Wiki", "赏金",
+        ratios=[1.4, 1.45, 0.72, 1.5, 0.85], accent=imagecard.GREEN)
 
 
 def worldstate_reply(data: dict) -> Reply:

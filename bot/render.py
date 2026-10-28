@@ -257,6 +257,7 @@ def render_help(prefix: str = "#") -> str:
         "%s钢铁裂缝 / %s平原赏金" % (prefix, prefix),
         "%s虚空风暴 / %s九重天   Railjack 风暴裂缝" % (prefix, prefix),
         "%s希图斯               希图斯时间 + 小帐篷赏金" % prefix,
+        "%s圣所 / %s1999 / %s扎里曼   三处固定档位赏金" % (prefix, prefix, prefix),
         "%s深层科研 / %s时光科研 / %s科研" % (prefix, prefix, prefix),
         "%s仲裁评级           仲裁梯队（加「本地」看推算结果）" % prefix,
         "%s今日仲裁 / %s高效仲裁  未来 24 小时轮换、高价值仲裁" % (prefix, prefix),

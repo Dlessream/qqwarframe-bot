@@ -121,5 +121,51 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("平原 / 白天", reply.text)
 
 
+class BountyStaticTest(unittest.TestCase):
+    """官方 Jobs 为空的三处据点：按固定档位出表，不再写「暂无可接赏金」。"""
+
+    RAW = [
+        {"syndicate": "Cavia", "jobs": [], "expiry": "2030-01-01T00:00:00.000Z"},
+        {"syndicate": "The Hex", "jobs": [], "expiry": "2030-01-01T00:00:00.000Z"},
+        {"syndicate": "The Holdfasts", "jobs": [],
+         "expiry": "2030-01-01T00:00:00.000Z"},
+    ]
+
+    def test_tiers_show_up_instead_of_placeholder(self):
+        reply = present.bounties_reply(list(self.RAW))
+        self.assertNotIn("暂无可接赏金", reply.text)
+        self.assertIn("坚守者 · 扎里曼", reply.text)
+        self.assertIn("六人组 · 霍瓦尼亚", reply.text)
+        self.assertIn("卡维亚 · 解剖圣所", reply.text)
+
+    def test_tier_levels_and_counts(self):
+        reply = present.bounties_reply(list(self.RAW))
+        lines = [line for line in reply.text.splitlines() if "T" in line]
+        # 5（扎里曼）+ 7（霍瓦尼亚）+ 5（圣所）= 17 档
+        self.assertEqual(len(lines), 17)
+        self.assertIn("130", reply.text)          # 霍瓦尼亚 T7 125–130
+        self.assertIn("115–120", reply.text)      # 圣所 T5
+        self.assertIn("虚空羽翎", reply.text)      # 扎里曼奖励
+
+    def test_single_location(self):
+        reply = present.bounties_reply(list(self.RAW), location="The Hex")
+        self.assertIn("霍瓦尼亚 赏金", reply.text)
+        self.assertNotIn("扎里曼", reply.text)
+        self.assertNotIn("解剖圣所", reply.text)
+        # 单据点卡把任务类型写进底部说明
+        self.assertIn("地狱净化", reply.text)
+
+    def test_static_table_matches_wiki(self):
+        from bot import bountystatic
+        self.assertEqual(len(bountystatic.tiers("The Holdfasts")), 5)
+        self.assertEqual(len(bountystatic.tiers("Cavia")), 5)
+        self.assertEqual(len(bountystatic.tiers("The Hex")), 7)
+        self.assertEqual(bountystatic.tiers("Cavia")[0]["level"], "55–60")
+        self.assertEqual(bountystatic.tiers("The Holdfasts")[-1]["level"], "110–115")
+        self.assertEqual(bountystatic.tiers("The Hex")[-1]["reward"],
+                         "7500 现金 + 反病毒模组")
+        self.assertEqual(bountystatic.tiers("Ostrons"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

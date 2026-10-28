@@ -1,0 +1,45 @@
+{
+  "note": "官方 worldState 的 SyndicateMissions 只给希图斯 / 福尔图娜 / 火卫二三处赏金的 Jobs，扎里曼、解剖圣所、霍瓦尼亚三处 Jobs 恒为空。这三处的赏金档位是固定的（不按 A/B/C 轮换掉落池），档案来自 WARFRAME Wiki「Bounty」条目的 Mission Bounties 表，每 2½ 小时换一批任务、档位与等级不变。",
+  "source": "WARFRAME Wiki · Bounty",
+  "refresh_hours": 2.5,
+  "locations": {
+    "The Holdfasts": {
+      "label": "扎里曼",
+      "npc": "Quinn · 克莱萨里思",
+      "missions": ["歼灭", "移动防御", "虚空瀑流", "虚空洪流", "虚空末日"],
+      "tiers": [
+        {"tier": 1, "level": "50–55", "reward": "1x 虚空羽翎"},
+        {"tier": 2, "level": "60–65", "reward": "2x 虚空羽翎"},
+        {"tier": 3, "level": "70–75", "reward": "3x 虚空羽翎"},
+        {"tier": 4, "level": "90–95", "reward": "4x 虚空羽翎"},
+        {"tier": 5, "level": "110–115", "reward": "5x 虚空羽翎"}
+      ]
+    },
+    "Cavia": {
+      "label": "解剖圣所",
+      "npc": "斐波那契 · 解剖圣所",
+      "missions": ["歼灭", "生存", "元素转换", "镜像防御", "刺杀"],
+      "tiers": [
+        {"tier": 1, "level": "55–60", "reward": "1000 现金"},
+        {"tier": 2, "level": "65–70", "reward": "2000 现金"},
+        {"tier": 3, "level": "75–80", "reward": "3000 现金"},
+        {"tier": 4, "level": "95–100", "reward": "4000 现金"},
+        {"tier": 5, "level": "115–120", "reward": "5000 现金"}
+      ]
+    },
+    "The Hex": {
+      "label": "霍瓦尼亚",
+      "npc": "中央商场赏金板",
+      "missions": ["歼灭", "地狱净化", "传承种捕获", "舞台防御", "刺杀"],
+      "tiers": [
+        {"tier": 1, "level": "65–70", "reward": "1000 现金"},
+        {"tier": 2, "level": "75–80", "reward": "2000 现金"},
+        {"tier": 3, "level": "85–90", "reward": "3000 现金"},
+        {"tier": 4, "level": "95–100", "reward": "4000 现金"},
+        {"tier": 5, "level": "105–110", "reward": "5000 现金"},
+        {"tier": 6, "level": "115–120", "reward": "6000 现金"},
+        {"tier": 7, "level": "125–130", "reward": "7500 现金 + 反病毒模组"}
+      ]
+    }
+  }
+}

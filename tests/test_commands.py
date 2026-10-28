@@ -1017,5 +1017,57 @@ x0.66 对 Grineer 的伤害"""
         self.assertIn("没有识别到", reply.text)
 
 
+class FakeBountyWorld:
+    """世界状态只回三处「Jobs 为空」的赏金。"""
+
+    def fetch(self, path):
+        return [
+            {"syndicate": "Cavia", "jobs": [],
+             "expiry": "2030-01-01T00:00:00.000Z"},
+            {"syndicate": "The Hex", "jobs": [],
+             "expiry": "2030-01-01T00:00:00.000Z"},
+            {"syndicate": "The Holdfasts", "jobs": [],
+             "expiry": "2030-01-01T00:00:00.000Z"},
+        ]
+
+
+class BountyCommandTest(unittest.TestCase):
+    """三处据点的别名：#圣所 / #1999 / #扎里曼。"""
+
+    def setUp(self):
+        self.router, _, _ = make_router(worldstate=FakeBountyWorld())
+        self.ctx = Context(user_id="1", group_id="2", is_group=True)
+
+    def test_aliases(self):
+        self.assertEqual(self.router.parse("#圣所"), ("bounty_cavia", ""))
+        self.assertEqual(self.router.parse("#解剖圣所")[0], "bounty_cavia")
+        self.assertEqual(self.router.parse("#1999"), ("bounty_hex", ""))
+        self.assertEqual(self.router.parse("#霍瓦尼亚")[0], "bounty_hex")
+        self.assertEqual(self.router.parse("#扎里曼")[0], "bounty_zariman")
+        # 原来的 #赏金 还是总表
+        self.assertEqual(self.router.parse("#赏金")[0], "bounties")
+
+    def test_whole_word_only(self):
+        # 不带前缀时只有整词才算唤醒，聊天里提到不该被当成查榜
+        self.assertIsNone(self.router.parse("扎里曼什么时候开", allow_bare=True))
+        self.assertIsNone(self.router.parse("圣所怎么进", allow_bare=True))
+        self.assertEqual(self.router.parse("扎里曼", allow_bare=True),
+                         ("bounty_zariman", ""))
+        # 带前缀就是明确要这张卡，后面的字忽略
+        self.assertEqual(self.router.parse("#扎里曼 什么时候开")[0], "bounty_zariman")
+
+    def test_sanctum_card(self):
+        reply = self.router.handle("#圣所", self.ctx)[0]
+        self.assertIn("解剖圣所", reply.text)
+        self.assertIn("115–120", reply.text)   # 圣所 T5
+        self.assertNotIn("扎里曼", reply.text)
+
+    def test_1999_card(self):
+        reply = self.router.handle("#1999", self.ctx)[0]
+        self.assertIn("霍瓦尼亚", reply.text)
+        self.assertIn("125–130", reply.text)   # 霍瓦尼亚 T7
+        self.assertNotIn("暂无可接赏金", reply.text)
+
+
 if __name__ == "__main__":
     unittest.main()

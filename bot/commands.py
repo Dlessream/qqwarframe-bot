@@ -71,6 +71,10 @@ COMMANDS: Dict[str, str] = {
     "裂缝": "fissures", "钢铁裂缝": "steel_fissures", "钢铁裂隙": "steel_fissures",
     "虚空风暴": "storms", "九重天": "storms", "风暴": "storms",
     "赏金": "bounties", "平原赏金": "bounties",
+    # 官方接口不给这三处的任务明细，按固定档位单独出卡（别名按群里习惯）
+    "解剖圣所": "bounty_cavia", "圣所": "bounty_cavia",
+    "霍瓦尼亚": "bounty_hex", "1999": "bounty_hex",
+    "扎里曼": "bounty_zariman",
     "希图斯": "cetus", "希图斯赏金": "cetus", "希图斯帐篷": "cetus",
     "今日仲裁": "today_arbitration", "高效仲裁": "effective_arbitration",
     "深层科研": "deep_research", "时光科研": "temporal_research",
@@ -102,6 +106,13 @@ COMMANDS: Dict[str, str] = {
 
 COMMAND_ORDER = sorted(COMMANDS.keys(), key=len, reverse=True)
 
+# 单据点赏金：命令 → 官方 SyndicateMissions 里的 syndicate 名
+BOUNTY_VIEW = {
+    "bounty_cavia": "Cavia",
+    "bounty_hex": "The Hex",
+    "bounty_zariman": "The Holdfasts",
+}
+
 # 曾经当作「帮助」的别名，现在一律忽略（既不回帮助，也不当成物品去查）
 IGNORED_WORDS = {"菜单", "指令", "命令", "help", "?", "？", "helpme"}
 
@@ -111,7 +122,8 @@ WHOLE_WORD_COMMANDS = frozenset({
     "baro", "sortie", "arbitration", "world_summary", "world_alerts",
     "world_invasions", "steel_path", "nightwave", "cycles", "deals", "news",
     "events", "circuit", "archon", "fissures", "steel_fissures", "storms",
-    "bounties", "cetus", "deep_research", "temporal_research", "research",
+    "bounties", "cetus", "bounty_cavia", "bounty_hex", "bounty_zariman",
+    "deep_research", "temporal_research", "research",
     "riven_rank", "frame_rank", "junk_gold", "junk_silver", "junk_bronze",
     "junk_fake_gold", "junk_fake_silver", "junk_overview", "alerts", "help",
 })
@@ -418,6 +430,9 @@ class CommandRouter:
                 return [present.storms_reply(self._ws("fissures"))]
             if command == "bounties":
                 return [present.bounties_reply(self._ws("syndicateMissions"))]
+            if command in BOUNTY_VIEW:
+                return [present.bounties_reply(self._ws("syndicateMissions"),
+                                               location=BOUNTY_VIEW[command])]
             if command == "cetus":
                 state = self._ws("")
                 return [present.cetus_reply(
