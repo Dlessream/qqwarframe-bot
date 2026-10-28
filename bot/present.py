@@ -1246,7 +1246,7 @@ def bounties_reply(raw, location: str = "") -> Reply:
                 "、".join(rewards) or "—",
                 countdown(parse_timestamp(job.get("expiry"))),
             ])
-    rows = rows[:40]
+    rows = rows[:50]
     if not rows:
         return _world_reply("赏金", "当前没有可接赏金", [], [],
                             "数据 世界状态聚合源", "赏金")
