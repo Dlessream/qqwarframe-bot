@@ -147,7 +147,7 @@ class BountyStaticTest(unittest.TestCase):
         self.assertEqual(len(lines), 17)
         self.assertIn("130", reply.text)          # 霍瓦尼亚 T7 125–130
         self.assertIn("115–120", reply.text)      # 圣所 T5
-        self.assertIn("虚空羽翎", reply.text)      # 扎里曼奖励
+        self.assertIn("虚空绒翎", reply.text)      # 扎里曼奖励
 
     def test_mission_names_replace_tier_labels(self):
         reply = present.bounties_reply(list(self.RAW))
@@ -173,6 +173,21 @@ class BountyStaticTest(unittest.TestCase):
         self.assertNotIn("解剖圣所", reply.text)
         # 单据点卡把任务类型写进底部说明
         self.assertIn("地狱净化", reply.text)
+        self.assertIn("可接任务", reply.text)
+
+    def test_rewards_listed_per_tier(self):
+        reply = present.bounties_reply(list(self.RAW))
+        # 每档奖励写进文字版，静态三处都有蓝图类奖励
+        self.assertIn("Gyre 头部神经光元蓝图", reply.text)
+        self.assertIn("Qorvex 机体蓝图", reply.text)
+        self.assertIn("Cyte-09 机体蓝图", reply.text)
+        self.assertIn("…共", reply.text)          # 一档超过 3 项时折成「共 N 项」
+
+    def test_bounty_board_image(self):
+        reply = present.bounties_reply(list(self.RAW))
+        png = reply.image()
+        self.assertTrue(png.startswith(b"\x89PNG"))
+        self.assertGreater(len(png), 20000)
 
     def test_static_table_matches_wiki(self):
         from bot import bountystatic

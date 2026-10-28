@@ -1286,6 +1286,108 @@ def build_table(title: str, subtitle: str, headers: Sequence[str],
                       footer, accent=accent, chip=chip, note=note, aligns=aligns)
 
 
+def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
+                 footer: str, accent=GREEN, chip: str = "",
+                 note: str = "") -> bytes:
+    """赏金一览：按据点分组，每档一行任务 + 一行奖励（奖励可换两行）。
+
+    groups: [{"label": 据点标题, "note": 右侧小字,
+              "rows": [{"badge": "赏金三", "task": "歼灭", "meta": "L50–55 · 剩 1 小时",
+                        "rewards": ["...", "..."]}]}]
+    """
+    groups = list(groups or [])
+    probe = Image.new("RGB", (WIDTH, 8))
+    pdraw = ImageDraw.Draw(probe)
+    task_font = _font(16, bold=True)
+    small_font = _font(14)
+    meta_font = _font(13)
+    badge_font = _font(13, bold=True)
+
+    inner_left = PAD + 10
+    inner_right = WIDTH - PAD
+
+    layout = []
+    for group in groups:
+        rows = []
+        for row in group.get("rows") or []:
+            badge = str(row.get("badge") or "")
+            task = str(row.get("task") or "")
+            meta = str(row.get("meta") or "")
+            rewards = [str(item) for item in (row.get("rewards") or []) if str(item)]
+            badge_w = (_tsize(pdraw, badge, badge_font)[0] + 20) if badge else 0
+            task_x = inner_left + badge_w + (10 if badge_w else 0)
+            meta_w = _tsize(pdraw, meta, meta_font)[0] if meta else 0
+            task_max = max(90, inner_right - meta_w - 16 - task_x)
+            tasks = _wrap(pdraw, task, task_font, task_max, max_lines=1) or [""]
+            if rewards:
+                tail = rewards[-1] if rewards[-1].startswith("…") else ""
+                body = rewards[:-1] if tail else rewards
+                text = "奖励：" + " · ".join(body) + ("　" + tail if tail else "")
+            else:
+                text = ""
+            lines = (_wrap(pdraw, text, small_font, inner_right - inner_left,
+                           max_lines=2) if text else [])
+            rows.append({
+                "badge": badge, "badge_w": badge_w, "task_x": task_x,
+                "tasks": tasks, "meta": meta, "meta_w": meta_w, "lines": lines,
+            })
+        layout.append((group, rows))
+
+    # 先按「最常见的两行奖励」估高，画完再裁
+    estimate = 240 + 6 * 40
+    for group, rows in layout:
+        estimate += 40 if group.get("label") else 0
+        estimate += sum(30 + 2 * 21 + 12 for _ in rows)
+    estimate += 50 if note else 0
+    image = _gradient(WIDTH, max(700, estimate), BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    y = _header(draw, title, subtitle, chip, accent) + 8
+
+    reward_color = (141, 196, 224)
+    for group, rows in layout:
+        label = str(group.get("label") or "")
+        if label:
+            draw.rectangle([PAD, y + 6, PAD + 4, y + 26], fill=accent)
+            draw.text((PAD + 14, y + 2), label, font=_font(18, bold=True), fill=TEXT)
+            right_note = str(group.get("note") or "")
+            if right_note:
+                width, _ = _tsize(draw, right_note, _font(13))
+                draw.text((WIDTH - PAD - width, y + 8), right_note,
+                          font=_font(13), fill=DIM)
+            y += 34
+        for index, row in enumerate(rows):
+            row_top = y
+            badge = row["badge"]
+            if badge:
+                box = (inner_left, y + 2, inner_left + row["badge_w"], y + 28)
+                _rrect(draw, box, 13, fill=PANEL_LIGHT, outline=accent)
+                text_w, text_h = _tsize(draw, badge, badge_font)
+                draw.text((inner_left + (row["badge_w"] - text_w) / 2,
+                           y + 2 + (26 - text_h) / 2), badge,
+                          font=badge_font, fill=accent)
+            for line in row["tasks"]:
+                draw.text((row["task_x"], y + 3), line, font=task_font, fill=TEXT)
+            if row["meta"]:
+                draw.text((WIDTH - PAD - row["meta_w"], y + 7), row["meta"],
+                          font=meta_font, fill=MUTED)
+            y += 30
+            for line in row["lines"]:
+                draw.text((inner_left, y), line, font=small_font, fill=reward_color)
+                y += 21
+            y += 12
+            if index < len(rows) - 1:
+                draw.line([(inner_left, y - 6), (WIDTH - PAD, y - 6)], fill=LINE, width=1)
+        y += 8
+
+    if note:
+        draw.text((PAD, y + 2), _fit(draw, note, _font(13), WIDTH - 2 * PAD),
+                  font=_font(13), fill=MUTED)
+        y += 26
+
+    y = _footer(draw, y + 10, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(estimate, y + 10))))
+
+
 if __name__ == "__main__":  # 本地预览：python -m bot.imagecard
     import json
     import sys
