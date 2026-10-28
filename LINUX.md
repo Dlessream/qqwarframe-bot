@@ -68,12 +68,10 @@ docker compose -f docker-compose.full.yml restart xray
 ```bash
 # Debian / Ubuntu
 sudo apt update
-sudo apt install -y python3 python3-venv fonts-noto-cjk \
-    tesseract-ocr tesseract-ocr-chi-sim
+sudo apt install -y python3 python3-venv fonts-noto-cjk
 
 # Fedora
-# sudo dnf install python3 python3-pip google-noto-sans-cjk-fonts \
-#     tesseract tesseract-langpack-chi_sim
+# sudo dnf install python3 python3-pip google-noto-sans-cjk-fonts
 # Arch
 # sudo pacman -S python python-pip noto-fonts-cjk
 
@@ -183,8 +181,7 @@ docker run -d --name napcat --restart unless-stopped \
 - Clash 常见 `http://127.0.0.1:7890`；只给市场走代理时，其余填 `"none"`。
 - 图片卡片需要中文字体：`fonts-noto-cjk`（Debian/Ubuntu）或
   `google-noto-sans-cjk-fonts`（Fedora）。Docker 镜像已内置。
-- 紫卡截图 OCR 需要 `tesseract-ocr` + `tesseract-ocr-chi-sim`；
-  Docker 镜像已内置，直接运行需要手动安装。
+- 紫卡词条范围完全本地计算，不需要任何额外系统依赖（旧版本的截图 OCR 已移除）。
 - 字体缺失时机器人不会崩，会自动退回文字；`check.sh` 会显示“图片渲染 FAIL”。
 
 ---

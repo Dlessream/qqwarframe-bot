@@ -5,11 +5,9 @@ import time
 import unittest
 from unittest import mock
 
-from bot import rivenocr
 from bot.arbi import ArbiData, ArbiNode
 from bot.alerts import AlertStore
-from bot.commands import (CommandRouter, Context, split_platform, split_roll_args,
-                          strip_cq)
+from bot.commands import (CommandRouter, Context, split_platform, strip_cq)
 from bot.market import ItemIndex, MarketClient, MarketError, MarketStats, Order, StatSummary
 from bot.riven import RivenWeapon
 from bot.wiki import WikiPage
@@ -109,19 +107,6 @@ def make_router(fail_market=False, alerts=None, riven=None, updater=None,
                          subscriptions=subscriptions), market, wiki
 
 
-class FakeImageRiven:
-    def resolve(self, text):
-        if "视使之触" in str(text):
-            return RivenWeapon(
-                slug="ocucor", name="视使之触", name_en="Ocucor",
-                riven_type="secondary", group="secondary",
-                disposition=1.0, mastery_rank=8)
-        return None
-
-    def find(self, item):
-        return None
-
-
 class FakeUpdater:
     def __init__(self):
         self.triggered = 0
@@ -150,6 +135,9 @@ class FakeRiven:
         return RivenWeapon(
             slug="rubico", name="绝路", name_en="Rubico", riven_type="rifle",
             group="primary", disposition=0.95, mastery_rank=12)
+
+    def auctions(self, slug, limit=5):
+        return [], "暂无在售紫卡。"
 
 
 def texts(replies):
@@ -515,8 +503,7 @@ class RivenAnalysisCommandTest(unittest.TestCase):
     def test_parse_command(self):
         router, _, _ = make_router()
         self.assertEqual(router.parse("#wm 绝路"), ("query", "绝路"))
-        self.assertEqual(router.parse("#紫卡分析 绝路"),
-                         ("riven_analysis", "绝路"))
+        self.assertEqual(router.parse("#紫卡 绝路"), ("riven", "绝路"))
         self.assertIsNone(router.parse("#唤醒"))
 
     def test_parse_bare_command(self):
@@ -537,8 +524,7 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertIsNone(router.parse("绝路", allow_bare=True))
         self.assertIsNone(router.parse("随便聊聊", allow_bare=True))
         self.assertIsNone(router.parse("唤醒", allow_bare=True))
-        self.assertEqual(router.parse("#紫卡分析绝路"),
-                         ("riven_analysis", "绝路"))
+        self.assertEqual(router.parse("#紫卡绝路"), ("riven", "绝路"))
 
     def test_parse_bare_requires_whole_word(self):
         """裸词唤醒只认独立的词：句子里夹带「仲裁」「回廊」不该触发。"""
@@ -550,45 +536,33 @@ class RivenAnalysisCommandTest(unittest.TestCase):
             self.assertIsNone(router.parse(sentence, allow_bare=True), sentence)
         # 带参数的命令仍支持连写，但明显是聊天句子就不接
         self.assertEqual(router.parse("查绝路", allow_bare=True), ("query", "绝路"))
-        self.assertIsNone(router.parse("紫卡分析这个怎么样", allow_bare=True))
+        self.assertIsNone(router.parse("紫卡这个怎么样", allow_bare=True))
 
-    def test_split_roll_args(self):
-        self.assertEqual(split_roll_args("绝路 伤害=165 多重=90"),
-                         ("绝路", [("伤害", 165.0), ("多重", 90.0)]))
-        self.assertEqual(split_roll_args("绝路 伤害 165 多重 90"),
-                         ("绝路", [("伤害", 165.0), ("多重", 90.0)]))
-        weapon, pairs = split_roll_args("绝路 165")
-        self.assertEqual(pairs, [])
-        self.assertEqual(weapon, "绝路 165")
-
-    def test_analysis_ranges_and_score(self):
+    def test_riven_shows_range_table(self):
         riven = FakeRiven()
         router, _, _ = make_router(riven=riven)
-        replies = router.handle("#紫卡分析 绝路 伤害=165", self.ctx)
+        replies = router.handle("#紫卡 绝路", self.ctx)
         self.assertEqual(len(replies), 1)
-        self.assertIn("紫卡分析", replies[0].text)
         self.assertIn("绝路", replies[0].text)
-        self.assertIn("范围", replies[0].text)
+        self.assertIn("倾向", replies[0].text)
+        self.assertIn("正向词条", replies[0].text)
+        self.assertIn("负面词条", replies[0].text)
         self.assertTrue(riven.queries)
 
-    def test_analysis_ranges_only(self):
+    def test_riven_text_mentions_full_table(self):
         riven = FakeRiven()
         router, _, _ = make_router(riven=riven)
-        replies = router.handle("#紫卡分析 绝路", self.ctx)
-        self.assertEqual(len(replies), 1)
-        self.assertIn("正向范围", replies[0].text)
-        self.assertTrue(riven.queries)
+        replies = router.handle("#紫卡 绝路", self.ctx)
+        self.assertIn("3+1", replies[0].text)
 
-    def test_analysis_alias(self):
-        riven = FakeRiven()
-        router, _, _ = make_router(riven=riven)
-        replies = router.handle("#紫卡 分析 绝路", self.ctx)
-        self.assertIn("紫卡分析", replies[0].text)
-        self.assertTrue(riven.queries)
+    def test_riven_analysis_command_removed(self):
+        """#紫卡分析 已下线，不再解析成命令。"""
+        router, _, _ = make_router()
+        self.assertIsNone(router.parse("#紫卡分析 绝路"))
 
-    def test_analysis_disabled(self):
+    def test_riven_disabled(self):
         router, _, _ = make_router(riven=None)
-        replies = router.handle("#紫卡分析 绝路", self.ctx)
+        replies = router.handle("#紫卡 绝路", self.ctx)
         self.assertIn("未启用", replies[0].text)
 
 
@@ -976,45 +950,6 @@ class RotationCommandTest(unittest.TestCase):
     def test_disabled_without_rotation(self):
         reply = self.router(None).handle("#轮换", self.ctx)[0]
         self.assertIn("未启用", reply.text)
-
-
-class RivenImageOnlyTest(unittest.TestCase):
-    def test_image_only_parses_four_stats(self):
-        router, _, _ = make_router(riven=FakeImageRiven())
-        # 3+1 的合法数值：毒素/暴击 75.9~92.8，多重 101~123.4，对派系 -37.1~-30.4
-        text = """视使之触 Sati-acritox
-+85.0% 毒素伤害
-+90.0% 暴击伤害
-+110.0% 多重射击
-x0.66 对 Grineer 的伤害"""
-        ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
-        result = rivenocr.ReadResult(
-            candidates=rivenocr.read_texts([text]), texts=[text])
-        with mock.patch("bot.rivenocr.read", return_value=result):
-            reply = router.handle("#紫卡分析", ctx)[0]
-        self.assertIn("3+1", reply.text)
-        self.assertIn("对派系伤害", reply.text)
-        # 派系（歧视）词条在卡面上是倍率写法，`x0.66` 就是 -34%（负面）
-        self.assertIn("x0.66", reply.text)
-
-    def test_nonsense_values_are_flagged(self):
-        """数值和这把武器的任何配置都对不上时，照实列出并提示核对原图。"""
-        router, _, _ = make_router(riven=FakeImageRiven())
-        text = "视使之触\n+95.8% 毒素伤害\n+100.3% 暴击伤害\n+137.1% 多重射击"
-        ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
-        result = rivenocr.ReadResult(
-            candidates=rivenocr.read_texts([text]), texts=[text])
-        with mock.patch("bot.rivenocr.read", return_value=result):
-            reply = router.handle("#紫卡分析", ctx)[0]
-        self.assertIn("核对原图", reply.text)
-
-    def test_image_with_no_stats_asks_for_a_better_shot(self):
-        router, _, _ = make_router(riven=FakeImageRiven())
-        ctx = Context(user_id="1", group_id="2", is_group=True, image=b"fake")
-        result = rivenocr.ReadResult(candidates=[], texts=["视使之触"])
-        with mock.patch("bot.rivenocr.read", return_value=result):
-            reply = router.handle("#紫卡分析", ctx)[0]
-        self.assertIn("没有识别到", reply.text)
 
 
 class FakeBountyWorld:

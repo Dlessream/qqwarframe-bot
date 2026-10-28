@@ -176,12 +176,11 @@ class EvaluateTest(unittest.TestCase):
 class ImageTest(unittest.TestCase):
     def test_card(self):
         analysis = calculate(weapon())
-        evaluations = evaluate_roll(analysis, [("伤害", 160), ("多重", 90)])
-        png = imagecard.riven_analysis_card(analysis, evaluations)
+        png = imagecard.riven_range_card(analysis)
         self.assertTrue(png.startswith(b"\x89PNG"))
         image = Image.open(io.BytesIO(png))
         self.assertEqual(image.size[0], 860)
-        self.assertGreaterEqual(image.size[1], 780)
+        self.assertGreaterEqual(image.size[1], 760)
 
 
 if __name__ == "__main__":

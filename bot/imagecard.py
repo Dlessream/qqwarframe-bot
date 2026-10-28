@@ -573,7 +573,7 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
-# ---------------------------------------------------------------------- 紫卡分析
+# ---------------------------------------------------------------------- 紫卡范围
 def _analysis_section(draw, y: int, title: str, hint: str = "") -> int:
     draw.text((PAD, y), title, font=_font(18, bold=True), fill=TEXT)
     if hint:
@@ -624,8 +624,8 @@ def _analysis_grid(draw, y: int, headers: Sequence[str], widths: Sequence[int],
     return y
 
 
-def riven_analysis_card(analysis, evaluations: Sequence = (),
-                        footer: str = "数据 Warframe Wiki · 本地计算") -> bytes:
+def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计算") -> bytes:
+    """紫卡词条范围表：2 / 2+1 / 3 / 3+1 与负面词条（Lv.8）。"""
     names: List[str] = []
     seen = set()
     for group in (analysis.three_neg, analysis.two_neg,
@@ -640,10 +640,8 @@ def riven_analysis_card(analysis, evaluations: Sequence = (),
         if stat.name not in negative_names:
             negative_names.append(stat.name)
 
-    height = 150 + len(names) * 30 + len(negative_names) * 30 + 290
-    if evaluations:
-        height += len(evaluations) * 30 + 80
-    height = max(780, height)
+    height = 180 + len(names) * 30 + len(negative_names) * 30 + 210
+    height = max(760, height)
 
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
@@ -651,51 +649,13 @@ def riven_analysis_card(analysis, evaluations: Sequence = (),
     subtitle = "倾向 %.2f（%s）｜ Lv.8" % (analysis.disposition, analysis.dots or "—")
     if analysis.name_en and analysis.name_en.lower() != analysis.name.lower():
         subtitle += "｜ %s" % analysis.name_en
-    y = _header(draw, "%s · 紫卡分析" % analysis.name, subtitle,
+    y = _header(draw, "%s · 词条范围" % analysis.name, subtitle,
                 "WARFRAME WIKI", PURPLE)
-    config_label = "2 / 3 正向"
-    if evaluations:
-        positives = sum(1 for item in evaluations if not item.negative)
-        has_negative = any(item.negative for item in evaluations)
-        if positives >= 3:
-            config_label = "3+1" if has_negative else "3+"
-        elif positives == 2:
-            config_label = "2+1" if has_negative else "2+"
-        else:
-            config_label = "参考"
     y = _pills(draw, y, [
         ("倾向", "%.2f" % analysis.disposition),
-        ("配置", config_label),
-        ("词条", "%d 条" % len(names)),
+        ("正向", "%d 条" % len(names)),
+        ("负面", "%d 条" % len(negative_names)),
     ], PURPLE)
-
-    if evaluations:
-        y = _analysis_section(draw, y, "你的词条",
-                              "按 %s 配置比较" % config_label)
-        rows = []
-        colors: Dict[Tuple[int, int], tuple] = {}
-        for index, evaluation in enumerate(evaluations):
-            rows.append([
-                evaluation.name,
-                (evaluation.stat.format(evaluation.value)
-                 if evaluation.stat else "%+g" % evaluation.value),
-                (evaluation.stat.range_text(getattr(evaluation, "scale", 1.0))
-                 if evaluation.stat else "—"),
-                evaluation.grade,
-            ])
-            colors[(index, 1)] = RED if evaluation.negative else GREEN
-            if evaluation.grade in ("接近满值", "优秀", "轻微"):
-                colors[(index, 3)] = GREEN
-            elif evaluation.grade == "中等":
-                colors[(index, 3)] = GOLD
-            elif evaluation.grade == "未识别":
-                colors[(index, 3)] = DIM
-            else:
-                colors[(index, 3)] = RED
-        y = _analysis_grid(
-            draw, y, ["你的词条", "数值", "可能范围", "评价"],
-            [150, 90, 230, 320], rows, ["left", "right", "right", "left"], colors)
-        y += 10
 
     maps = {
         "two": {stat.name: stat for stat in analysis.two},
@@ -725,24 +685,22 @@ def riven_analysis_card(analysis, evaluations: Sequence = (),
         "two": {stat.name: stat for stat in analysis.negatives_two},
         "three": {stat.name: stat for stat in analysis.negatives_three},
     }
-    y = _analysis_section(draw, y, "负面词条范围 · Lv.8", "数值越小越好")
-    rows = []
-    for name in negative_names:
-        rows.append([
-            name,
-            neg_maps["two"].get(name).range_text() if name in neg_maps["two"] else "—",
-            neg_maps["three"].get(name).range_text() if name in neg_maps["three"] else "—",
-        ])
-    y = _analysis_grid(
-        draw, y, ["词条", "双属性+负面", "三属性+负面"],
-        [240, 270, 270], rows, ["left", "right", "right"],
-        {(i, j): RED for i in range(len(rows)) for j in (1, 2)})
+    if negative_names:
+        y = _analysis_section(draw, y, "负面词条范围 · Lv.8", "数值越小越好")
+        rows = []
+        for name in negative_names:
+            rows.append([
+                name,
+                neg_maps["two"].get(name).range_text() if name in neg_maps["two"] else "—",
+                neg_maps["three"].get(name).range_text() if name in neg_maps["three"] else "—",
+            ])
+        y = _analysis_grid(
+            draw, y, ["词条", "双属性+负面", "三属性+负面"],
+            [240, 270, 270], rows, ["left", "right", "right"],
+            {(i, j): RED for i in range(len(rows)) for j in (1, 2)})
 
     notes = ["2+1 / 3+1 的正向数值更高，负面从下表随机抽取。",
-             "有负面词条时请写成负值（例如 变焦=-30）。",
              "后坐力负值表示降低后坐力，属于正面效果。"]
-    if evaluations:
-        notes.insert(0, "按输入的正向数量和负面推断配置。")
     if analysis.history:
         latest = analysis.history[-1]
         notes.append("最近一次倾向调整：%s（%s）" % (latest[1], latest[0]))
@@ -1123,10 +1081,8 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s金垃圾 / %s银垃圾 / %s铜垃圾" % (prefix, prefix, prefix), "垃圾地板价 + 一组价"],
         ["%s垃圾" % prefix, "金/银/铜垃圾行情总览"],
         ["%s战甲榜" % prefix, "Prime 战甲价格排行"],
-        ["%s紫卡 <武器>" % prefix, "紫卡倾向与拍卖"],
+        ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
-        ["%s紫卡分析 + 截图" % prefix, "自动识别武器、词条与负面"],
-        ["%s紫卡分析 <武器> [词条=数值]" % prefix, "词条范围 + roll 评分"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
         ["%s轮换 言录使" % prefix, "本周 5 件（苦栓）"],
         ["%s轮换 格拉斯 / 埃莉诺" % prefix, "信条近战 / 终幕武器加成"],

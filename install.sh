@@ -33,11 +33,6 @@ if command -v fc-list >/dev/null 2>&1; then
     fi
 fi
 
-if ! command -v tesseract >/dev/null 2>&1; then
-    echo "提示：未安装 Tesseract，紫卡截图 OCR 不可用；文字版 #紫卡分析 不受影响。"
-    echo "      Debian/Ubuntu: sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim"
-fi
-
 if [ ! -f "config.json" ]; then
     cp config.example.json config.json
     echo "已生成 config.json，请先填写 OneBot 的 ws_url / access_token。"

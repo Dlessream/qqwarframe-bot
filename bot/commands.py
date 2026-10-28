@@ -11,15 +11,13 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import present
-from . import ocr
 from . import zh2en
 from .alerts import AlertStore
 from .arbi import ArbiClient, ArbiError
 from .market import Item, MarketClient, MarketError, SearchHit
 from .replies import Reply
 from .riven import RivenClient
-from .rivencalc import calculate, evaluate_roll, looks_like_stat
-from . import rivenocr
+from .rivencalc import calculate
 from .subscriptions import (SubscriptionService, kind_label, kind_names,
                             parse_kind)
 from .updater import DataUpdater
@@ -27,6 +25,33 @@ from .wiki import WikiClient, WikiError
 from .worldstate import Arbitration, WorldStateClient, WorldStateError
 
 LOGGER = logging.getLogger("qqwarframe.commands")
+
+# 已经下线的功能前缀：这些词后面跟任何东西都不再当命令（例如 #紫卡分析）
+RETIRED_PREFIXES: Dict[str, Tuple[str, ...]] = {
+    "riven": ("分析", "测评"),
+}
+
+
+def is_retired(text: str) -> bool:
+    """是否属于已经下线的功能写法（例如「紫卡分析 绝路」）。"""
+    value = str(text or "").strip().lower()
+    for alias, command in COMMANDS.items():
+        for word in RETIRED_PREFIXES.get(command, ()):
+            for sep in ("", " "):
+                if value.startswith(alias + sep + word):
+                    return True
+    return False
+
+
+def is_retired(text: str) -> bool:
+    """是否属于已经下线的功能写法（例如「紫卡分析 绝路」）。"""
+    value = str(text or "").strip().lower()
+    for alias, command in COMMANDS.items():
+        for word in RETIRED_PREFIXES.get(command, ()):
+            for sep in ("", " "):
+                if value.startswith(alias + sep + word):
+                    return True
+    return False
 
 CQ_RE = re.compile(r"\[CQ:[^\]]*\]")
 
@@ -50,9 +75,7 @@ COMMANDS: Dict[str, str] = {
     "prime垃圾": "junk_overview", "junk": "junk_overview",
     "战甲榜": "frame_rank", "战甲排行": "frame_rank", "战甲排名": "frame_rank",
     "战甲价格榜": "frame_rank", "最贵战甲": "frame_rank", "framrank": "frame_rank",
-    "紫卡分析": "riven_analysis", "紫卡测评": "riven_analysis",
-    "分析": "riven_analysis", "紫卡图片": "riven_analysis",
-    "rivenanalysis": "riven_analysis", "zkfx": "riven_analysis",
+    "紫卡范围": "riven", "词条范围": "riven", "紫卡词条": "riven",
     "奸商": "baro", "虚空商人": "baro", "baro": "baro",
     "突击": "sortie", "sortie": "sortie",
     "仲裁": "arbitration", "arbitration": "arbitration",
@@ -128,7 +151,7 @@ WHOLE_WORD_COMMANDS = frozenset({
     "junk_fake_gold", "junk_fake_silver", "junk_overview", "alerts", "help",
 })
 
-# 「查绝路」这种连写没问题，但「紫卡分析这个怎么样」是在聊天，别接。
+# 「查绝路」这种连写没问题，但「紫卡这个怎么样」是在聊天，别接。
 _SENTENCE_RE = re.compile(
     r"[？?！!。，,；;~～]|怎么|怎样|什么|怎么着|为啥|为什么|如何|多少|"
     r"什么时候|啥时候|哪里|哪个|能不能|可不可以|吗|呢|呀|啊|吧")
@@ -188,30 +211,6 @@ class Context:
     @property
     def chat_id(self) -> str:
         return self.group_id if self.is_group else self.user_id
-
-
-def split_roll_args(argument: str) -> Tuple[str, List[Tuple[str, float]]]:
-    """拆分“武器名 + 词条数值”。
-
-    支持：
-        绝路 伤害=165 多重=90
-        绝路 伤害 165 多重 90
-    数值带负号表示负面词条。
-    """
-    tokens = [token for token in re.split(r"[\s,，]+", (argument or "").strip()) if token]
-    weapon: List[str] = []
-    pairs: List[Tuple[str, float]] = []
-    for token in tokens:
-        match = re.match(r"^(.+?)[=:：](-?\d+(?:\.\d+)?)$", token)
-        if match:
-            pairs.append((match.group(1).strip(), float(match.group(2))))
-            continue
-        if (re.match(r"^-?\d+(?:\.\d+)?$", token) and weapon
-                and looks_like_stat(weapon[-1])):
-            pairs.append((weapon.pop(), float(token)))
-            continue
-        weapon.append(token)
-    return " ".join(weapon).strip(), pairs
 
 
 def split_platform(argument: str) -> Tuple[str, Optional[str]]:
@@ -287,6 +286,9 @@ class CommandRouter:
                 if command in WHOLE_WORD_COMMANDS and tail:
                     # 「仲裁 什么时候刷新」不再当作查询
                     return None
+                if command in RETIRED_PREFIXES and tail.startswith(RETIRED_PREFIXES[command]):
+                    # 「紫卡分析」已下线，不再当作紫卡查询
+                    return None
                 return (command, tail)
             for alias in COMMAND_ORDER:
                 command = COMMANDS[alias]
@@ -296,7 +298,9 @@ class CommandRouter:
                         and text.startswith(alias) and len(text) > len(alias):
                     rest = text[len(alias):].strip()
                     if _SENTENCE_RE.search(rest):
-                        continue  # 「紫卡分析这个怎么样」是在聊天
+                        continue  # 「紫卡这个怎么样」是在聊天
+                    if command in RETIRED_PREFIXES and rest.startswith(RETIRED_PREFIXES[command]):
+                        continue  # 「紫卡分析…」已下线
                     return (command, rest)
             return None
         if not text:
@@ -312,14 +316,24 @@ class CommandRouter:
         if is_ignored(text):
             return None
         if head.lower() in COMMANDS:
-            return (COMMANDS[head.lower()], tail)
+            command = COMMANDS[head.lower()]
+            if command in RETIRED_PREFIXES and tail.startswith(RETIRED_PREFIXES[command]):
+                # 「紫卡分析」已下线，不再当作紫卡查询
+                return None
+            return (command, tail)
 
         # 兼容中文不加空格：#查绝路 / #战甲Mesa（单字母英文别名不参与，避免误判）
         for alias in COMMAND_ORDER:
             if (len(alias) >= 2 or not alias.isascii()) \
                     and text.startswith(alias) and len(text) > len(alias):
-                return (COMMANDS[alias], text[len(alias):].strip())
+                command = COMMANDS[alias]
+                rest = text[len(alias):].strip()
+                if command in RETIRED_PREFIXES and rest.startswith(RETIRED_PREFIXES[command]):
+                    continue  # 「紫卡分析…」已下线
+                return (command, rest)
 
+        if is_retired(text):
+            return None
         return ("query", text)
 
     # ------------------------------------------------------------------ 入口
@@ -376,8 +390,6 @@ class CommandRouter:
                 return [self._rotation("格拉斯", ctx)]
             if command == "rotation_eleanor":
                 return [self._rotation("埃莉诺", ctx)]
-            if command == "riven_analysis":
-                return [self._riven_analysis(argument, ctx)]
             if command == "update":
                 return [self._update(argument, ctx)]
             if command == "data_status":
@@ -569,10 +581,6 @@ class CommandRouter:
 
     # ------------------------------------------------------------------ 紫卡
     def _riven(self, argument: str, ctx: Context) -> Reply:
-        stripped = (argument or "").strip()
-        for word in ("分析", "测评"):
-            if stripped.startswith(word):
-                return self._riven_analysis(stripped[len(word):].strip(), ctx)
         argument, platform = split_platform(argument)
         platform = platform or self.default_platform
         if not argument:
@@ -594,7 +602,9 @@ class CommandRouter:
                 % argument)
 
         auctions, note = self.riven.auctions(weapon.slug, limit=5)
-        return present.riven_reply(weapon, auctions, note, platform)
+        analysis = calculate(weapon)
+        return present.riven_reply(weapon, auctions, note, platform,
+                                   analysis=analysis)
 
     # ------------------------------------------------------------------ 价格榜（后台快照）
     def _scanning_reply(self, label: str, ready: int, total: int) -> Reply:
@@ -707,71 +717,6 @@ class CommandRouter:
             return str(slug).replace("_", " ")
 
         return present.riven_rank_reply(quotes, name_of, (ready, total))
-
-    def _riven_analysis(self, argument: str, ctx: Context) -> Reply:
-        if self.riven is None:
-            return present.error_reply("紫卡功能未启用。")
-        weapon_text, pairs = split_roll_args(argument)
-        weapon_text, _platform = split_platform(weapon_text)
-        ocr_text = ""
-        candidates: List[rivenocr.Candidate] = []
-        if ctx.image:
-            try:
-                result = rivenocr.read(ctx.image)
-            except ocr.OcrError as exc:
-                return present.error_reply(str(exc))
-            ocr_text = "\n".join(result.texts)
-            candidates = list(result.candidates)
-            if not pairs:
-                pairs = [(item.name, item.value) for item in candidates]
-        weapon = None
-        if weapon_text:
-            try:
-                hits = self.market.lookup(weapon_text, limit=3)
-            except MarketError as exc:
-                return present.error_reply("查询失败：%s" % exc)
-            if hits:
-                weapon = self.riven.find(hits[0].item)
-            if weapon is None:
-                weapon = self.riven.resolve(weapon_text)
-        if weapon is None and ocr_text:
-            for line in ocr_text.splitlines():
-                line = line.strip()
-                if not line or "%" in line or "％" in line or len(line) < 2:
-                    continue
-                weapon = self.riven.resolve(line)
-                if weapon is not None:
-                    break
-        if weapon is None:
-            if pairs:
-                return present.riven_ocr_reply(
-                    pairs, "未识别到武器，先按通用词条列出。")
-            if not weapon_text and not ctx.image:
-                return present.error_reply(
-                    "用法：直接发送紫卡截图，或：\n"
-                    "  %s紫卡分析 绝路\n"
-                    "  %s紫卡分析 绝路 伤害=165 多重=90"                    % (ctx.prefix, ctx.prefix))
-            return present.error_reply(
-                "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
-                % (weapon_text or "图片"))
-        if ctx.image and not pairs:
-            return present.error_reply(
-                "图片里没有识别到有效紫卡词条，请发送完整、清晰的紫卡截图。")
-        analysis = calculate(weapon)
-        notes: List[str] = []
-        resolution = None
-        if candidates:
-            # 有武器之后才能用它的词条表 / 数值范围校正符号、剔除不属于它的词条
-            resolution = rivenocr.resolve(candidates, analysis)
-            pairs, notes = resolution.pairs, resolution.notes
-            if not resolution.config and abs(result.tilt) >= 2.0:
-                # 歪着拍的图字会糊，认不准就别装作认准了
-                notes.append("图片倾斜约 %d°，字迹有损失，建议正着截图再发一次"
-                             % abs(result.tilt))
-        scale = resolution.scale if resolution is not None else 1.0
-        evaluations = evaluate_roll(analysis, pairs, scale) if pairs else []
-        return present.riven_analysis_reply(analysis, evaluations, notes,
-                                            from_image=bool(ctx.image))
 
     # ------------------------------------------------------------------ 数据更新
     def _update(self, argument: str, ctx: Context) -> Reply:

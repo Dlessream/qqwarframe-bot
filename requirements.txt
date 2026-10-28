@@ -1,5 +1,3 @@
 # 图片卡片渲染需要 Pillow（代码已兼容 Pillow 7.2 ~ 最新版）
 # 不装也能运行，只是会自动退回文字输出。
 Pillow>=7.2
-# 紫卡截图 OCR（可选；需要系统安装 tesseract-ocr 与 chi_sim 语言包）
-pytesseract>=0.3.10

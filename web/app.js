@@ -154,9 +154,7 @@
     renderGroups(groups);
     if (!state.aliasesLoaded) loadAliases();
     setText("imageState", status.image ? "可用" : "关闭");
-    setText("ocrState", status.ocr ? "可用" : "未启用");
     setText("fontState", status.font ? "已加载" : "缺失");
-    setText("ocrEngine", status.ocr ? "Tesseract" : "未安装");
 
     const pill = $("connPill");
     pill.classList.remove("pill-ok", "pill-bad", "pill-muted");

@@ -15,7 +15,7 @@ import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
-from . import __version__, imagecard, missioncolors, ocr, present, subkind
+from . import __version__, imagecard, missioncolors, present, subkind
 from .alerts import AlertStore
 from .aliases import AliasStore
 from .arbi import ArbiClient, ArbiError
@@ -262,7 +262,6 @@ class BotApp:
             },
             "image": self.image_enabled,
             "font": imagecard.available(),
-            "ocr": ocr.available(),
             "market": {
                 "items": self.market.item_count(),
                 "cache_age": self.market.cache_age(),
@@ -399,8 +398,8 @@ class BotApp:
             self.log.debug("触发限流：%s", user_key)
             return
 
-        image = (self._event_image(event)
-                 if parsed[0] == "riven_analysis" else None)
+        # 紫卡截图识别已下线，消息里带的图片不再下载解析
+        image = None
         context = Context(
             user_id=user_id,
             group_id=group_id,

@@ -159,7 +159,7 @@ def run_selftest(config_path: str = "config.json") -> int:
         report.add("紫卡数据", bool(weapons), "%d 把可上紫卡的武器" % len(weapons))
         sample = weapons.get("rubico") or next(iter(weapons.values()))
         analysis = calculate(sample)
-        report.add("紫卡分析", True, "%s 倾向 %.2f，%d 条正向词条" % (
+        report.add("紫卡词条范围", True, "%s 倾向 %.2f，%d 条正向词条" % (
             analysis.name, analysis.disposition, len(analysis.two_neg)))
     except Exception as exc:  # pragma: no cover - 仅自检
         report.add("紫卡数据", False, str(exc))

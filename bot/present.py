@@ -13,8 +13,7 @@ from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
 from .replies import Reply
 from .riven import RivenAuction, RivenWeapon
-from .rivencalc import (RivenAnalysis, RollEvaluation, format_roll,
-                        infer_config_label)
+from .rivencalc import RivenAnalysis
 from .wiki import WikiHit, WikiPage
 from .worldstate import (Arbitration, Sortie, VoidTrader, countdown,
                          parse_timestamp)
@@ -112,8 +111,26 @@ def set_reply(item: Item, quotes: Sequence[PartQuote], set_sell: Optional[int],
 
 
 # ---------------------------------------------------------------------- 紫卡
+def _range_summary(analysis: RivenAnalysis) -> List[str]:
+    """文字版范围摘要：正向按 2+1、负面按 2+1 各列几条，完整表在图片里。"""
+    lines: List[str] = []
+    positives = list(analysis.two_neg or analysis.two or [])
+    if positives:
+        lines.append("正向词条（2+1，Lv.8）：")
+        for stat in positives[:6]:
+            lines.append("  %s %s" % (stat.name, stat.range_text()))
+    negatives = list(analysis.negatives_two or analysis.negatives_three or [])
+    if negatives:
+        lines.append("负面词条（2+1）：")
+        for stat in negatives[:4]:
+            lines.append("  %s %s" % (stat.name, stat.range_text()))
+    return lines
+
+
 def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
-                note: str, platform: str) -> Reply:
+                note: str, platform: str,
+                analysis: Optional[RivenAnalysis] = None) -> Reply:
+    """紫卡：行情 + 词条范围表（2 / 2+1 / 3 / 3+1 与负面）。"""
     label = platform_label(platform)
     lines = [
         "【%s】紫卡" % weapon.name,
@@ -129,6 +146,16 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
     else:
         lines.append(note or "暂无在售紫卡。")
 
+    if analysis is not None:
+        summary = _range_summary(analysis)
+        if summary:
+            lines.append("")
+            lines.extend(summary)
+        lines.append("完整 2 / 2+1 / 3 / 3+1 与负面词条范围见图。")
+        if analysis.history:
+            latest = analysis.history[-1]
+            lines.append("最近一次倾向调整：%s（%s）" % (latest[1], latest[0]))
+
     rows = []
     for auction in auctions:
         rows.append([
@@ -141,9 +168,11 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
         weapon.disposition, weapon.disposition_label,
         weapon.riven_type or weapon.group, weapon.mastery_rank)
 
-    return Reply(
-        text="\n".join(lines),
-        image=lambda: imagecard.build_table(
+    def build_image() -> bytes:
+        if analysis is not None:
+            return imagecard.riven_range_card(
+                analysis, "数据 Warframe Wiki · 本地计算")
+        return imagecard.build_table(
             "%s · 紫卡行情" % weapon.name, subtitle,
             ["价格", "词条", "卖家", "等级"], rows,
             "数据 warframe market · %s" % label,
@@ -151,123 +180,9 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
             note=note if not auctions else "",
             highlights=[[imagecard.PURPLE, None, None, None]] * len(rows),
             ratios=[0.8, 3.2, 1.4, 0.7],
-            aligns=["right", "left", "left", "right"]))
+            aligns=["right", "left", "left", "right"])
 
-
-# ---------------------------------------------------------------------- 紫卡分析
-def riven_ocr_reply(analysis: RivenAnalysis,
-                    pairs: Sequence) -> Reply:
-    rows = []
-    lines = []
-    for name, value in pairs:
-        stat = None
-        for candidate in list(analysis.two) + list(analysis.two_neg) + \
-                list(analysis.three) + list(analysis.three_neg):
-            if candidate.name == name:
-                stat = candidate
-                break
-        text_value = format_roll(stat, name, value)
-        rows.append([name, text_value])
-        lines.append("%s %s" % (name, text_value))
-    text = "【%s】紫卡截图识别\n倾向 %.2f（%s）\n%s\n\n只做截图词条识别，不计算范围/评分。" % (
-        analysis.name, analysis.disposition, analysis.dots or "—",
-        "\n".join(lines))
-    return Reply(
-        text=text,
-        image=lambda: imagecard.build_table(
-            "紫卡截图识别", "%s · 倾向 %.2f" % (analysis.name, analysis.disposition),
-            ["词条", "数值"], rows,
-            "数据 OCR · 本地识别 · 不计算范围/评分",
-            accent=imagecard.PURPLE, chip="OCR",
-            ratios=[2.4, 0.8],
-            note="只识别截图中的词条，不做范围与 roll 评分。"))
-
-
-def riven_ocr_reply(pairs, note: str = "") -> Reply:
-    lines = ["【紫卡识别】"]
-    if note:
-        lines.append(note)
-    for name, value in pairs:
-        lines.append("  %s %s" % (name, format_roll(None, name, value)))
-    lines.append("")
-    lines.append("未识别到具体武器；发送完整紫卡截图，或带武器名可看范围/评分。")
-    return Reply(text="\n".join(lines))
-
-
-def rivencalc_rank(scale: float) -> int:
-    """换算系数 → 紫卡等级；这里只用来显示，避免 present 直接依赖 rivenocr。"""
-    return max(0, min(8, int(round(scale * 9.0)) - 1))
-
-
-def riven_analysis_reply(analysis: RivenAnalysis,
-                         evaluations: Sequence[RollEvaluation],
-                         notes: Sequence[str] = (),
-                         from_image: bool = False) -> Reply:
-    scale = 1.0
-    for item in evaluations or ():
-        scale = getattr(item, "scale", 1.0) or 1.0
-        break
-    if scale < 1.0:
-        level = "倾向 %.2f（%s）｜ 卡面约 Lv.%d，评分按 Lv.8" % (
-            analysis.disposition, analysis.dots or "—",
-            rivencalc_rank(scale))
-    else:
-        level = "倾向 %.2f（%s）｜ Lv.8 词条范围" % (
-            analysis.disposition, analysis.dots or "—")
-    lines = [
-        "【%s】紫卡分析" % analysis.name,
-        level,
-    ]
-    if analysis.name_en and analysis.name_en.lower() != analysis.name.lower():
-        lines.append("英文：%s" % analysis.name_en)
-
-    if evaluations:
-        lines.append("")
-        lines.append("你的词条（按 %s 配置比较）：" % infer_config_label(evaluations))
-        for evaluation in evaluations:
-            if evaluation.stat is None:
-                lines.append("  %s %s：未识别（该武器没有这个词条）" % (
-                    evaluation.name, format_roll(None, evaluation.name,
-                                                 evaluation.value)))
-                continue
-            lines.append("  %s %s：范围 %s，%s" % (
-                evaluation.name, evaluation.stat.format(evaluation.value),
-                evaluation.stat.range_text(getattr(evaluation, "scale", 1.0)),
-                evaluation.grade))
-        if not from_image:
-            lines.append("提示：有负面词条时请写成负值（例如 变焦=-30）。")
-
-    if evaluations:
-        config_label = infer_config_label(evaluations)
-    else:
-        config_label = "2+"
-    if notes:
-        lines.append("")
-        lines.append("识别提示：")
-        for note in notes:
-            lines.append("  · %s" % note)
-    if config_label.startswith("3"):
-        group = analysis.three_neg if "+1" in config_label else analysis.three
-    else:
-        group = analysis.two_neg if "+1" in config_label else analysis.two
-    lines.append("")
-    lines.append("正向范围（%s，Lv.8）：" % config_label)
-    for stat in (group or analysis.two_neg or analysis.two)[:6]:
-        lines.append("  %s %s" % (stat.name, stat.range_text()))
-    lines.append("完整 2/3 正向、2+1/3+1 与负面范围见图片。")
-
-    if analysis.history:
-        latest = analysis.history[-1]
-        lines.append("最近一次倾向调整：%s（%s）" % (latest[1], latest[0]))
-
-    lines.append("数据源：%s" % analysis.source_url)
-
-    return Reply(
-        text="\n".join(lines),
-        image=lambda: imagecard.riven_analysis_card(
-            analysis, evaluations,
-            "数据 Warframe Wiki · 本地计算" +
-            (" ｜ " + notes[0] if notes else "")))
+    return Reply(text="\n".join(lines), image=build_image)
 
 
 # ---------------------------------------------------------------------- 世界状态

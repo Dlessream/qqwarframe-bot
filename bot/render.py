@@ -242,10 +242,8 @@ def render_help(prefix: str = "#") -> str:
         "%s金垃圾 / %s银垃圾 / %s铜垃圾  当前地板价 + 一组价" % (prefix, prefix, prefix),
         "%s垃圾               金/银/铜垃圾行情总览" % prefix,
         "%s战甲                Prime 战甲价格（全表，高 → 低）" % prefix,
-        "%s紫卡 <武器>        紫卡倾向与拍卖" % prefix,
+        "%s紫卡 <武器>        倾向 + 词条范围表（2 / 2+1 / 3 / 3+1 与负面）" % prefix,
         "%s紫卡                每把武器最贵的零洗卡（高 → 低）" % prefix,
-        "%s紫卡分析 + 截图                  自动识别武器/词条/负面" % prefix,
-        "%s紫卡分析 <武器> [词条=数值 ...]  范围 + roll 评分" % prefix,
         "%s轮换               言录使 / 格拉斯 / 埃莉诺 轮换商店" % prefix,
         "%s轮换 <言录使|格拉斯|埃莉诺>  单个商店明细" % prefix,
         "%s奸商 / %s突击 / %s仲裁  世界状态" % (prefix, prefix, prefix),
@@ -274,7 +272,7 @@ def render_help(prefix: str = "#") -> str:
         DIVIDER,
         "平台可写 pc / ps / xbox / switch / mobile，默认 PC。",
         "命令可直接发送，也可带 # / ＃；不再需要先唤醒。",
-        "例：wm 绝路 ｜ 拆件 Mesa ｜ 紫卡分析 绝路 + 截图 ｜ 提醒 牛甲 50",
+        "例：wm 绝路 ｜ 拆件 Mesa ｜ 紫卡 绝路 ｜ 提醒 牛甲 50",
         "名称支持中文、英文和常用外号；结果以图片卡片发送。",
     ]
     return "\n".join(lines)
