@@ -51,27 +51,39 @@ class CalculateTest(unittest.TestCase):
 
     def test_fusion_stats(self):
         analysis = calculate(weapon(disposition=1.2))
-        for name in ("异常状态伤害", "毒气伤害", "腐蚀伤害", "病毒伤害",
-                     "辐射伤害", "爆炸伤害", "磁力伤害"):
+        for name in ("异常状态伤害", "复合元素"):
             stat = find_stat(analysis.three_neg, name)
             self.assertIsNotNone(stat, name)
             self.assertEqual(stat.range_text(), "91.1 ~ 111.4%", name)
         negatives = {stat.name for stat in analysis.negatives_three}
-        for name in ("毒气伤害", "腐蚀伤害", "病毒伤害", "辐射伤害",
-                     "爆炸伤害", "磁力伤害"):
+        for name in ("复合元素", "元素伤害"):
             self.assertNotIn(name, negatives)
+
+    def test_element_rows_merged(self):
+        """四种单元素 / 六种复合元素各合并成一行。"""
+        names = [stat.name for stat in self.analysis.three_neg]
+        self.assertIn("元素伤害", names)
+        self.assertIn("复合元素", names)
+        for name in ("火焰伤害", "冰冻伤害", "电击伤害", "毒素伤害",
+                     "毒气伤害", "腐蚀伤害", "病毒伤害", "辐射伤害",
+                     "爆炸伤害", "磁力伤害"):
+            self.assertNotIn(name, names)
+        # 同族数值一致，合并后取的区间不变
+        self.assertEqual(find_stat(self.analysis.three_neg, "元素伤害")
+                         .range_text(), "72.1 ~ 88.2%")
 
     def test_fusion_melee(self):
         analysis = calculate(weapon("nikana_prime", "侍刃 Prime", "Nikana Prime",
                                     "melee", "melee", 1.2))
-        self.assertIsNone(find_stat(analysis.three_neg, "毒气伤害"))
+        self.assertIsNone(find_stat(analysis.three_neg, "复合元素"))
+        self.assertIsNotNone(find_stat(analysis.three_neg, "元素伤害"))
         self.assertEqual(
             find_stat(analysis.three_neg, "异常状态伤害").range_text(),
             "91.1 ~ 111.4%")
 
     def test_positive_only_not_in_negatives(self):
         names = {stat.name for stat in self.analysis.negatives_two}
-        for name in ("火焰伤害", "冰冻伤害", "电击伤害", "毒素伤害", "穿透"):
+        for name in ("元素伤害", "复合元素", "穿透"):
             self.assertNotIn(name, names)
 
     def test_flat_stat(self):

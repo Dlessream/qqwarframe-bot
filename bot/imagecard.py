@@ -700,6 +700,8 @@ def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计�
             {(i, j): RED for i in range(len(rows)) for j in (1, 2)})
 
     notes = ["2+1 / 3+1 的正向数值更高，负面从下表随机抽取。",
+             "元素伤害 = 火焰 / 冰冻 / 电击 / 毒素；复合元素 = 毒气 / 腐蚀 / "
+             "病毒 / 辐射 / 爆炸 / 磁力，同族数值相同。",
              "后坐力负值表示降低后坐力，属于正面效果。"]
     if analysis.history:
         latest = analysis.history[-1]

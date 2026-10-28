@@ -158,6 +158,16 @@ class BaseStat:
     positive_only: bool = False
     invert: bool = False
     multiplier: bool = False
+    # 紫卡里其实是同一条词条的几个变体（四种单元素、六种复合元素），
+    # 数值完全一样；group 非空时表里合并成一行，行名用 group。
+    group: str = ""
+
+
+# 单元素（火焰 / 冰冻 / 电击 / 毒素）在紫卡上是同一个「元素伤害」词条，
+# 只多了个随机出来的元素类型；复合元素（毒气 / 腐蚀 / 病毒 / 辐射 / 爆炸 / 磁力）同理。
+# 基础值一模一样，所以表里各占一行，不用把同样的区间列十遍。
+ELEMENT_GROUP = "元素伤害"
+COMBINED_GROUP = "复合元素"
 
 
 # 数值来自 Wiki 的 Attributes and their base value 表
@@ -184,31 +194,37 @@ BASE_STATS: List[BaseStat] = [
     BaseStat("attack_speed", "攻击速度", {"melee": 54.9}),
     BaseStat("heat", "火焰伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
                                   "archgun": 119.7, "melee": 90},
-             positive_only=True),
+             positive_only=True, group=ELEMENT_GROUP),
     BaseStat("cold", "冰冻伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
                                   "archgun": 119.7, "melee": 90},
-             positive_only=True),
+             positive_only=True, group=ELEMENT_GROUP),
     BaseStat("electricity", "电击伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
                                          "archgun": 119.7, "melee": 90},
-             positive_only=True),
+             positive_only=True, group=ELEMENT_GROUP),
     BaseStat("toxin", "毒素伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
                                    "archgun": 119.7, "melee": 90},
-             positive_only=True),
+             positive_only=True, group=ELEMENT_GROUP),
     BaseStat("status_damage", "异常状态伤害", {"rifle": 90, "shotgun": 90,
                                                "pistol": 90, "archgun": 90,
                                                "melee": 90}),
     BaseStat("gas", "毒气伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
-                                 "archgun": 90}, positive_only=True),
+                                 "archgun": 90}, positive_only=True,
+             group=COMBINED_GROUP),
     BaseStat("corrosive", "腐蚀伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
-                                       "archgun": 90}, positive_only=True),
+                                       "archgun": 90}, positive_only=True,
+             group=COMBINED_GROUP),
     BaseStat("viral", "病毒伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
-                                   "archgun": 90}, positive_only=True),
+                                   "archgun": 90}, positive_only=True,
+             group=COMBINED_GROUP),
     BaseStat("radiation", "辐射伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
-                                       "archgun": 90}, positive_only=True),
+                                       "archgun": 90}, positive_only=True,
+             group=COMBINED_GROUP),
     BaseStat("blast", "爆炸伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
-                                   "archgun": 90}, positive_only=True),
+                                   "archgun": 90}, positive_only=True,
+             group=COMBINED_GROUP),
     BaseStat("magnetic", "磁力伤害", {"rifle": 90, "shotgun": 90, "pistol": 90,
-                                      "archgun": 90}, positive_only=True),
+                                      "archgun": 90}, positive_only=True,
+             group=COMBINED_GROUP),
     BaseStat("faction", "对派系伤害", {"rifle": 45, "shotgun": 45, "pistol": 45,
                                        "archgun": 45, "melee": 45},
              multiplier=True),
@@ -357,19 +373,31 @@ def calculate(weapon: RivenWeapon) -> RivenAnalysis:
     category = category_for(weapon)
     disposition = float(weapon.disposition or 1.0)
 
+    def merge(stat_base: BaseStat, stat: RivenStat, seen: set) -> bool:
+        """同一族的词条（元素伤害 / 复合元素）只保留第一条，行名换成族名。"""
+        if not stat_base.group:
+            return True
+        if stat_base.group in seen:
+            return False
+        seen.add(stat_base.group)
+        stat.name = stat_base.group
+        return True
+
     def positives(weight: float) -> List[RivenStat]:
         stats = []
+        seen = set()
         for base in BASE_STATS:
             stat = _positive(base, category, weight, disposition)
-            if stat is not None:
+            if stat is not None and merge(base, stat, seen):
                 stats.append(stat)
         return stats
 
     def negatives(malus: float) -> List[RivenStat]:
         stats = []
+        seen = set()
         for base in BASE_STATS:
             stat = _negative(base, category, malus, disposition)
-            if stat is not None:
+            if stat is not None and merge(base, stat, seen):
                 stats.append(stat)
         return stats
 
