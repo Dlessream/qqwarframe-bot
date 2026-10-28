@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from . import wiki_zh
+
 PLANETS = {
     "Earth": "地球", "Venus": "金星", "Mercury": "水星", "Mars": "火星",
     "Jupiter": "木星", "Saturn": "土星", "Uranus": "天王星", "Neptune": "海王星",
@@ -224,6 +226,18 @@ REWARD_TERMS = {
 def localize_reward(text: str) -> str:
     if not text:
         return ""
+    # 灰机 wiki 的国服译名优先（武器 / MOD / 赋能 / 材料都有）
+    raw = str(text).strip()
+    lowered = raw.lower()
+    for suffix, chinese in ((" blueprint", "蓝图"), (" set", "套装")):
+        if lowered.endswith(suffix):
+            hit = wiki_zh.lookup(raw[:-len(suffix)])
+            if hit:
+                return hit + chinese
+            break
+    hit = wiki_zh.lookup(raw)
+    if hit:
+        return hit
     text = localize_text(text)
     for english, chinese in sorted(REWARD_TERMS.items(),
                                    key=lambda item: -len(item[0])):

@@ -20,6 +20,8 @@ import re
 import threading
 from typing import Dict, Optional, Tuple
 
+from . import wiki_zh
+
 LOGGER = logging.getLogger("qqwarframe.names")
 
 _PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -90,10 +92,19 @@ def _load_alias() -> Dict[str, str]:
     return _aliases
 
 
-def _lookup(name: str, table: Dict[str, str]) -> Optional[str]:
+def _lookup(name: str, table: Dict[str, str],
+            with_wiki: bool = False) -> Optional[str]:
+    """先查本地对照表；`with_wiki` 时灰机 wiki 的国服译名优先。
+
+    战甲表不查 wiki：wiki 译名表里没有战甲，混进来会把武器认成战甲。
+    """
     key = _normalize(name)
     if not key:
         return None
+    if with_wiki:
+        hit = wiki_zh.lookup(name)
+        if hit:
+            return hit
     hit = table.get(key)
     if hit:
         return hit
@@ -116,8 +127,8 @@ def warframe(name: str) -> Optional[str]:
 
 
 def weapon(name: str) -> Optional[str]:
-    """武器中文名；不是武器就返回 None。"""
-    return _lookup(name, _load()[1])
+    """武器中文名（灰机 wiki 国服译名优先）；不是武器就返回 None。"""
+    return _lookup(name, _load()[1], with_wiki=True)
 
 
 def kind(name: str) -> str:
@@ -134,9 +145,9 @@ def known(name: str) -> bool:
 
 
 def chinese(name: str) -> str:
-    """只要中文名；查不到就原样返回。"""
+    """只要中文名；查不到就原样返回（MOD / 赋能 / 材料也走 wiki 表）。"""
     text = str(name or "").strip()
-    return warframe(text) or weapon(text) or text
+    return warframe(text) or weapon(text) or wiki_zh.lookup(text) or text
 
 
 def label(name: str, with_english: bool = True) -> str:
@@ -144,7 +155,7 @@ def label(name: str, with_english: bool = True) -> str:
     text = str(name or "").strip()
     if not text:
         return "—"
-    chinese_name = warframe(text) or weapon(text)
+    chinese_name = warframe(text) or weapon(text) or wiki_zh.lookup(text)
     if not chinese_name:
         return text
     if not with_english or _normalize(chinese_name) == _normalize(text):

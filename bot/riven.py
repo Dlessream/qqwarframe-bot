@@ -15,6 +15,7 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from . import wiki_zh
 from .cache import TTLCache
 from .market import Item, MarketClient, MarketError
 from .net import HttpError
@@ -144,10 +145,12 @@ class RivenClient:
                 if not slug:
                     continue
                 raw_disposition = float(row.get("disposition") or 0)
+                english_name = str(english.get("name") or slug)
                 result[slug] = RivenWeapon(
                     slug=slug,
-                    name=str(localized.get("name") or english.get("name") or slug),
-                    name_en=str(english.get("name") or slug),
+                    name=(wiki_zh.lookup(english_name)
+                          or str(localized.get("name") or english_name)),
+                    name_en=english_name,
                     riven_type=str(row.get("rivenType") or ""),
                     group=str(row.get("group") or ""),
                     disposition=(self.disposition_override

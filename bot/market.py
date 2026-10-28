@@ -24,6 +24,7 @@ from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 from .aliases import DEFAULT_ALIASES
 from .cache import TTLCache
 from .net import HttpClient, HttpError
+from . import wiki_zh
 
 LOGGER = logging.getLogger("qqwarframe.market")
 
@@ -620,7 +621,13 @@ class MarketClient:
             return self._index
 
     def _build_index(self, items: Iterable[Item]) -> ItemIndex:
-        return ItemIndex(list(items), self._load_aliases())
+        rows = list(items)
+        # 灰机 wiki 的国服译名优先：市场接口的 zh-hans 常常还是国际服叫法
+        for item in rows:
+            chinese = wiki_zh.lookup(item.name_en or item.name)
+            if chinese:
+                item.name = chinese
+        return ItemIndex(rows, self._load_aliases())
 
     def _warn_language_coverage(self) -> None:
         if not self._index or self.language not in ("zh-hans", "zh-hant"):
