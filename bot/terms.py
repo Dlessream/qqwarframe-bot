@@ -296,6 +296,12 @@ BOSSES = {
     "Jordas Golem": "约尔达斯魔像", "Raptor": "猛禽", "Hyena": "鬣狗",
     "Archon Amar": "执刑官·阿玛尔", "Archon Boreal": "执刑官·玻瑞尔",
     "Archon Nira": "执刑官·尼拉",
+    "VOR": "弗尔", "Vor": "弗尔", "Captain Vor": "弗尔上尉",
+    "Hyena Pack": "鬣狗群", "Zealoid Prelate": "狂信徒主教",
+    "Ropalolyst": "罗帕洛里斯特", "Exploiter Orb": "剥削者圆蛛",
+    "Profit-Taker Orb": "利润收割者圆蛛", "Eidolon Teralyst": "夜灵兆力使",
+    "Eidolon Gantulyst": "夜灵巨力使", "Eidolon Hydrolyst": "夜灵水力使",
+    "The Sergeant": "中士", "General Sargas Ruk": "萨加斯·鲁克将军",
 }
 
 
@@ -323,7 +329,14 @@ def localize_faction(text: str) -> str:
 
 
 def localize_boss(text: str) -> str:
-    return BOSSES.get(text, text)
+    key = str(text or "").strip()
+    if key in BOSSES:
+        return BOSSES[key]
+    low = key.lower()
+    for english, chinese in BOSSES.items():
+        if english.lower() == low:
+            return chinese
+    return key
 
 
 def localize_syndicate(text: str) -> str:
