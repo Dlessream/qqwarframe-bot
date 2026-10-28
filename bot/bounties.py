@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 from typing import Any, Dict
 
@@ -69,8 +70,26 @@ def lookup(job_type: Any, path: str = DEFAULT_FILE) -> Dict[str, str]:
     return row or {}
 
 
+def _norm(text: Any) -> str:
+    """英文目标名归一：小写、去多余空格、全角括号转半角。"""
+    value = str(text or "").strip().lower()
+    value = value.replace("（", "(").replace("）", ")")
+    return re.sub(r"\s+", " ", value)
+
+
 def objective_zh(job_type: Any, path: str = DEFAULT_FILE) -> str:
     return lookup(job_type, path).get("zh", "")
+
+
+def objective_by_en(text: Any, path: str = DEFAULT_FILE) -> str:
+    """官方 job 只给英文目标名（如 Capture the Grineer Agent）时反查中文。"""
+    wanted = _norm(text)
+    if not wanted:
+        return ""
+    for row in _table(path).values():
+        if _norm(row.get("en")) == wanted:
+            return str(row.get("zh") or "")
+    return ""
 
 
 def objective_en(job_type: Any, path: str = DEFAULT_FILE) -> str:

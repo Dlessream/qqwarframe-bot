@@ -236,6 +236,38 @@ def _wrap(draw, text: str, font, max_width: int, max_lines: int = 2) -> List[str
     return lines
 
 
+def _wrap_items(draw, items, font, max_width: int, max_lines: int = 12,
+                prefix: str = "奖励：") -> List[str]:
+    """按整项换行：不把「奥罗金定向矩阵装置 x3」这种切断，超宽才退化成字符切。"""
+    values = [str(item) for item in (items or []) if str(item)]
+    if not values:
+        return []
+    lines: List[str] = []
+    current = prefix
+    has_item = False
+    for item in values:
+        piece = item if not has_item else " · " + item
+        if _tsize(draw, current + piece, font)[0] <= max_width:
+            current += piece
+            has_item = True
+            continue
+        if has_item:
+            lines.append(current)
+            if len(lines) >= max_lines:
+                return lines
+            current = item
+            has_item = True
+        else:
+            # 单个物品就超宽：退回字符切
+            for line in _wrap(draw, prefix + item, font, max_width, max_lines=max_lines):
+                lines.append(line)
+            current = ""
+            has_item = False
+    if has_item and len(lines) < max_lines:
+        lines.append(current)
+    return lines
+
+
 def _rrect(draw, box, radius: int, fill=None, outline=None, width: int = 1) -> None:
     x1, y1, x2, y2 = [int(value) for value in box]
     radius = max(0, min(radius, (x2 - x1) // 2, (y2 - y1) // 2))
@@ -1106,7 +1138,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"],
         ["%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化、执刑官猎杀"],
         ["%s裂缝 / %s钢铁裂缝" % (prefix, prefix), "普通裂缝、钢铁之路裂缝"],
-        ["%s虚空风暴 / %s九重天" % (prefix, prefix), "Railjack 风暴裂缝"],
+        ["%s虚空风暴 / %s九重天" % (prefix, prefix), "航道星舰 风暴裂缝"],
         ["%s赏金 / %s平原赏金" % (prefix, prefix), "各大 NPC 可接赏金"],
         ["%s希图斯" % prefix, "希图斯时间 + 7档赏金 + 帐篷A/B/C"],
         ["%s圣所 / %s1999 / %s扎里曼" % (prefix, prefix, prefix),
@@ -1319,14 +1351,8 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
             meta_w = _tsize(pdraw, meta, meta_font)[0] if meta else 0
             task_max = max(90, inner_right - meta_w - 16 - task_x)
             tasks = _wrap(pdraw, task, task_font, task_max, max_lines=1) or [""]
-            if rewards:
-                tail = rewards[-1] if rewards[-1].startswith("…") else ""
-                body = rewards[:-1] if tail else rewards
-                text = "奖励：" + " · ".join(body) + ("　" + tail if tail else "")
-            else:
-                text = ""
-            lines = (_wrap(pdraw, text, small_font, inner_right - inner_left,
-                           max_lines=2) if text else [])
+            lines = _wrap_items(pdraw, rewards, small_font,
+                                inner_right - inner_left, max_lines=12)
             rows.append({
                 "badge": badge, "badge_w": badge_w, "task_x": task_x,
                 "tasks": tasks, "meta": meta, "meta_w": meta_w, "lines": lines,
@@ -1337,7 +1363,7 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
     estimate = 240 + 6 * 40
     for group, rows in layout:
         estimate += 40 if group.get("label") else 0
-        estimate += sum(30 + 2 * 21 + 12 for _ in rows)
+        estimate += sum(30 + len(row["lines"]) * 20 + 12 for row in rows)
     estimate += 50 if note else 0
     image = _gradient(WIDTH, max(700, estimate), BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
@@ -1373,7 +1399,7 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
             y += 30
             for line in row["lines"]:
                 draw.text((inner_left, y), line, font=small_font, fill=reward_color)
-                y += 21
+                y += 20
             y += 12
             if index < len(rows) - 1:
                 draw.line([(inner_left, y - 6), (WIDTH - PAD, y - 6)], fill=LINE, width=1)

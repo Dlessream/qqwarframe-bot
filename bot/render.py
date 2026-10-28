@@ -255,7 +255,7 @@ def render_help(prefix: str = "#") -> str:
         "%s特惠 / %s新闻 / %s活动" % (prefix, prefix, prefix),
         "%s回廊 / %s执刑官 / %s赏金" % (prefix, prefix, prefix),
         "%s钢铁裂缝 / %s平原赏金" % (prefix, prefix),
-        "%s虚空风暴 / %s九重天   Railjack 风暴裂缝" % (prefix, prefix),
+        "%s虚空风暴 / %s九重天   航道星舰 风暴裂缝" % (prefix, prefix),
         "%s希图斯               希图斯时间 + 小帐篷赏金" % prefix,
         "%s圣所 / %s1999 / %s扎里曼   三处固定档位赏金" % (prefix, prefix, prefix),
         "%s深层科研 / %s时光科研 / %s科研" % (prefix, prefix, prefix),

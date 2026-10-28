@@ -176,7 +176,7 @@ class ClientTest(unittest.TestCase):
             self.assertTrue(client.refresh())
             acrithis = client.acrithis_view()
             self.assertEqual([row["name"] for row in acrithis["rows"]][:2],
-                             ["霰弹枪裂罅 Mod", "Forma 蓝图"])
+                             ["霰弹枪裂罅 MOD", "福马蓝图"])
             self.assertEqual(acrithis["rows"][1]["cost"], 10)
 
             glast = client.glast_view()
@@ -221,7 +221,7 @@ class ClientTest(unittest.TestCase):
 
             again, holder = build_client(tmp, {}, fail=True)
             acrithis = again.acrithis_view()
-            self.assertEqual(acrithis["rows"][0]["name"], "霰弹枪裂罅 Mod")
+            self.assertEqual(acrithis["rows"][0]["name"], "霰弹枪裂罅 MOD")
             glast = again.glast_view()
             self.assertEqual(glast["rows"][2]["element"], "辐射")
 

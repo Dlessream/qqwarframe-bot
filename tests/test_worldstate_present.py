@@ -178,8 +178,8 @@ class BountyStaticTest(unittest.TestCase):
     def test_rewards_listed_per_tier(self):
         reply = present.bounties_reply(list(self.RAW))
         # 每档奖励写进文字版，静态三处都有蓝图类奖励
-        self.assertIn("Gyre 头部神经光元蓝图", reply.text)
-        self.assertIn("Qorvex 机体蓝图", reply.text)
+        self.assertIn("电光舞者头部神经光元蓝图", reply.text)
+        self.assertIn("辐能堡垒机体蓝图", reply.text)
         self.assertIn("Cyte-09 机体蓝图", reply.text)
         self.assertIn("…共", reply.text)          # 一档超过 3 项时折成「共 N 项」
 

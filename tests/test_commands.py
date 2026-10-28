@@ -877,13 +877,13 @@ class FakeRotation:
         return {"data": {}, "fetched": {}, "error": self.error}
 
     def acrithis_view(self):
-        rows = ([{"name": "霰弹枪裂罅 Mod", "short": "霰弹裂罅", "cost": 15,
+        rows = ([{"name": "霰弹枪裂罅 MOD", "short": "霰弹裂罅", "cost": 15,
                   "en": "Shotgun Riven Mod"},
-                 {"name": "Forma 蓝图", "short": "Forma", "cost": 10,
-                  "en": "Forma"},
-                 {"name": "步枪裂罅 Mod", "short": "步枪裂罅", "cost": 15,
+                 {"name": "福马蓝图", "short": "福马", "cost": 10,
+                  "en": "福马"},
+                 {"name": "步枪裂罅 MOD", "short": "步枪裂罅", "cost": 15,
                   "en": "Rifle Riven Mod"},
-                 {"name": "同伴武器裂罅 Mod", "short": "同伴裂罅", "cost": 20,
+                 {"name": "同伴武器裂罅 MOD", "short": "同伴裂罅", "cost": 20,
                   "en": "Companion Weapon Riven Mod"},
                  {"name": "10,000 赤毒", "short": "1 万赤毒", "cost": 10,
                   "en": "10,000 Kuva"}] if self.ready else [])
@@ -935,8 +935,8 @@ class RotationCommandTest(unittest.TestCase):
 
     def test_overview_lists_every_item_and_bonus(self):
         reply = self.router(FakeRotation()).handle("#轮换", self.ctx)[0]
-        for name in ("霰弹枪裂罅 Mod", "Forma 蓝图", "步枪裂罅 Mod",
-                     "同伴武器裂罅 Mod", "10,000 赤毒"):
+        for name in ("霰弹枪裂罅 MOD", "福马蓝图", "步枪裂罅 MOD",
+                     "同伴武器裂罅 MOD", "10,000 赤毒"):
             self.assertIn(name, reply.text)
         for text in ("信条·铁晶磁轨炮：辐射 38.4%", "信条·枢密：磁力 43.9%",
                      "终幕·血肢：冰冻 25.6%", "终幕·脓痘：毒素 54.3%"):
@@ -947,7 +947,7 @@ class RotationCommandTest(unittest.TestCase):
     def test_acrithis_detail(self):
         reply = self.router(FakeRotation()).handle("#轮换 言录使", self.ctx)[0]
         self.assertIn("15 苦栓", reply.text)
-        self.assertIn("Forma 蓝图", reply.text)
+        self.assertIn("福马蓝图", reply.text)
         self.assertIn("10 月 26 日", reply.text)
         self.assertTrue(reply.has_image)
 

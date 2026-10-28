@@ -6,8 +6,8 @@ import datetime
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import (autotrans, bountyrewards, bountystatic, conquest, imagecard,
-               missioncolors, render, subkind, terms)
+from . import (autotrans, bounties, bountyrewards, bountystatic, conquest,
+               imagecard, missioncolors, render, subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -302,7 +302,7 @@ def baro_reply(trader: VoidTrader, index=None) -> Reply:
         rows.append([name, "{:,}".format(item.ducats) if item.ducats else "—",
                      "{:,}".format(item.credits) if item.credits else "—"])
 
-    lines = ["【Baro Ki'Teer】虚空商人", subtitle]
+    lines = ["【巴洛·基·提尔】虚空商人", subtitle]
     for row in rows:
         lines.append("%s ｜ 杜卡德 %s ｜ 星币 %s" % tuple(row))
     if not rows:
@@ -312,7 +312,7 @@ def baro_reply(trader: VoidTrader, index=None) -> Reply:
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.build_table(
-            "Baro Ki'Teer · 虚空商人", subtitle,
+            "巴洛·基·提尔 · 虚空商人", subtitle,
             ["物品", "杜卡德", "星币"], rows,
             "数据 世界状态聚合源 · 游戏内售价",
             accent=imagecard.PURPLE, chip="奸商",
@@ -1213,8 +1213,8 @@ BOUNTY_GROUPS = (
 
 BOUNTY_NUMBERS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
 
-# 一档能刷出来的东西通常 4-8 项，图上留 6 项，多的折成「等 N 项」
-BOUNTY_REWARD_LIMIT = 6
+# 一档能刷出来的东西通常 4-8 项，隔离宝库那几档能到 30 项；图上整档列完、写不下换行
+BOUNTY_REWARD_LIMIT = 0
 
 
 def _tier_badge(index: int) -> str:
@@ -1227,10 +1227,11 @@ def _reward_total(items) -> int:
 
 
 def _reward_list(items, limit: int = BOUNTY_REWARD_LIMIT) -> List[str]:
+    """该档奖励池全列；limit 给 0 / 负数表示不截断（卡片会自动换行）。"""
     values = [str(item) for item in (items or []) if str(item)]
-    if len(values) <= limit:
-        return values
-    return values[:limit] + ["…共 %d 项" % len(values)]
+    if limit and limit > 0 and len(values) > limit:
+        return values[:limit] + ["…共 %d 项" % len(values)]
+    return values
 
 
 def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
@@ -1239,8 +1240,12 @@ def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
     rows: List[dict] = []
     if jobs:
         for index, job in enumerate(jobs):
-            title = terms.localize_bounty(
-                str(job.get("type") or job.get("jobType") or "赏金"))
+            # 官方 job 只给英文目标名：先按英文反查官方中文名，查不到再按
+            # jobType 路径查表，最后才用词表兜底
+            raw_type = str(job.get("type") or job.get("jobType") or "赏金")
+            title = (bounties.objective_by_en(raw_type)
+                     or bounties.objective_zh(job.get("uniqueName") or "")
+                     or terms.localize_bounty(raw_type))
             level = _bounty_level(job)
             left = countdown(parse_timestamp(job.get("expiry")))
             vault = "隔离宝库" in title or "Isolation Vault" in title

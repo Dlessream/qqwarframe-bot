@@ -94,20 +94,20 @@ CODA_BATCHES: Dict[str, Tuple[Tuple[str, str], ...]] = {
 
 # 言录使周轮换候选池：英文名 -> (中文名, 简称, 苦栓价格)
 ACRITHIS_ITEMS: Dict[str, Tuple[str, str, int]] = {
-    "Orokin Reactor": ("Orokin 反应堆蓝图", "金土豆", 20),
-    "Orokin Catalyst": ("Orokin 催化剂蓝图", "银土豆", 20),
+    "Orokin Reactor": ("奥罗金反应堆蓝图", "金土豆", 20),
+    "Orokin Catalyst": ("奥罗金催化剂蓝图", "银土豆", 20),
     "Exilus Warframe Adapter": ("战甲特殊功能槽连接器", "战甲特殊槽", 20),
     "Exilus Weapon Adapter": ("武器特殊功能槽连接器", "武器特殊槽", 20),
     "Primary Arcane Adapter": ("主要武器赋能连接器", "主武器赋能槽", 25),
     "Secondary Arcane Adapter": ("次要武器赋能连接器", "副武器赋能槽", 25),
-    "Forma": ("Forma 蓝图", "Forma", 10),
-    "Melee Riven Mod": ("近战裂罅 Mod", "近战裂罅", 15),
-    "Pistol Riven Mod": ("手枪裂罅 Mod", "手枪裂罅", 15),
-    "Rifle Riven Mod": ("步枪裂罅 Mod", "步枪裂罅", 15),
-    "Kitgun Riven Mod": ("组合枪裂罅 Mod", "组合枪裂罅", 15),
-    "Zaw Riven Mod": ("Zaw 裂罅 Mod", "Zaw 裂罅", 15),
-    "Shotgun Riven Mod": ("霰弹枪裂罅 Mod", "霰弹裂罅", 15),
-    "Companion Weapon Riven Mod": ("同伴武器裂罅 Mod", "同伴裂罅", 20),
+    "Forma": ("福马蓝图", "福马", 10),
+    "Melee Riven Mod": ("近战裂罅 MOD", "近战裂罅", 15),
+    "Pistol Riven Mod": ("手枪裂罅 MOD", "手枪裂罅", 15),
+    "Rifle Riven Mod": ("步枪裂罅 MOD", "步枪裂罅", 15),
+    "Kitgun Riven Mod": ("组合枪裂罅 MOD", "组合枪裂罅", 15),
+    "Zaw Riven Mod": ("Zaw 裂罅 MOD", "Zaw 裂罅", 15),
+    "Shotgun Riven Mod": ("霰弹枪裂罅 MOD", "霰弹裂罅", 15),
+    "Companion Weapon Riven Mod": ("同伴武器裂罅 MOD", "同伴裂罅", 20),
     "10,000 Kuva": ("10,000 赤毒", "1 万赤毒", 10),
 }
 
