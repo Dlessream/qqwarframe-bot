@@ -50,7 +50,8 @@ MISSIONS = {
     "Artifact": "中断", "Dual Defense": "镜像防御",
     "Legacyte Harvest": "传承种捕获", "Hell-Scrub": "地狱净化",
     "Stage Defense": "舞台防御", "Tank Assassination": "坦克刺杀",
-    "Survivor": "生存",
+    "Survivor": "生存", "Corruption": "腐化",
+    "Void Cascade (Zealoid)": "虚空瀑流",
 }
 
 SYNDICATES = {
@@ -126,6 +127,16 @@ STORM_NODES = {
     "Orvin-Haarc": "欧文－哈克",
     "Seven Sirens": "七魅之息",
     "R-9 Cloud": "R-9 星云",
+    "Brom Cluster": "布罗姆星团",
+    "Sambir Cloud": "桑比尔星云",
+    "Fenton's Field": "芬顿原野",
+    "Lu-yan": "露燕",
+    "Obol Crossing": "欧泊十字",
+    "Sjur Hive": "斯尤尔巢穴",
+    "Kasio's Rest": "卡西奥安息处",
+    "Luckless Expanse": "不遇荒原",
+    "Tamavas": "塔玛瓦斯",
+    "Beaconsfield": "比肯斯菲尔德",
 }
 
 STORM_MISSIONS = {
@@ -169,25 +180,31 @@ EVENT_PHRASES = {
 }
 
 REWARD_TERMS = {
+    # 入侵奖励里的组件（官方接口直接给英文 DisplayName）
+    "Chem Component": "化学组件",
+    "Energy Component": "能量组件",
+    "Detonite Injector": "爆燃喷射器",
+    "Fieldron": "电磁力场装置",
+    "Mutagen Mass": "突变原聚合物",
     "Pressure Point": "压迫点", "Energy Inversion": "能量反转",
     "Vigilante Armaments": "警戒者军备", "Vazarin Lens": "瓦扎林棱镜",
     "Vigilante Vigor": "警戒者活力", "Zenurik Lens": "泽努里棱镜",
     "Breath Of The Eidolon": "夜灵之息", "Boreal's Anguish": "玻瑞尔之痛",
-    "Isoplast": "等渗聚合物", "Thermal Sludge": "热淤泥",
+    "Isoplast": "塑讯块", "Thermal Sludge": "热淤泥",
     "Unairu Lens": "乌奈鲁棱镜", "Ayatan Amber Star": "阿耶檀琥珀星",
     "Residual Boils": "残留沸泡",
     "Necramech Redirection": "死灵机甲偏转",
     "Necramech Blitz": "死灵机甲闪击",
     "Necramech Fury": "死灵机甲狂怒",
     "1,500 Credits Cache": "1,500 星币缓存",
-    "Gara Chassis Blueprint": "Gara 机体蓝图",
-    "Gara Systems Blueprint": "Gara 系统蓝图",
-    "Gara Neuroptics Blueprint": "Gara 头部神经光元蓝图",
-    "Revenant Chassis Blueprint": "Revenant 机体蓝图",
-    "Revenant Systems Blueprint": "Revenant 系统蓝图",
-    "Revenant Neuroptics Blueprint": "Revenant 头部神经光元蓝图",
+    "Gara Chassis Blueprint": "琉璃仕女机体蓝图",
+    "Gara Systems Blueprint": "琉璃仕女系统蓝图",
+    "Gara Neuroptics Blueprint": "琉璃仕女头部神经光元蓝图",
+    "Revenant Chassis Blueprint": "徘徊夜灵机体蓝图",
+    "Revenant Systems Blueprint": "徘徊夜灵系统蓝图",
+    "Revenant Neuroptics Blueprint": "徘徊夜灵头部神经光元蓝图",
     "Furax Wraith Blueprint": "弗拉克斯·亡魂蓝图",
-    "Caliban Neuroptics Blueprint": "Caliban 头部神经光元蓝图",
+    "Caliban Neuroptics Blueprint": "卡利班头部神经光元蓝图",
     "Aya": "阿耶",
     "Cetus Wisp": "希图斯幽魂",
     "Breath Of The Eidolon": "夜灵之息",
@@ -396,11 +413,28 @@ def localize_text(text: str) -> str:
     return result
 
 
+PLACES = {
+    "Necralisk": "殁世幽都",
+    "Chrysalith": "克莱萨里思",
+    "Sanctum Anatomica": "解剖圣所",
+    "Höllvania": "霍瓦尼亚",
+    "Hollvania": "霍瓦尼亚",
+    "Cambion Drift": "魔胎之境",
+    "Orb Vallis": "奥布山谷",
+    "Plains of Eidolon": "夜灵平野",
+    "Duviri": "杜维里",
+    "Zariman": "扎里曼",
+}
+
+
 def localize_node(text: str) -> str:
     """Vallis (Mars) → Vallis（火星）。"""
     if not text:
         return ""
     text = text.replace("(", "（").replace(")", "）")
+    for english, chinese in PLACES.items():
+        if english.lower() in text.lower():
+            text = re.sub(re.escape(english), chinese, text, flags=re.I)
 
     def replace_planet(match):
         name = match.group(1)
