@@ -42,7 +42,8 @@ services:
       QQWF_WS_URL: ws://napcat:3001
       QQWF_ACCESS_TOKEN: ${NAPCAT_WS_TOKEN:-}
       QQWF_PROXY: http://xray:10809
-      QQWF_WIKI_PROXY: http://xray:10809
+      # 维基走直连更快：实测经 xray 127s、直连 97s；xray 挂掉时还会退化到 206s 且无图
+      QQWF_WIKI_PROXY: "none"
       QQWF_WORLDSTATE_PROXY: http://xray:10809
       QQWF_ARBI_PROXY: http://xray:10809
       # 网络适配：xray 在就用它，没起来会自动降级到直连（不用手改配置）
