@@ -155,6 +155,7 @@
     if (!state.aliasesLoaded) loadAliases();
     setText("imageState", status.image ? "可用" : "关闭");
     setText("fontState", status.font ? "已加载" : "缺失");
+    renderNetwork(status.network);
 
     const pill = $("connPill");
     pill.classList.remove("pill-ok", "pill-bad", "pill-muted");
@@ -500,6 +501,26 @@
       toast(result.message || "已取消");
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") toast("取消失败：" + exc.message);
+    }
+  }
+
+  function renderNetwork(network) {
+    const net = network || {};
+    const links = Array.isArray(net.links) ? net.links : [];
+    const find = (name) => {
+      const hit = links.find((item) => item.name === name);
+      return hit ? hit.proxy : "—";
+    };
+    setText("netState", net.auto ? "已开启" : "未启用");
+    setText("netCandidates",
+      Array.isArray(net.candidates) && net.candidates.length
+        ? net.candidates.join(" / ")
+        : "未探测");
+    setText("netMarket", find("市场报价") + " ｜ " + find("世界状态"));
+    setText("netWiki", find("英文维基") + " ｜ " + find("仲裁评级"));
+    const chip = $("netChip");
+    if (chip) {
+      chip.textContent = net.auto ? "AUTO" : "OFF";
     }
   }
 

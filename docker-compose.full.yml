@@ -45,6 +45,9 @@ services:
       QQWF_WIKI_PROXY: http://xray:10809
       QQWF_WORLDSTATE_PROXY: http://xray:10809
       QQWF_ARBI_PROXY: http://xray:10809
+      # 网络适配：xray 在就用它，没起来会自动降级到直连（不用手改配置）
+      QQWF_NET_PROXIES: http://xray:10809
+      QQWF_NET_AUTO: "1"
       QQWF_IMAGE: "1"
       QQWF_ALERTS: "1"
       QQWF_FONT: ${QQWF_FONT:-}

@@ -199,5 +199,25 @@
     "use_jina": true,
     "jina_base": "https://r.jina.ai/",
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+  },
+  "network": {
+    "auto_adapt": true,
+    "probe_on_start": true,
+    "proxies": [],
+    "discover_local": true,
+    "discover_host": "127.0.0.1",
+    "local_ports": [
+      7890,
+      10809,
+      10808,
+      20171,
+      1080,
+      8889
+    ],
+    "allow_direct": true,
+    "probe_timeout_seconds": 6,
+    "probe_ttl_seconds": 1800,
+    "probe_cache_file": "data/net_probe.json",
+    "prefer": "order"
   }
 }

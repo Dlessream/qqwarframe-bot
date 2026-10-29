@@ -12,6 +12,13 @@ EXAMPLE = os.path.join(BASE, "config.example.json")
 
 
 class ConfigTest(unittest.TestCase):
+    def setUp(self):
+        # 单元测试不联网：关掉启动时的网络探测（netadapt 另有专门的离线测试）
+        patcher = mock.patch.dict(os.environ, {"QQWF_NET_AUTO": "false"},
+                                  clear=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_load_example(self):
         config = load_config(EXAMPLE)
         self.assertEqual(config["onebot"]["ws_url"], "ws://127.0.0.1:3001")

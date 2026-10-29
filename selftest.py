@@ -76,6 +76,26 @@ def run_selftest(config_path: str = "config.json") -> int:
     print("=" * 46)
 
     report = Report()
+
+    # ---------------------------------------------------------------- 网络适配
+    from bot import netadapt
+
+    # load_config 启动时已经探过一遍（结果缓存在 data/net_probe.json），直接用
+    net_result = netadapt.load_cache(config) or netadapt.probe(config)
+    net_best = netadapt.suggest(config, net_result)
+    reachable = [name for name, value in net_best.items() if value]
+    if reachable:
+        detail = "、".join(
+            "%s=%s" % (netadapt.TARGETS[name]["label"],
+                       netadapt.describe(net_best[name]))
+            for name in reachable)
+        report.add("网络适配", True,
+                   "%d/%d 个数据源有可用链路：%s"
+                   % (len(reachable), len(net_result), detail))
+    else:
+        report.add("网络适配", False,
+                   "没有一条代理能通：检查代理是否开启，或在 network.proxies 里填上")
+
     market = MarketClient(config["warframe_market"])
     wiki = WikiClient(config["wiki"])
 

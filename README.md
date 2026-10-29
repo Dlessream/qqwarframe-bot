@@ -259,9 +259,12 @@ python run.py
 python selftest.py
 ```
 
-（Windows 可双击 **`check.bat`**。）会依次检查：图片渲染、物品索引、中文名覆盖、
-报价与行情、紫卡数据、词条范围计算、世界状态、中文维基。核心项全部 `OK` 即可启动；
-维基如果被 Cloudflare/WAF 拦截会显示 `WARN`，不影响其他功能。
+（Windows 可双击 **`check.bat`**。）会依次检查：网络适配、图片渲染、物品索引、
+中文名覆盖、报价与行情、紫卡数据、词条范围计算、世界状态、中文维基。
+核心项全部 `OK` 即可启动；维基如果被 Cloudflare/WAF 拦截会显示 `WARN`，不影响其他功能。
+
+其中「网络适配」会列出每个数据源当前走的是哪条链路；一条都不通时先跑
+`python run.py --netcheck` 看是代理没开还是被目标站点拦了。
 
 ### 5. 启动
 
@@ -665,6 +668,68 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 
 ---
 
+## 网络适配：按当前机器的网络自动选代理
+
+写死一个代理地址，换台机器就会全线超时——本机开发是 `127.0.0.1:10809`，
+服务器 Docker 里是 `http://xray:10809`，有的机器直连就能通。所以现在启动时
+会**自动探一遍当前网络**，给每个数据源挑一条真能通的链路：
+
+```bash
+python run.py --netcheck        # 打印探活报告（不改配置）
+python run.py --netcheck-apply  # 探完把最佳代理应用到本次运行
+```
+
+```text
+候选代理：http://xray:10809、直连
+
+[市场报价] http://xray:10809
+    http://xray:10809   可用 320ms => 采用
+    直连                 被拦 403
+[世界状态] 直连
+    直连                 可用 180ms => 采用
+```
+
+它做的事情：
+
+1. **收集候选**：数据源自己配的代理 → `network.proxies` → 本机常见代理端口
+   （7890 / 10809 / 10808 / 20171 / 1080 / 8889，扫到哪个算哪个）→ 直连。
+   容器里扫不到 `127.0.0.1:10809` 就自动排除它，不会白等超时。
+2. **逐条探活**：每个候选只发一次轻量请求（只读前 2 KB 就断开），
+   记录通不通、多少毫秒、是不是被拦（403 / 407 / 429）。
+   拿到 HTTP 响应就算链路通——404 是地址问题，不是网络问题。
+3. **挑一条能用的**：**现在配的那条能用就不动它**；只有它不通或被拦才换。
+   探测结果缓存到 `data/net_probe.json`（默认 30 分钟），不会每次启动都探。
+4. **运行时兜底**：每个 HTTP 客户端自带一整条代理链，
+   请求中途代理挂了（网络错误 / 403 / 5xx）会自动换下一条重试，成功后记住它。
+   业务性错误（404 之类）不会触发切换。
+
+相关配置（写在 `config.json` 的 `network` 段，环境变量 `QQWF_NET_AUTO=false` 可整体关闭）：
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `auto_adapt` | `true` | 关掉就完全按配置里的代理来，不做任何探测 |
+| `probe_on_start` | `true` | 启动时探一次（关掉则只在手动 `--netcheck` 时探） |
+| `proxies` | `[]` | 额外候选代理，如 `["http://xray:10809", "none"]` |
+| `discover_local` | `true` | 是否扫描本机常见代理端口 |
+| `local_ports` | `[7890, 10809, ...]` | 扫描哪些端口 |
+| `allow_direct` | `true` | 把「直连」作为最后兜底 |
+| `probe_timeout_seconds` | `6` | 单次探活超时 |
+| `probe_ttl_seconds` | `1800` | 结果缓存多久（`0` = 每次都探） |
+| `prefer` | `order` | 多条都能通时：`order` 按配置顺序，`fastest` 取最快 |
+
+部署到服务器时，Docker 里用环境变量指一下容器内的代理即可，剩下的交给探测：
+
+```yaml
+environment:
+  QQWF_NET_PROXIES: "http://xray:10809"
+  QQWF_NET_AUTO: "true"
+```
+
+控制台「网络适配」卡片会显示每个数据源当前实际在走哪条链路；
+`python run.py --check` 的自检里也多了一项「网络适配」。
+
+---
+
 ## 配置项
 
 ### onebot
@@ -1027,7 +1092,7 @@ warframe.market 和 warframestat 在国内直连经常超时/403，**默认配�
 python -m unittest discover -s tests -t . -v
 ```
 
-**607 个离线测试**，不联网、不连 QQ，覆盖：
+**638 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1081,7 +1146,8 @@ qqwarframe-bot/
 ├── bot/
 │   ├── config.py          # 配置（含 QQWF_* 环境变量覆盖）
 │   ├── log.py             # 日志
-│   ├── net.py             # HTTP（代理/gzip/重试/certifi）
+│   ├── net.py             # HTTP（代理链/gzip/重试/certifi）
+│   ├── netadapt.py        # 网络适配：探活并自动挑选可用代理
 │   ├── cache.py           # 短 TTL 缓存
 │   ├── ws.py              # RFC6455 WebSocket
 │   ├── onebot.py          # OneBot 11（文字/图片）
@@ -1104,7 +1170,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 607 个测试 + fixtures
+├── tests/                 # 638 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

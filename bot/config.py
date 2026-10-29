@@ -12,6 +12,9 @@ import os
 import shutil
 from typing import Any, Dict, List
 
+# 本机常见代理端口（Clash / v2rayN / Xray 默认端口），用于自动发现代理
+DEFAULT_LOCAL_PORTS = (7890, 10809, 10808, 20171, 1080, 8889)
+
 DEFAULTS: Dict[str, Any] = {
     "onebot": {
         "ws_url": "ws://127.0.0.1:3001",
@@ -222,6 +225,27 @@ DEFAULTS: Dict[str, Any] = {
         "level": "INFO",
         "file": "logs/bot.log",
     },
+    # 网络适配：不同机器的代理地址不一样（本机 127.0.0.1:10809、
+    # 服务器容器 http://xray:10809、有的机器直连就行）。
+    # 启动时自动探一遍，给每个数据源挑一条能通的；挂了会自动降级到下一条。
+    "network": {
+        "auto_adapt": True,
+        "probe_on_start": True,
+        # 额外候选代理（会和各数据源自己的 proxy 一起参与探测）
+        "proxies": [],
+        # 是否扫描本机常见代理端口（Clash / v2rayN / Xray 默认端口）
+        "discover_local": True,
+        "discover_host": "127.0.0.1",
+        "local_ports": list(DEFAULT_LOCAL_PORTS),
+        # 是否把「直连」作为最后兜底
+        "allow_direct": True,
+        "probe_timeout_seconds": 6,
+        # 探活结果缓存多久（秒）；0 表示每轮都探
+        "probe_ttl_seconds": 1800,
+        "probe_cache_file": "data/net_probe.json",
+        # 多条代理都能通时怎么选：order = 按配置顺序，fastest = 取最快
+        "prefer": "order",
+    },
 }
 
 _REQUIRED_PATHS = (
@@ -259,6 +283,10 @@ _ENV_OVERRIDES = {
     "QQWF_WEB_HOST": ("web", "host", "str"),
     "QQWF_WEB_PORT": ("web", "port", "str"),
     "QQWF_WEB_TOKEN": ("web", "token", "str"),
+    "QQWF_NET_AUTO": ("network", "auto_adapt", "bool"),
+    "QQWF_NET_PROXIES": ("network", "proxies", "str"),
+    "QQWF_NET_PREFER": ("network", "prefer", "str"),
+    "QQWF_NET_DISCOVER": ("network", "discover_local", "bool"),
 }
 
 
@@ -423,6 +451,28 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         1, _as_int(subs["max_per_chat"], "subscriptions.max_per_chat", 1))
     subs["seen_limit"] = max(
         50, _as_int(subs["seen_limit"], "subscriptions.seen_limit", 50))
+
+    net = cfg["network"]
+    net["probe_timeout_seconds"] = max(
+        1, _as_int(net["probe_timeout_seconds"], "network.probe_timeout_seconds", 1))
+    net["probe_ttl_seconds"] = max(
+        0, _as_int(net["probe_ttl_seconds"], "network.probe_ttl_seconds", 0))
+    net["prefer"] = str(net.get("prefer") or "order").lower()
+    if net["prefer"] not in ("order", "fastest"):
+        raise ConfigError("network.prefer 只能是 order / fastest")
+    raw_proxies = net.get("proxies")
+    if isinstance(raw_proxies, str):  # 环境变量逗号分隔
+        raw_proxies = [item.strip() for item in
+                       raw_proxies.replace(";", ",").split(",") if item.strip()]
+    net["proxies"] = _as_str_list(raw_proxies, "network.proxies")
+    net["local_ports"] = [
+        _as_int(port, "network.local_ports", 1)
+        for port in (net.get("local_ports") or DEFAULT_LOCAL_PORTS)]
+
+    if net.get("auto_adapt", True) and net.get("probe_on_start", True):
+        from . import netadapt  # 延迟导入：只在真的要探测时才进来
+
+        netadapt.adapt(cfg)
 
     return cfg
 

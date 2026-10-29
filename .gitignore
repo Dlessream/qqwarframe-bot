@@ -49,3 +49,5 @@ _sim_wm_world.py
 
 # 临时增量包
 *.bundle
+data/net_probe.json
+data/net_probe.json.tmp

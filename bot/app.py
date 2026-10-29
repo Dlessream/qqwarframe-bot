@@ -285,10 +285,30 @@ class BotApp:
                 "blacklist": sorted(blacklist),
             },
             "update": update,
+            "network": self._network_status(),
             "web": {
                 "host": self.web_config.get("host", "127.0.0.1"),
                 "port": self.web_server.actual_port,
             },
+        }
+
+    def _network_status(self) -> Dict[str, Any]:
+        """各数据源当前实际在用哪条链路（控制台看网络适配结果）。"""
+        from . import netadapt
+
+        cfg = self.cfg if isinstance(self.cfg, dict) else {}
+        try:
+            current = netadapt.current(cfg)
+        except Exception:  # noqa: BLE001 - 状态页不该因为探测挂掉
+            return {"auto": False, "links": []}
+        links = [{"name": netadapt.TARGETS[module]["label"],
+                  "proxy": netadapt.describe(value)}
+                 for module, value in current.items()]
+        return {
+            "auto": bool((cfg.get("network") or {}).get("auto_adapt", True)),
+            "candidates": [netadapt.describe(item)
+                           for item in netadapt.collect_proxies(cfg)],
+            "links": links,
         }
 
     def apply_update(self) -> Dict[str, Any]:
