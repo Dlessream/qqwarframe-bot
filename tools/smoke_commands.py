@@ -110,8 +110,10 @@ def main() -> int:
             part = cfg.setdefault(section, {})
             part["timeout"] = float(args.timeout)
     # 注意：adapt() 返回的是「需要调整的模块」，看链路要用探活结果本身
-    probed = netadapt.load_cache(cfg) or netadapt.probe(cfg, log=log)
-    print("网络适配：%s" % netadapt.summary(cfg, probed))
+    probed = netadapt.load_cache(cfg)
+    if probed is None and (cfg.get("network") or {}).get("auto_adapt", True):
+        probed = netadapt.probe(cfg)
+    print("网络适配：%s" % (netadapt.summary(cfg, probed) if probed else "未启用（auto_adapt=false）"))
 
     app = BotApp(cfg, logger=log, config_path=args.config)
     ctx = Context(user_id="10001", group_id="20002", is_group=True, prefix="#")
