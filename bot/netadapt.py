@@ -310,6 +310,26 @@ def suggest(cfg: Dict[str, Any],
     return suggestion
 
 
+def effective(cfg: Dict[str, Any],
+              result: Dict[str, Dict[str, Dict[str, Any]]],
+              suggestion: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """每个数据源**最终**会走哪条链路。
+
+    `suggest()` 只给出「需要改」的那部分；当前配的代理本来就通时它不说话，
+    所以看结果要用这里——否则会出现「直连明明可用，却报无可用链路」。
+    """
+    suggestion = suggestion if suggestion is not None else suggest(cfg, result)
+    final: Dict[str, str] = {}
+    for module, per_proxy in result.items():
+        own = module_proxy(cfg, module) or SYSTEM
+        item = per_proxy.get(own)
+        if item and item.get("ok") and not item.get("blocked"):
+            final[module] = own
+        elif module in suggestion:
+            final[module] = suggestion[module]
+    return final
+
+
 def apply_suggestion(cfg: Dict[str, Any], suggestion: Dict[str, str],
                      set_fallbacks: bool = True) -> List[str]:
     """把推荐结果写回配置；返回改动说明。"""
@@ -420,14 +440,18 @@ def report(cfg: Dict[str, Any],
            suggestion: Optional[Dict[str, str]] = None) -> str:
     """人能读的探活报告（自检 / CLI 用）。"""
     suggestion = suggestion if suggestion is not None else suggest(cfg, result)
+    final = effective(cfg, result, suggestion)
     lines: List[str] = []
     lines.append("候选代理：%s" % "、".join(describe(item)
                                           for item in collect_proxies(cfg)))
     for module, per_proxy in result.items():
         label = TARGETS[module]["label"]
-        best = suggestion.get(module)
+        best = final.get(module)
+        mark = "" if module in suggestion else "（沿用配置）"
         lines.append("")
-        lines.append("[%s] %s" % (label, describe(best) if best else "无可用代理"))
+        lines.append("[%s] %s%s" % (label,
+                                    describe(best) if best else "无可用链路",
+                                    mark if best else ""))
         for proxy, item in per_proxy.items():
             mark = " => 采用" if best is not None and proxy == best else ""
             lines.append("    %-24s %s%s"
@@ -438,10 +462,8 @@ def report(cfg: Dict[str, Any],
 def summary(cfg: Dict[str, Any],
             result: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
     """一行式摘要，塞进启动横幅。"""
-    bits = []
-    for module, per_proxy in result.items():
-        best = pick(per_proxy, str((cfg.get("network") or {}).get("prefer")
-                                   or "order"))
-        bits.append("%s=%s" % (TARGETS[module]["label"],
-                               describe(best) if best else "不可用"))
-    return "，".join(bits)
+    final = effective(cfg, result)
+    return "，".join("%s=%s" % (TARGETS[module]["label"],
+                                describe(final[module])
+                                if module in final else "不可用")
+                    for module in result)

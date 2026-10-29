@@ -124,6 +124,38 @@ class SuggestTest(unittest.TestCase):
         self.assertEqual(netadapt.suggest(cfg, result), {})
 
 
+class EffectiveTest(unittest.TestCase):
+    """最终生效链路：当前配的能用时也算数，不能只算「需要改」的那些。"""
+
+    def test_current_proxy_counts_as_available(self):
+        cfg = _cfg()
+        result = {"arbi": {"none": _ok(161), "http://b:2": _down()}}
+        cfg["arbi"]["proxy"] = "none"
+        final = netadapt.effective(cfg, result)
+        self.assertEqual(final["arbi"], "none")
+
+    def test_uses_suggestion_when_current_is_down(self):
+        cfg = _cfg()
+        result = {"market": {"http://127.0.0.1:10809": _down(),
+                             "none": _ok(20)}}
+        final = netadapt.effective(cfg, result)
+        self.assertEqual(final["market"], "none")
+
+    def test_empty_when_nothing_works(self):
+        cfg = _cfg()
+        result = {"market": {"http://127.0.0.1:10809": _down(),
+                             "none": _blocked()}}
+        self.assertEqual(netadapt.effective(cfg, result), {})
+
+    def test_report_shows_kept_proxy(self):
+        cfg = _cfg()
+        cfg["arbi"]["proxy"] = "none"
+        result = {"arbi": {"none": _ok(161)}}
+        text = netadapt.report(cfg, result)
+        self.assertIn("沿用配置", text)
+        self.assertNotIn("无可用链路", text)
+
+
 class ApplyTest(unittest.TestCase):
     def test_writes_back_and_sets_fallbacks(self):
         cfg = _cfg(proxies=["http://b:2"])

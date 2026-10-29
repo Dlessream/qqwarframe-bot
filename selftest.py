@@ -82,7 +82,8 @@ def run_selftest(config_path: str = "config.json") -> int:
 
     # load_config 启动时已经探过一遍（结果缓存在 data/net_probe.json），直接用
     net_result = netadapt.load_cache(config) or netadapt.probe(config)
-    net_best = netadapt.suggest(config, net_result)
+    # 用 effective：当前配的代理本来就通也算「有可用链路」
+    net_best = netadapt.effective(config, net_result)
     reachable = [name for name, value in net_best.items() if value]
     if reachable:
         detail = "、".join(

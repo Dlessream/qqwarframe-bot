@@ -58,19 +58,19 @@ def _print_netcheck(config: Dict[str, Any], apply_changes: bool) -> int:
     result = netadapt.probe(config, timeout=None)
     suggestion = netadapt.suggest(config, result)
     print(netadapt.report(config, result, suggestion))
+    netadapt.save_cache(config, result)
     print("")
 
     if apply_changes:
         changes = netadapt.apply_suggestion(config, suggestion)
-        netadapt.save_cache(config, result)
         if not changes:
             print("各数据源已经在用最合适的代理，无需改动。")
         else:
             for line in changes:
                 print("已应用：%s" % line)
             print("（改的是运行时的值，想长期生效就把同样的地址写进 config.json）")
-    if not any(suggestion.values()):
-        print("\n提示：一条能用的代理都没探到，常见原因：")
+    if not netadapt.effective(config, result, suggestion):
+        print("\n提示：一个数据源都没探到可用链路，常见原因：")
         print("  1. 代理软件没开，或端口不是 7890 / 10809 / 10808")
         print("  2. 服务器 Docker 里代理容器没起（检查 docker compose ps）")
         print("  3. 直连被目标站点拒绝（IDC IP 常被 Cloudflare 拦，需要代理）")
