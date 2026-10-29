@@ -84,7 +84,8 @@ def run_selftest(config_path: str = "config.json") -> int:
     net_result = netadapt.load_cache(config) or netadapt.probe(config)
     # 用 effective：当前配的代理本来就通也算「有可用链路」
     net_best = netadapt.effective(config, net_result)
-    reachable = [name for name, value in net_best.items() if value]
+    # 空串代表「系统代理」，是有效值，不能按真值过滤
+    reachable = [name for name, value in net_best.items() if value is not None]
     if reachable:
         detail = "、".join(
             "%s=%s" % (netadapt.TARGETS[name]["label"],

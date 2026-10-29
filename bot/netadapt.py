@@ -446,12 +446,14 @@ def report(cfg: Dict[str, Any],
                                           for item in collect_proxies(cfg)))
     for module, per_proxy in result.items():
         label = TARGETS[module]["label"]
+        # 注意：空串代表「系统代理」，是有效值，不能用真值判断
         best = final.get(module)
         mark = "" if module in suggestion else "（沿用配置）"
         lines.append("")
-        lines.append("[%s] %s%s" % (label,
-                                    describe(best) if best else "无可用链路",
-                                    mark if best else ""))
+        lines.append("[%s] %s%s" % (
+            label,
+            describe(best) if best is not None else "无可用链路",
+            mark if best is not None else ""))
         for proxy, item in per_proxy.items():
             mark = " => 采用" if best is not None and proxy == best else ""
             lines.append("    %-24s %s%s"

@@ -1092,7 +1092,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**642 个离线测试**，不联网、不连 QQ，覆盖：
+**643 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1170,7 +1170,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 642 个测试 + fixtures
+├── tests/                 # 643 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

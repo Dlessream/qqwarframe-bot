@@ -147,6 +147,16 @@ class EffectiveTest(unittest.TestCase):
                              "none": _blocked()}}
         self.assertEqual(netadapt.effective(cfg, result), {})
 
+    def test_system_proxy_is_a_real_value(self):
+        """空串代表系统代理，`if value` 会把它误判成没有。"""
+        cfg = _cfg()
+        cfg["web"]["update"]["proxy"] = ""
+        result = {"update": {"": _ok(20), "none": _down()}}
+        self.assertEqual(netadapt.effective(cfg, result)["update"], "")
+        text = netadapt.report(cfg, result)
+        self.assertIn("系统代理", text)
+        self.assertNotIn("无可用链路", text)
+
     def test_report_shows_kept_proxy(self):
         cfg = _cfg()
         cfg["arbi"]["proxy"] = "none"
