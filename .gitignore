@@ -38,6 +38,8 @@ tools/*
 # 但字典生成脚本要跟着代码走，方便以后复现
 !tools/build_conquest_dict.py
 !tools/build_bounty_dict.py
+# 全命令冒烟（回归验收用）：python tools/smoke_commands.py
+!tools/smoke_commands.py
 .ghconfig/
 .github_token
 .gitconfig
