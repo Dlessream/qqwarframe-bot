@@ -131,6 +131,17 @@ def main(argv=None) -> int:
 
     logger = setup_logging(config["log"]["level"], config["log"]["file"])
     logger.info("QQ Warframe Bot v%s 启动", __version__)
+
+    # 网络适配发生在 load_config 里（早于日志初始化），这里把结果补记一行
+    if (config.get("network") or {}).get("auto_adapt", True):
+        from bot import netadapt
+
+        try:
+            probed = netadapt.load_cache(config)
+            if probed:
+                logger.info("网络适配：%s", netadapt.summary(config, probed))
+        except Exception:  # noqa: BLE001 - 记一行日志不该影响启动
+            pass
     from bot import imagecard
 
     image_cfg = config.get("image", {})
