@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from . import names
 from . import present
 from . import zh2en
 from .alerts import AlertStore
@@ -502,6 +503,10 @@ class CommandRouter:
 
         hits = self.market.lookup(argument, category=category, limit=5)
         if not hits:
+            english = names.frame_nickname(argument)
+            if english:
+                return present.untradable_frame_reply(
+                    argument, english, names.warframe(english) or "")
             return present.not_found_reply(argument)
 
         best = hits[0]
@@ -1164,6 +1169,11 @@ class CommandRouter:
         """中文关键词 → 英文维基候选词条名；纯英文查询返回空列表。"""
         if not zh2en.has_cjk(query):
             return []
+        # 市场里没有可交易物品的战甲（老九 / 蘑菇 / 冰女…），术语表查不到，
+        # 用俗名表直接换成官方英文名。
+        nickname = names.frame_nickname(query)
+        if nickname:
+            return [nickname]
         try:
             titles = zh2en.english_titles(query, item_lookup=self._wiki_lookup_items)
         except Exception as exc:  # 映射失败不影响原始中文查询

@@ -65,6 +65,30 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(names.alias_label("Mesa", with_english=False), "女枪")
         self.assertEqual(names.alias_label(""), "—")
 
+    def test_frame_nickname(self):
+        # 市场里没有可交易物品的战甲：俗名 → 官方英文名
+        self.assertEqual(names.frame_nickname("老九"), "Cyte-09")
+        self.assertEqual(names.frame_nickname("蘑菇"), "Nokko")
+        self.assertEqual(names.frame_nickname("冰女"), "Narin")
+        self.assertEqual(names.frame_nickname("墨水"), "Follie")
+        self.assertEqual(names.frame_nickname("肥婆"), "Follie")
+        self.assertEqual(names.frame_nickname("双子"), "Orion & Sirius")
+        self.assertEqual(names.frame_nickname("咖喱"), "Excalibur")
+
+    def test_frame_nickname_suffix(self):
+        # 后面带部件/图纸说法也能认
+        self.assertEqual(names.frame_nickname("老九蓝图"), "Cyte-09")
+        self.assertEqual(names.frame_nickname("蘑菇总图"), "Nokko")
+        self.assertEqual(names.frame_nickname("冰女头"), "Narin")
+        self.assertEqual(names.frame_nickname("冰女头部神经光元"), "Narin")
+        self.assertEqual(names.frame_nickname("刀哥机体"), "Kullervo")
+
+    def test_frame_nickname_unknown(self):
+        self.assertIsNone(names.frame_nickname("绝路"))
+        self.assertIsNone(names.frame_nickname("电男"))
+        self.assertIsNone(names.frame_nickname(""))
+        self.assertIsNone(names.frame_nickname("图"))
+
 
 if __name__ == "__main__":
     unittest.main()

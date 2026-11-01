@@ -361,6 +361,20 @@ class HandleTest(unittest.TestCase):
         replies = texts(self.router.handle("#奸商", self.ctx))
         self.assertIn("未启用", replies[0])
 
+    def test_untradable_frame_nickname(self):
+        # 市场里没有可交易物品的战甲：给说明而不是「查无此物」
+        replies = texts(self.router.handle("#查 老九", self.ctx))
+        self.assertIn("Cyte-09", replies[0])
+        self.assertIn("没有 Prime", replies[0])
+
+    def test_untradable_frame_nickname_with_suffix(self):
+        replies = texts(self.router.handle("#wm 蘑菇蓝图", self.ctx))
+        self.assertIn("Nokko", replies[0])
+
+    def test_unknown_item_still_not_found(self):
+        replies = texts(self.router.handle("#查 完全不存在的东西", self.ctx))
+        self.assertIn("没有在 warframe.market 找到", replies[0])
+
 
 class AlertCommandTest(unittest.TestCase):
     def setUp(self):

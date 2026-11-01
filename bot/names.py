@@ -28,6 +28,9 @@ _PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                      "data", "names_zh.json")
 _ALIAS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "data", "warframe_alias.json")
+# 俗名 → 战甲英文名：市场里没有可交易物品的战甲（多为无 Prime 的新战甲）
+_NICKNAME_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "data", "frame_nicknames.json")
 
 # 常见后缀：套装 / 蓝图 / 部件，拆掉再查一次基础名
 _STRIP_SUFFIXES = (" set", " blueprint")
@@ -36,6 +39,7 @@ _SPACE_RE = re.compile(r"\s+")
 _lock = threading.Lock()
 _tables: Optional[Tuple[Dict[str, str], Dict[str, str]]] = None
 _aliases: Optional[Dict[str, str]] = None
+_nicknames: Optional[Dict[str, str]] = None
 
 
 def _normalize(text: str) -> str:
@@ -90,6 +94,54 @@ def _load_alias() -> Dict[str, str]:
                 table[key] = value
         _aliases = table
     return _aliases
+
+
+def _load_nickname() -> Dict[str, str]:
+    """俗名 → 战甲英文名：市场里没有可交易物品的战甲（老九 / 蘑菇 / 冰女…）。"""
+    global _nicknames
+    if _nicknames is not None:
+        return _nicknames
+    with _lock:
+        if _nicknames is not None:
+            return _nicknames
+        table: Dict[str, str] = {}
+        try:
+            with open(_NICKNAME_PATH, encoding="utf-8") as handle:
+                raw = json.load(handle)
+        except (OSError, ValueError) as exc:
+            LOGGER.warning("读取战甲俗名表失败：%s", exc)
+            raw = {}
+        for alias_name, english in (raw or {}).items():
+            if str(alias_name).startswith("_"):
+                continue
+            key = _normalize(str(alias_name)).replace(" ", "")
+            value = str(english or "").strip()
+            if key and value:
+                table[key] = value
+        _nicknames = table
+    return _nicknames
+
+
+def frame_nickname(query: str) -> Optional[str]:
+    """把玩家俗名换成战甲英文名；市场索引查不到时的兜底。
+
+    例：「老九」→ Cyte-09，「蘑菇蓝图」→ Nokko。不是这类俗名返回 None。
+    """
+    table = _load_nickname()
+    if not table:
+        return None
+    key = _normalize(query).replace(" ", "")
+    if not key:
+        return None
+    if key in table:
+        return table[key]
+    for suffix in ("头部神经光元", "神经光元", "头部", "总图蓝图", "总图", "蓝图",
+                   "机体", "系统", "头", "图", "prime", "p"):
+        if key.endswith(suffix) and len(key) > len(suffix):
+            stem = key[: -len(suffix)]
+            if stem in table:
+                return table[stem]
+    return None
 
 
 def _lookup(name: str, table: Dict[str, str],

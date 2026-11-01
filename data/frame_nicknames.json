@@ -1,0 +1,20 @@
+{
+  "_说明": "玩家俗名 → 战甲英文名。这些战甲在 warframe.market 没有可交易物品（多为没有 Prime 版本的新战甲），别名不能指向 slug，因此单独收录：查价/查件时给出说明，而不是直接「查无此物」。键只写中文俗名，值写官方英文名。",
+  "老九": "Cyte-09",
+  "赛马娘": "Dagath",
+  "但丁": "Dante",
+  "咖喱": "Excalibur",
+  "墨水": "Follie",
+  "肥婆": "Follie",
+  "捷德": "Jade",
+  "扣妹": "Koumei",
+  "小梅": "Koumei",
+  "刀哥": "Kullervo",
+  "冰女": "Narin",
+  "蘑菇": "Nokko",
+  "蜘蛛": "Oraxia",
+  "双子": "Orion & Sirius",
+  "暖气片": "Qorvex",
+  "吉他": "Temple",
+  "恶魔": "Uriel"
+}

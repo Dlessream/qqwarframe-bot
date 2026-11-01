@@ -53,6 +53,17 @@ def not_found_reply(query: str) -> Reply:
     return Reply(text=render.render_not_found(query))
 
 
+def untradable_frame_reply(query: str, english: str, chinese: str = "") -> Reply:
+    """市场里没有可交易物品的战甲（多为无 Prime 的新战甲）。"""
+    label = "%s（%s）" % (chinese, english) if chinese else english
+    lines = [
+        "「%s」是 %s。" % (query, label),
+        "这款战甲目前没有 Prime 版本，市场里没有可交易的部件，查不到报价。",
+        "想看资料可以试：#wiki %s" % english,
+    ]
+    return Reply(text="\n".join(lines))
+
+
 def set_reply(item: Item, quotes: Sequence[PartQuote], set_sell: Optional[int],
               platform: str) -> Reply:
     label = platform_label(platform)
