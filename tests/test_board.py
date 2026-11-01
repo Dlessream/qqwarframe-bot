@@ -521,6 +521,28 @@ class RivenBaitFilterTest(unittest.TestCase):
         self.assertEqual(entry["av"], 1)
         self.assertEqual([quote.price for quote in board.riven_quotes()], [4200])
 
+    def test_cache_roundtrip_keeps_average(self):
+        # 均价必须落盘：不存的话重启后榜单又退回「候选均值」的旧口径
+        path = os.path.join(tempfile.mkdtemp(), "board.json")
+        board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})
+        board._quotes["riven"]["okina"] = {
+            "t": time.time(), "f": 1, "av": 1, "a": 1234.5, "n": 7,
+            "c": [[900, 8, "s1", ["暴击伤害 +94.8%"], "", 1]],
+        }
+        board._dirty = 1
+        board._save(force=True)
+
+        reloaded, _market2, _http2 = build_board(DEFAULT_TOPS,
+                                                 config={"cache_file": path})
+        entry = reloaded._quotes["riven"]["okina"]
+        self.assertEqual(entry["av"], 1)
+        self.assertAlmostEqual(entry["a"], 1234.5)
+        self.assertEqual(entry["n"], 7)
+        self.assertEqual([row[0] for row in entry["c"]], [900])
+        # 有均价就不该再排进补扫队列
+        self.assertEqual(board._stale_count("riven", ["okina"],
+                                            board.riven_ttl, time.time()), 0)
+
     def test_cache_roundtrip_keeps_candidates(self):
         path = os.path.join(tempfile.mkdtemp(), "board.json")
         board, _market, _http = build_board(DEFAULT_TOPS, config={"cache_file": path})

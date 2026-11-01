@@ -69,9 +69,28 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _riven_row(entry: Dict[str, Any]) -> List[Any]:
+    """紫卡快照落盘格式：[抓取时间, 候选, 标志位, 均价, 样本数]。
+
+    后三项只在有内容时才写（旧文件仍是 2 或 3 项，读的时候兼容）。
+    均价必须落盘，否则重启后榜单又回到「候选均值」的旧口径。
+    """
+    row: List[Any] = [round(_as_float(entry.get("t")), 1),
+                      [[_as_int(item[0]), _as_int(item[1]), str(item[2] or ""),
+                        list(item[3] or []), str(item[4] or ""), _as_int(item[5])]
+                       for item in (entry.get("c") or [])]]
+    flags = _riven_flags(entry)
+    if flags or _as_float(entry.get("a")):
+        row.append(flags)
+        row.append(round(_as_float(entry.get("a")), 1))
+        row.append(_as_int(entry.get("n")))
+    return row
+
+
 def _riven_flags(entry: Dict[str, Any]) -> int:
-    """紫卡缓存的标志位：bit0=老缓存待重扫，bit1=已按新接口完整抓过。"""
-    return (1 if entry.get("v") else 0) | (2 if entry.get("f") else 0)
+    """紫卡缓存的标志位：bit0=老缓存待重扫，bit1=已按新接口完整抓过，bit2=已存均价。"""
+    return ((1 if entry.get("v") else 0) | (2 if entry.get("f") else 0)
+            | (4 if entry.get("av") else 0))
 
 
 @dataclass
@@ -855,6 +874,7 @@ class BoardClient:
                         flags = _as_int(entry[2]) if len(entry) >= 3 else 0
                         legacy = bool(flags & 1)
                         full = bool(flags & 2)
+                        has_avg = bool(flags & 4)
                         if (not flags and len(candidates) <= 1
                                 and _as_int(candidates[0][0]) >= self.bait_price_floor):
                             legacy = True
@@ -871,6 +891,11 @@ class BoardClient:
                             record["v"] = 1
                         if full:
                             record["f"] = 1
+                        if has_avg and len(entry) >= 5:
+                            # v3：[时间, 候选, 标志位, 均价, 样本数]
+                            record["av"] = 1
+                            record["a"] = _as_float(entry[3])
+                            record["n"] = _as_int(entry[4])
                         self._quotes[_KIND_RIVEN][slug] = record
         if self._legacy_riven:
             self.log.info("紫卡缓存是旧格式（%d 把），已标记为待重扫", self._legacy_riven)
@@ -890,13 +915,7 @@ class BoardClient:
                 _KIND_FRAME: {slug: [entry.get("p", 0), entry.get("b", 0),
                                      entry.get("n", 0), round(entry.get("t", 0), 1)]
                               for slug, entry in self._quotes[_KIND_FRAME].items()},
-                _KIND_RIVEN: {slug: ([round(entry.get("t", 0), 1),
-                                      [[_as_int(row[0]), _as_int(row[1]),
-                                        str(row[2] or ""), list(row[3] or []),
-                                        str(row[4] or ""), _as_int(row[5])]
-                                       for row in (entry.get("c") or [])]]
-                                      + ([_riven_flags(entry)]
-                                         if (entry.get("v") or entry.get("f")) else []))
+                _KIND_RIVEN: {slug: _riven_row(entry)
                               for slug, entry in self._quotes[_KIND_RIVEN].items()},
             }
             self._dirty = 0
