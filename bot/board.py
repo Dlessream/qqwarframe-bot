@@ -383,8 +383,16 @@ class BoardClient:
 
     def _stale_count(self, kind: str, slugs: Sequence[str], ttl: int, now: float) -> int:
         quotes = self._quotes[kind]
-        return sum(1 for slug in slugs
-                   if slug not in quotes or now - quotes[slug].get("t", 0) >= ttl)
+        count = 0
+        for slug in slugs:
+            entry = quotes.get(slug)
+            if entry is None or now - entry.get("t", 0) >= ttl:
+                count += 1
+            elif kind == _KIND_RIVEN and not entry.get("av"):
+                # 升级前抓的只有候选、没有均价：不算「过期」但要算「待补」，
+                # 否则这类永远排不进队列，榜单会一直拿「最贵几张的均值」冒充均价
+                count += 1
+        return count
 
     def _next_stale(self, kind: str, slugs: Sequence[str], ttl: int,
                     now: float) -> Optional[str]:

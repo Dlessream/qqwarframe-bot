@@ -340,6 +340,21 @@ class RivenRankOrderTest(unittest.TestCase):
                                            board.riven_ttl, time.time()),
                          "old_one")
 
+    def test_missing_avg_counts_as_stale_so_it_gets_scanned(self):
+        # _next_target 只看 stale 比例，若「缺均价」不计入，这类永远排不进队列
+        board = self.board()
+        board._targets["riven"] = ["old_one", "old_two"]
+        now = time.time()
+        for slug in ("old_one", "old_two"):
+            board._quotes["riven"][slug] = {"t": now, "f": 1, "c": [[900, 8, "a", [], "", 1]]}
+        self.assertEqual(board._stale_count("riven", board._targets["riven"],
+                                            board.riven_ttl, now), 2)
+        # 补上 av 之后就不算待补了
+        for slug in ("old_one", "old_two"):
+            board._quotes["riven"][slug]["av"] = 1
+        self.assertEqual(board._stale_count("riven", board._targets["riven"],
+                                            board.riven_ttl, now), 0)
+
     def test_empty_new_entry_not_requeued(self):
         # 新格式抓过但市场没卡（av=1、无 a）不该反复插队
         board = self.board()
