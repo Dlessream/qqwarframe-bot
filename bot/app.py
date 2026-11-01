@@ -15,7 +15,7 @@ import threading
 import time
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
-from . import __version__, imagecard, missioncolors, present, subkind
+from . import __version__, baronames, imagecard, missioncolors, present, subkind
 from .alerts import AlertStore
 from .aliases import AliasStore
 from .arbi import ArbiClient, ArbiError
@@ -120,6 +120,9 @@ class BotApp:
         world_cfg = config.get("worldstate", {})
         self.worldstate = (WorldStateClient(world_cfg, cache_config=config.get("cache", {}))
                            if world_cfg.get("enabled", True) else None)
+
+        # 奸商库存只有 uniqueName，中文名靠官方导出补；缓存过期后台刷新
+        baronames.configure(config, logger=self.log)
 
         caches = [self.market.cache, self.wiki.cache, self.riven.cache]
         if self.worldstate is not None:

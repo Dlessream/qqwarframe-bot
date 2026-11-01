@@ -358,6 +358,33 @@ def official_fissures(data: Dict[str, Any],
     return result
 
 
+def trader_inventory(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """VoidTraders[].Manifest → warframestat 的 inventory 结构。
+
+    官方只给 uniqueName 与两种价格，没有任何名称；`item` 先放 uniqueName，
+    渲染时由 `baronames` 换成中文名。杜卡德为 0 的商品（纯星币）保留 0，
+    上层会显示成「—」。
+    """
+    rows = row.get("Manifest") if isinstance(row, dict) else None
+    if not isinstance(rows, list):
+        return []
+    inventory: List[Dict[str, Any]] = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        unique = str(item.get("ItemType") or "")
+        if not unique:
+            continue
+        inventory.append({
+            "item": unique,
+            "type": unique,
+            "ducats": int(item.get("PrimePrice") or 0),
+            "credits": int(item.get("RegularPrice") or 0),
+            "count": 1,
+        })
+    return inventory
+
+
 def official_void_storms(data: Dict[str, Any],
                          nodes: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     """VoidStorms → warframestat storms 结构（九重天风暴裂缝）。
@@ -550,8 +577,7 @@ class OfficialWorldState:
             "location": _node_name(nodes, str(row.get("Node") or "")),
             "activation": _iso(start),
             "expiry": _iso(end),
-            # 官方接口不含库存，奸商卡片会显示「未到访 / 无库存」
-            "inventory": [],
+            "inventory": trader_inventory(row),
         }
 
     def _sortie(self, data: Dict[str, Any],

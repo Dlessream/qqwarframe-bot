@@ -6,8 +6,8 @@ import datetime
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import (autotrans, bounties, bountyrewards, bountystatic, conquest,
-               imagecard, missioncolors, render, subkind, terms)
+from . import (autotrans, baronames, bounties, bountyrewards, bountystatic,
+               conquest, imagecard, missioncolors, render, subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -188,9 +188,14 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
 # ---------------------------------------------------------------------- 世界状态
 def _translate_items(names: Sequence[str], index) -> List[str]:
     if index is None:
-        return list(names)
+        return [baronames.display(name) if _is_unique(name) else name
+                for name in names]
     translated = []
     for name in names:
+        if _is_unique(name):
+            # 兜底数据源只给 uniqueName，用官方中文导出换名字
+            translated.append(baronames.display(name))
+            continue
         hit = None
         try:
             hits = index.search(name, limit=1)
@@ -202,6 +207,10 @@ def _translate_items(names: Sequence[str], index) -> List[str]:
         else:
             translated.append(name)
     return translated
+
+
+def _is_unique(name: str) -> bool:
+    return str(name or "").startswith("/Lotus/")
 
 
 def baro_reply(trader: VoidTrader, index=None) -> Reply:

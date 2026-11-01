@@ -26,6 +26,13 @@ OFFICIAL_PAYLOAD = {
     "VoidTraders": [{
         "Activation": ms(1793365200), "Expiry": ms(1793538000),
         "Character": "EvilBaroWeek3", "Node": "MercuryHUB",
+        "Manifest": [
+            {"ItemType": "/Lotus/StoreItems/Weapons/VoidTrader/VTDetron",
+             "PrimePrice": 500, "RegularPrice": 200000},
+            {"ItemType": "/Lotus/StoreItems/Upgrades/Mods/Melee/"
+                          "WeaponEventSlashDamageMod",
+             "PrimePrice": 375, "RegularPrice": 150000},
+        ],
     }],
     "Sorties": [{
         "Boss": "SORTIE_BOSS_RUK", "Activation": ms(1792944000),
@@ -141,8 +148,23 @@ class BuildStateTest(unittest.TestCase):
         trader = self.source.state()["voidTrader"]
         self.assertEqual(trader["character"], "Baro Ki'Teer")
         self.assertEqual(trader["location"], "Larunda Relay (Mercury)")
-        self.assertEqual(trader["inventory"], [])
         self.assertTrue(trader["expiry"])
+
+    def test_void_trader_inventory_from_manifest(self):
+        """官方没有名称，但 Manifest 里有 uniqueName 与两种价格。"""
+        trader = self.source.state()["voidTrader"]
+        self.assertEqual(len(trader["inventory"]), 2)
+        first = trader["inventory"][0]
+        self.assertEqual(first["item"],
+                         "/Lotus/StoreItems/Weapons/VoidTrader/VTDetron")
+        self.assertEqual(first["ducats"], 500)
+        self.assertEqual(first["credits"], 200000)
+
+    def test_void_trader_without_manifest(self):
+        row = {"ItemType": "x"}
+        self.assertEqual(worldfallback.trader_inventory(row), [])
+        self.assertEqual(worldfallback.trader_inventory({}), [])
+        self.assertEqual(worldfallback.trader_inventory({"Manifest": "bad"}), [])
 
     def test_sortie_modifiers_localized(self):
         sortie = self.source.state()["sortie"]

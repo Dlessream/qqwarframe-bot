@@ -53,3 +53,6 @@ _sim_wm_world.py
 *.bundle
 data/net_probe.json
 data/net_probe.json.tmp
+# 官方导出生成的中文名表（可随时重建，不入库）
+data/baro_names_zh.json
+data/baro_names_zh.json.tmp
