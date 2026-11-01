@@ -82,6 +82,10 @@ fi
 ROOT="$(pwd)"
 mkdir -p data logs run
 
+# 从压缩包/git 检出时执行位可能丢失，这里统一补上
+chmod +x "$ROOT"/deploy/*.sh "$ROOT"/install.sh "$ROOT"/start.sh \
+    "$ROOT"/check.sh 2>/dev/null || true
+
 # ------------------------------------------------------------------ 系统依赖
 detect_pkg() {
     if command -v apt-get >/dev/null 2>&1; then echo apt
