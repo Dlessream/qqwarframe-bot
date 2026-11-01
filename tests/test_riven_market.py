@@ -288,6 +288,16 @@ class PolarityIconTest(unittest.TestCase):
         self.assertEqual(low, 0)        # 四周透明，只留符号本身
         self.assertEqual(high, 255)
 
+    def test_missing_file_falls_back_to_none(self):
+        from bot import imagecard
+        imagecard.POLARITY_FILES["__missing__"] = "__missing__.png"
+        try:
+            self.assertIsNone(imagecard._polarity_image("__missing__", 20))
+            # 第二次走缓存里的 False，也必须还是 None（不能把 False 当图标用）
+            self.assertIsNone(imagecard._polarity_image("__missing__", 20))
+        finally:
+            imagecard.POLARITY_FILES.pop("__missing__", None)
+
     def test_cache_reuses_image(self):
         from bot import imagecard
         first = imagecard._polarity_image("naramon", 36)

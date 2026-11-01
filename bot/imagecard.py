@@ -1079,7 +1079,7 @@ def _polarity_image(polarity: str, size: int,
         return None
     cached = _POLARITY_CACHE.get((key, size))
     if cached is not None:
-        return cached
+        return cached or None      # 缓存里存 False 表示「这个图标没有」
     try:
         icon = Image.open(os.path.join(POLARITY_DIR, name)).convert("RGBA")
     except Exception:  # 资源缺失就当没有，卡片走矢量兜底
