@@ -322,8 +322,9 @@ class RivenRankOrderTest(unittest.TestCase):
         board._quotes["riven"]["soma"] = {"t": time.time(), "v": 0,
                                           "c": [[500, 8, "a", [], "", 1],
                                                 [700, 8, "b", [], "", 1]]}
+        # 候选存的是「最贵的那几张」，取平均会虚高，用最低那张兜底
         quote = board.riven_quotes()[0]
-        self.assertAlmostEqual(quote.avg, 600.0)
+        self.assertAlmostEqual(quote.avg, 500.0)
         self.assertEqual(quote.count, 2)
 
     def test_entries_without_avg_rescanned_first(self):

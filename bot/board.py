@@ -688,7 +688,9 @@ class BoardClient:
             if not average:
                 if not prices:
                     continue
-                average = sum(prices) / len(prices)
+                # 还没补扫到均价（升级前的缓存）：候选里存的是「最贵的那十几张」，
+                # 取平均会虚高一大截，用候选里最低的那张兜底更接近真实行情
+                average = min(prices)
                 samples = len(prices)
             quotes.append(RivenQuote(
                 slug=slug,
