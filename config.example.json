@@ -134,6 +134,8 @@
       "notify_group": "",
       "notify_user": "",
       "self_update": true,
+      "proxy_fallbacks": [],
+      "archive_urls": [],
       "manual_command": ""
     }
   },

@@ -719,6 +719,9 @@ wm 电男头
   - 源码目录（有 `.git`）执行 `git pull --ff-only`；
   - Docker/发布包（无 `.git`）自动下载 GitHub 最新源码包，备份旧 `bot/web`，
     替换代码但**保留 `config.json`、`data/aliases.json`、缓存、日志**，然后自动重启进程；
+  - 源码包依次尝试 `codeload.github.com`、`github.com/archive`、GitHub API tarball，
+    并支持代理候选回退，单条线路超时不会拖死整次更新；
+  - 网络环境特殊时可在 `web.update.archive_urls` 配置镜像地址（支持 `{repo}` / `{branch}` 占位）；
 - 自更新失败会自动回滚并给出手动命令，不会把服务卡死。
 
 Docker 更新（会写入当前 git commit）：
@@ -1245,7 +1248,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**792 个离线测试**，不联网、不连 QQ，覆盖：
+**795 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1354,7 +1357,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 792 个测试 + fixtures
+├── tests/                 # 795 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

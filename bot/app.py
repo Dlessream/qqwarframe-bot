@@ -186,12 +186,22 @@ class BotApp:
         self._restarting = False
         self.web_config = dict(config.get("web", {}))
         update_cfg = dict(self.web_config.get("update", {}))
+        update_proxy = (update_cfg.get("proxy")
+                        or config.get("warframe_market", {}).get("proxy", ""))
+        update_fallbacks: List[str] = list(
+            update_cfg.get("proxy_fallbacks") or [])
+        for candidate in (config.get("network", {}).get("proxies") or []):
+            value = str(candidate or "").strip()
+            if value and value not in update_fallbacks:
+                update_fallbacks.append(value)
+        if "none" not in update_fallbacks:
+            update_fallbacks.append("none")
         self.update_checker = UpdateChecker(
             update_cfg,
-            proxy=(update_cfg.get("proxy")
-                   or config.get("warframe_market", {}).get("proxy", "")),
+            proxy=update_proxy,
             logger=self.log,
-            on_notify=self._notify_update)
+            on_notify=self._notify_update,
+            proxy_fallbacks=update_fallbacks)
         self.web_server = AdminServer(
             self, self.web_config, logger=self.log)
 

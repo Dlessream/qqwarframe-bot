@@ -14,7 +14,7 @@ import tarfile
 import tempfile
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .net import HttpClient
 
@@ -25,6 +25,14 @@ SELF_UPDATE_CODE_DIRS = ("bot", "web")
 SELF_UPDATE_CODE_FILES = ("run.py", "requirements.txt")
 SELF_UPDATE_DATA_FILES = ("component_aliases.json", "frame_aliases.json",
                           "sol_nodes.json")
+
+# GitHub 的源码包有多条入口：codeload 通常最快，archive 走 302，
+# API tarball 在部分网络下可用。任何一个成功即可。
+ARCHIVE_URLS = (
+    "https://codeload.github.com/{repo}/tar.gz/refs/heads/{branch}",
+    "https://github.com/{repo}/archive/refs/heads/{branch}.tar.gz",
+    "https://api.github.com/repos/{repo}/tarball/{branch}",
+)
 
 
 def _read_git_head(root: str) -> str:
@@ -110,15 +118,26 @@ class UpdateChecker:
     def __init__(self, config: Dict[str, Any],
                  proxy: str = "",
                  logger: Optional[logging.Logger] = None,
-                 on_notify=None):
+                 on_notify=None,
+                 proxy_fallbacks: Optional[List[str]] = None):
         cfg = dict(config or {})
         self.repo = str(cfg.get("repo") or "").strip()
         self.branch = str(cfg.get("branch") or "main").strip()
         self.interval = max(60, int(cfg.get("check_seconds") or 600))
         self.manual_command = str(cfg.get("manual_command") or "").strip()
         self.self_update = bool(cfg.get("self_update", True))
+        configured_urls = cfg.get("archive_urls") or []
+        self.archive_urls = tuple(str(item).strip() for item in configured_urls
+                                  if str(item).strip()) or ARCHIVE_URLS
         self.log = logger or LOGGER
         self.on_notify = on_notify
+        self.proxy = str(proxy or cfg.get("proxy") or "none")
+        fallbacks = [str(item).strip() for item in
+                     (proxy_fallbacks or cfg.get("proxy_fallbacks") or [])
+                     if str(item).strip()]
+        if self.proxy != "none" and "none" not in fallbacks:
+            fallbacks.append("none")
+        self.proxy_fallbacks = fallbacks
         self.local_commit = read_local_commit()
         self.remote_commit = ""
         self.remote_message = ""
@@ -138,8 +157,9 @@ class UpdateChecker:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self.http = HttpClient(
-            timeout=12, retries=1,
-            proxy=str(proxy or cfg.get("proxy") or "none"),
+            timeout=25, retries=1,
+            proxy=self.proxy,
+            proxy_fallbacks=self.proxy_fallbacks,
             logger=self.log)
         if not self.local_commit:
             self.state = "unknown"
@@ -311,18 +331,27 @@ class UpdateChecker:
             return {"ok": False, "manual": True,
                     "command": self.manual_command,
                     "message": "未配置更新仓库，无法自更新。"}
-        url = "https://github.com/%s/archive/refs/heads/%s.tar.gz" % (
-            self.repo, self.branch)
-        try:
-            raw = self.http.request(url, headers={
-                "Accept": "application/octet-stream",
-                "User-Agent": "QQWarframeBot-Update",
-            })
-        except Exception as exc:
+        raw = None
+        errors: List[str] = []
+        for template in self.archive_urls:
+            url = template.format(repo=self.repo, branch=self.branch)
+            try:
+                raw = self.http.request(url, headers={
+                    "Accept": "application/octet-stream",
+                    "User-Agent": "QQWarframeBot-Update",
+                })
+                if raw:
+                    self.log.info("源码包下载成功：%s", url)
+                    break
+            except Exception as exc:
+                errors.append("%s -> %s" % (url, exc))
+                self.log.warning("源码包下载失败，换下一条线路：%s", exc)
+        if not raw:
+            detail = "；".join(errors[-3:]) or "所有线路均无响应"
             return {"ok": False, "manual": True,
                     "command": self.manual_command,
-                    "message": "下载最新源码失败：%s" % exc}
-        if not raw or len(raw) > 30 * 1024 * 1024:
+                    "message": "下载最新源码失败：%s" % detail}
+        if len(raw) > 30 * 1024 * 1024:
             return {"ok": False, "manual": True,
                     "command": self.manual_command,
                     "message": "源码包大小异常，已取消更新。"}

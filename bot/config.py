@@ -209,6 +209,9 @@ DEFAULTS: Dict[str, Any] = {
             "notify_group": "",
             "notify_user": "",
             "self_update": True,
+            "proxy_fallbacks": [],
+            # 自定义源码包地址（{repo}/{branch} 占位）；留空用内置三条线路
+            "archive_urls": [],
             # 控制台提示的「手动更新命令」。留空时前端按部署方式给通用提示，
             # 裸机部署脚本会按实际常驻方式（systemd / daemon.sh）写入。
             "manual_command": "",

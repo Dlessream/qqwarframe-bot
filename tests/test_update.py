@@ -171,5 +171,57 @@ class ArchiveUpdateTest(unittest.TestCase):
                 self.assertEqual(handle.read().strip(), "c" * 40)
 
 
+class ArchiveFallbackTest(unittest.TestCase):
+    def test_custom_archive_urls_override_defaults(self):
+        checker = UpdateChecker({
+            "repo": "example/repo",
+            "archive_urls": ["https://mirror.example/{repo}/{branch}.tgz"],
+        }, proxy="none")
+        self.assertEqual(checker.archive_urls,
+                         ("https://mirror.example/{repo}/{branch}.tgz",))
+
+    def test_all_download_urls_fail_returns_manual(self):
+        class FakeFail:
+            def request(self, url, headers=None, method="GET", body=None):
+                raise OSError("_ssl.c:999: handshake timed out")
+
+        checker = UpdateChecker({"repo": "example/repo"}, proxy="none")
+        checker.http = FakeFail()
+        result = checker._archive_update()
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["manual"])
+        self.assertIn("codeload.github.com", result["message"])
+        self.assertIn("github.com/example/repo", result["message"])
+
+    def test_falls_back_to_second_url(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, "bot"))
+            os.makedirs(os.path.join(root, "web"))
+            os.makedirs(os.path.join(root, "logs"))
+            with open(os.path.join(root, "run.py"), "w", encoding="utf-8") as handle:
+                handle.write("old\n")
+            calls = []
+
+            class FakeHttp:
+                def request(self, url, headers=None, method="GET", body=None):
+                    calls.append(url)
+                    if len(calls) == 1:
+                        raise OSError("_ssl.c:999: handshake timed out")
+                    return b"archive"
+
+            with mock.patch.object(update_module, "ROOT", root):
+                checker = UpdateChecker({"repo": "example/repo"}, proxy="none")
+                checker.http = FakeHttp()
+                checker.remote_commit = "d" * 40
+                with mock.patch.object(checker, "_extract_archive",
+                                       return_value=root), \
+                        mock.patch.object(checker, "_install_archive"):
+                    result = checker._archive_update()
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(len(calls), 2)
+            self.assertIn("codeload.github.com", calls[0])
+            self.assertIn("github.com/example/repo/archive", calls[1])
+
+
 if __name__ == "__main__":
     unittest.main()
