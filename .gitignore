@@ -12,6 +12,7 @@ data/rotation_cache.json.tmp
 logs/
 *.log
 preview_*.png
+data/_*.png
 _preview.py
 render_*.py
 .build_commit
