@@ -5,7 +5,8 @@ from PIL import Image
 
 from bot import imagecard
 from bot.riven import RivenWeapon
-from bot.rivencalc import (canonical_name, calculate, evaluate_roll, find_stat,
+from bot.rivencalc import (RivenAnalyzer, RivenRollEvaluator,
+                           canonical_name, calculate, evaluate_roll, find_stat,
                            infer_config_label, looks_like_stat)
 
 
@@ -183,6 +184,31 @@ class EvaluateTest(unittest.TestCase):
     def test_unknown(self):
         results = evaluate_roll(self.analysis, [("攻速", 30)])
         self.assertEqual(results[0].grade, "未识别")
+
+
+class ObjectOrientedTest(unittest.TestCase):
+    def test_analyzer_builds_analysis(self):
+        analysis = RivenAnalyzer().analyze(weapon())
+        self.assertAlmostEqual(analysis.disposition, 0.95)
+        self.assertEqual(find_stat(analysis.two, "多重射击").range_text(),
+                         "76.2 ~ 93.1%")
+        self.assertTrue(analysis.two_neg)
+        self.assertTrue(analysis.negatives_two)
+
+    def test_analyzer_builds_group_analysis(self):
+        analysis = RivenAnalyzer(1.2).analyze_group("主武器", "rifle", 1.2)
+        self.assertEqual(analysis.slug, "group:rifle")
+        self.assertEqual(analysis.disposition, 1.2)
+        self.assertTrue(analysis.three)
+
+    def test_analysis_evaluates_roll(self):
+        analysis = RivenAnalyzer().analyze(weapon())
+        results = analysis.evaluate([
+            ("伤害", 140), ("多重", 80), ("暴击", 130), ("变焦", -30)])
+        self.assertEqual(results[0].stat.range_text(), "132.3 ~ 161.6%")
+        self.assertEqual(analysis.config_label(results), "3+1")
+        self.assertEqual(len(RivenRollEvaluator().evaluate(
+            analysis, [("伤害", 160), ("多重", 90)])), 2)
 
 
 class ImageTest(unittest.TestCase):

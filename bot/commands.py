@@ -24,7 +24,7 @@ from .market import (Item, MarketClient, MarketError, SearchHit, is_arcane,
 from .replies import Reply
 from .riven import (CATEGORY_LABELS, GROUP_CATEGORY_ORDER, GROUP_LABELS,
                     RivenClient, parse_group_detail, parse_riven_filters)
-from .rivencalc import calculate, calculate_group
+from .rivencalc import RivenAnalyzer
 from .subscriptions import (SubscriptionService, kind_label, kind_names,
                             parse_kind)
 from .updater import DataUpdater
@@ -674,7 +674,7 @@ class CommandRouter:
                 % argument)
 
         auctions, note = self.riven.auctions(weapon.slug, limit=5)
-        analysis = calculate(weapon)
+        analysis = RivenAnalyzer().analyze(weapon)
         return present.riven_reply(weapon, auctions, note, platform,
                                    analysis=analysis)
 
@@ -767,7 +767,7 @@ class CommandRouter:
             rows = buckets.get(category) or []
             if not rows:
                 continue
-            sections.append((category, calculate_group(
+            sections.append((category, RivenAnalyzer(disposition).analyze_group(
                 GROUP_LABELS.get(key, key), category, disposition)))
         if not sections:
             return present.error_reply("「%s」暂时没有紫卡武器。" % text)

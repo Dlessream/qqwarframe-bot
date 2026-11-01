@@ -148,6 +148,33 @@ class RivenAnalysis:
             return "中"
         return "低"
 
+    def stats_for(self, positives: int,
+                  has_negative: bool) -> Tuple[List[RivenStat], List[RivenStat]]:
+        """按正向词条数和是否有负面，返回 (正向范围, 负面范围)。"""
+        if positives == 2:
+            positive_stats = self.two_neg if has_negative else self.two
+        elif positives >= 3:
+            positive_stats = self.three_neg if has_negative else self.three
+        else:
+            positive_stats = self.three_neg or self.three or self.two_neg
+        negative_stats = (self.negatives_three if positives >= 3
+                          else self.negatives_two)
+        if not negative_stats:
+            negative_stats = self.negatives_three
+        return positive_stats, negative_stats
+
+    def find_stat(self, stats: Sequence[RivenStat],
+                  canonical: str) -> Optional[RivenStat]:
+        return find_stat(stats, canonical)
+
+    def evaluate(self, pairs: Sequence[Tuple[str, float]],
+                 scale: float = 1.0) -> List["RollEvaluation"]:
+        """面向对象入口：对一张卡的实际词条评分。"""
+        return RivenRollEvaluator().evaluate(self, pairs, scale=scale)
+
+    def config_label(self, evaluations: Sequence["RollEvaluation"]) -> str:
+        return infer_config_label(evaluations)
+
 
 @dataclass(frozen=True)
 class BaseStat:
@@ -346,82 +373,125 @@ def calculate_group(label: str, category: str,
     return calculate(weapon)
 
 
-def _positive(base: BaseStat, category: str, weight: float,
-              disposition: float) -> Optional[RivenStat]:
-    raw = base.values.get(category)
-    if raw is None:
-        return None
-    nominal = raw * weight * disposition
-    low, high = nominal * 0.9, nominal * 1.1
-    if base.invert:
-        low, high = -high, -low
-    return RivenStat(base.name, _round1(low), _round1(high), base.unit,
-                     multiplier=base.multiplier)
+class RivenAnalyzer:
+    """紫卡范围计算器：把武器/武器组转换成 `RivenAnalysis`。
+
+    旧的 `calculate()` / `calculate_group()` 保留为薄包装，命令层可以直接
+    使用这个类，测试和外部脚本也不会被破坏。
+    """
+
+    def __init__(self, disposition: Optional[float] = None,
+                 base_stats: Sequence[BaseStat] = BASE_STATS,
+                 source_url: str = WIKI_URL):
+        self.disposition_override = disposition
+        self.base_stats = tuple(base_stats)
+        self.source_url = source_url
+
+    def analyze(self, weapon: RivenWeapon) -> RivenAnalysis:
+        category = category_for(weapon)
+        disposition = float(weapon.disposition or 1.0)
+        if self.disposition_override is not None:
+            disposition = float(self.disposition_override)
+        return RivenAnalysis(
+            slug=weapon.slug,
+            name=weapon.name,
+            name_en=weapon.name_en,
+            disposition=disposition,
+            dots=disposition_dots(disposition),
+            two=self._positive_group(category, WEIGHTS["two"], disposition),
+            two_neg=self._positive_group(category, WEIGHTS["two_neg"], disposition),
+            three=self._positive_group(category, WEIGHTS["three"], disposition),
+            three_neg=self._positive_group(category, WEIGHTS["three_neg"], disposition),
+            negatives_two=self._negative_group(
+                category, MALUS["two_neg"], disposition),
+            negatives_three=self._negative_group(
+                category, MALUS["three_neg"], disposition),
+            history=[],
+            source_url=self.source_url,
+            category=category,
+            weapon_type=weapon.riven_type,
+        )
+
+    def analyze_group(self, label: str, category: str,
+                      disposition: float = 1.2) -> RivenAnalysis:
+        """按组生成一个虚拟武器，再走同一套分析流程。"""
+        weapon = RivenWeapon(
+            slug="group:%s" % category,
+            name=label,
+            name_en=label,
+            riven_type=category,
+            group=category,
+            disposition=float(disposition or 1.2),
+            mastery_rank=0,
+        )
+        return self.analyze(weapon)
+
+    def _positive(self, base: BaseStat, category: str, weight: float,
+                  disposition: float) -> Optional[RivenStat]:
+        raw = base.values.get(category)
+        if raw is None:
+            return None
+        nominal = raw * weight * disposition
+        low, high = nominal * 0.9, nominal * 1.1
+        if base.invert:
+            low, high = -high, -low
+        return RivenStat(base.name, _round1(low), _round1(high), base.unit,
+                         multiplier=base.multiplier)
+
+    def _negative(self, base: BaseStat, category: str, malus: float,
+                  disposition: float) -> Optional[RivenStat]:
+        raw = base.values.get(category)
+        if raw is None or base.positive_only:
+            return None
+        nominal = raw * malus * disposition
+        low, high = nominal * 0.9, nominal * 1.1
+        if base.invert:
+            low, high = -high, -low
+        minimum, maximum = min(low, high), max(low, high)
+        return RivenStat(base.name, _round1(minimum), _round1(maximum),
+                         base.unit, negative=True, multiplier=base.multiplier)
+
+    @staticmethod
+    def _merge(base: BaseStat, stat: RivenStat, seen: set) -> bool:
+        """同一族词条（元素/复合元素）只保留一条，并换成族名。"""
+        if not base.group:
+            return True
+        if base.group in seen:
+            return False
+        seen.add(base.group)
+        stat.name = base.group
+        return True
+
+    def _positive_group(self, category: str, weight: float,
+                        disposition: float) -> List[RivenStat]:
+        stats: List[RivenStat] = []
+        seen: set = set()
+        for base in self.base_stats:
+            stat = self._positive(base, category, weight, disposition)
+            if stat is not None and self._merge(base, stat, seen):
+                stats.append(stat)
+        return stats
+
+    def _negative_group(self, category: str, malus: float,
+                        disposition: float) -> List[RivenStat]:
+        stats: List[RivenStat] = []
+        seen: set = set()
+        for base in self.base_stats:
+            stat = self._negative(base, category, malus, disposition)
+            if stat is not None and self._merge(base, stat, seen):
+                stats.append(stat)
+        return stats
 
 
-def _negative(base: BaseStat, category: str, malus: float,
-              disposition: float) -> Optional[RivenStat]:
-    raw = base.values.get(category)
-    if raw is None or base.positive_only:
-        return None
-    nominal = raw * malus * disposition
-    low, high = nominal * 0.9, nominal * 1.1
-    if base.invert:
-        low, high = -high, -low
-    minimum, maximum = min(low, high), max(low, high)
-    return RivenStat(base.name, _round1(minimum), _round1(maximum),
-                     base.unit, negative=True, multiplier=base.multiplier)
+def calculate_group(label: str, category: str,
+                    disposition: float = 1.2) -> RivenAnalysis:
+    """兼容入口；新代码可用 `RivenAnalyzer().analyze_group()`。"""
+    return RivenAnalyzer(disposition).analyze_group(label, category, disposition)
 
 
 def calculate(weapon: RivenWeapon) -> RivenAnalysis:
-    category = category_for(weapon)
-    disposition = float(weapon.disposition or 1.0)
-
-    def merge(stat_base: BaseStat, stat: RivenStat, seen: set) -> bool:
-        """同一族的词条（元素伤害 / 复合元素）只保留第一条，行名换成族名。"""
-        if not stat_base.group:
-            return True
-        if stat_base.group in seen:
-            return False
-        seen.add(stat_base.group)
-        stat.name = stat_base.group
-        return True
-
-    def positives(weight: float) -> List[RivenStat]:
-        stats = []
-        seen = set()
-        for base in BASE_STATS:
-            stat = _positive(base, category, weight, disposition)
-            if stat is not None and merge(base, stat, seen):
-                stats.append(stat)
-        return stats
-
-    def negatives(malus: float) -> List[RivenStat]:
-        stats = []
-        seen = set()
-        for base in BASE_STATS:
-            stat = _negative(base, category, malus, disposition)
-            if stat is not None and merge(base, stat, seen):
-                stats.append(stat)
-        return stats
-
-    return RivenAnalysis(
-        slug=weapon.slug,
-        name=weapon.name,
-        name_en=weapon.name_en,
-        disposition=disposition,
-        dots=disposition_dots(disposition),
-        two=positives(WEIGHTS["two"]),
-        two_neg=positives(WEIGHTS["two_neg"]),
-        three=positives(WEIGHTS["three"]),
-        three_neg=positives(WEIGHTS["three_neg"]),
-        negatives_two=negatives(MALUS["two_neg"]),
-        negatives_three=negatives(MALUS["three_neg"]),
-        history=[],
-        source_url=WIKI_URL,
-        category=category,
-        weapon_type=weapon.riven_type,
-    )
+    """兼容入口；新代码可用 `RivenAnalyzer().analyze(weapon)`。"""
+    return RivenAnalyzer().analyze(weapon)
 
 
 # ---------------------------------------------------------------------- 词条匹配
@@ -484,125 +554,137 @@ def infer_config_label(evaluations: Sequence[RollEvaluation]) -> str:
     return "参考"
 
 
-def evaluate_roll(analysis: RivenAnalysis,
-                  pairs: Sequence[Tuple[str, float]],
-                  scale: float = 1.0) -> List[RollEvaluation]:
-    """`scale` 是「卡面数值 / 满级数值」：没升满的紫卡要先换算到满级再评分，
-    但 `value` 仍保留卡面上的数字——用户要的是和图片一模一样的结果。
+class RivenRollEvaluator:
+    """对一张卡的实际词条做评分。
+
+    评分规则与旧 `evaluate_roll()` 完全一致，只是把状态收进对象，
+    方便后续加配置、权重或不同评分策略。
     """
-    if not pairs:
-        return []
-    if not scale:
-        scale = 1.0
 
-    normalized: List[Tuple[str, float]] = []
-    for name, value in pairs:
-        # 手输/OCR 漏掉 `x` 时，对派系伤害会写成 `1.5`（意思是 x1.5，即 +50%）。
-        # 它不可能是 1.5%，所以这里按倍率换算回来。
-        if is_multiplier_stat(name) and 0 < abs(value) <= 3:
-            value = round((abs(value) - 1.0) * 100.0, 1)
-        normalized.append((name, value))
+    def evaluate(self, analysis: RivenAnalysis,
+                 pairs: Sequence[Tuple[str, float]],
+                 scale: float = 1.0) -> List[RollEvaluation]:
+        """`scale` 是「卡面数值 / 满级数值」：没升满的紫卡先换算到满级再评分，
+        但 `value` 仍保留卡面上的数字——用户要的是和图片一模一样的结果。
+        """
+        if not pairs:
+            return []
+        if not scale:
+            scale = 1.0
 
-    classified = [(name, value, is_negative_effect(name, value))
-                  for name, value in normalized]
-    positives = [item for item in classified if not item[2]]
-    has_negative = any(item[2] for item in classified)
+        normalized: List[Tuple[str, float]] = []
+        for name, value in pairs:
+            # 手输/OCR 漏掉 `x` 时，对派系伤害会写成 `1.5`（意思是 x1.5，即 +50%）。
+            # 它不可能是 1.5%，所以这里按倍率换算回来。
+            if is_multiplier_stat(name) and 0 < abs(value) <= 3:
+                value = round((abs(value) - 1.0) * 100.0, 1)
+            normalized.append((name, value))
 
-    if len(positives) == 2:
-        positive_stats = analysis.two_neg if has_negative else analysis.two
-    elif len(positives) >= 3:
-        positive_stats = analysis.three_neg if has_negative else analysis.three
-    else:
-        positive_stats = analysis.three_neg or analysis.three or analysis.two_neg
+        classified = [(name, value, is_negative_effect(name, value))
+                      for name, value in normalized]
+        positives = [item for item in classified if not item[2]]
+        has_negative = any(item[2] for item in classified)
+        positive_stats, negative_stats = analysis.stats_for(
+            len(positives), has_negative)
 
-    negative_stats = (analysis.negatives_three if len(positives) >= 3
-                      else analysis.negatives_two)
-    if not negative_stats:
-        negative_stats = analysis.negatives_three
+        results: List[RollEvaluation] = []
+        for raw_name, value, negative in classified:
+            canonical = canonical_name(raw_name)
+            stats = negative_stats if negative else positive_stats
+            stat = analysis.find_stat(stats, canonical) if stats else None
+            item = self.evaluate_one(
+                canonical or raw_name, value / scale, stat, negative)
+            results.append(RollEvaluation(
+                item.name, value, item.stat, item.percentile, item.grade,
+                item.note, item.negative, scale))
+        return results
 
-    results: List[RollEvaluation] = []
-    for raw_name, value, negative in classified:
-        canonical = canonical_name(raw_name)
-        stats = negative_stats if negative else positive_stats
-        stat = find_stat(stats, canonical) if stats else None
-        item = _evaluate_one(canonical or raw_name, value / scale, stat, negative)
-        results.append(RollEvaluation(item.name, value, item.stat, item.percentile,
-                                      item.grade, item.note, item.negative, scale))
-    return results
+    def evaluate_one(self, name: str, value: float,
+                     stat: Optional[RivenStat],
+                     negative: bool) -> RollEvaluation:
+        if stat is None:
+            return RollEvaluation(name, value, None, 0.0, "未识别",
+                                  "该武器没有这个词条，或名称没对上", negative)
 
+        if negative:
+            magnitude = abs(value)
+            low = min(abs(stat.low), abs(stat.high))
+            high = max(abs(stat.low), abs(stat.high))
+            if high <= low:
+                percentile = 0.5
+            else:
+                percentile = (magnitude - low) / (high - low)
+            if magnitude > high:
+                percentile = 1.0
+                grade = "负面过大"
+            elif magnitude < low:
+                percentile = 0.0
+                grade = "轻微"
+            elif percentile >= 0.75:
+                grade = "负面偏大"
+            elif percentile >= 0.4:
+                grade = "中等"
+            else:
+                grade = "轻微"
+            return RollEvaluation(name, value, stat, percentile, grade,
+                                  "负面数值越小越好", True)
 
-def _evaluate_one(name: str, value: float, stat: Optional[RivenStat],
-                  negative: bool) -> RollEvaluation:
-    if stat is None:
-        return RollEvaluation(name, value, None, 0.0, "未识别",
-                              "该武器没有这个词条，或名称没对上", negative)
+        low, high = stat.low, stat.high
+        if high < 0:
+            magnitude = abs(value)
+            low, high = abs(stat.high), abs(stat.low)
+            if high <= low:
+                percentile = 0.5
+            else:
+                percentile = (magnitude - low) / (high - low)
+            if magnitude > high:
+                percentile = 1.0
+                grade = "超上限"
+                note = "超过该配置理论上限，检查是否输错或倾向不符"
+            elif magnitude < low:
+                percentile = 0.0
+                grade = "低于下限"
+                note = "低于该配置理论下限"
+            else:
+                note = "位于可能范围的 %d%%" % int(round(percentile * 100))
+                grade = ("接近满值" if percentile >= 0.9 else
+                         "优秀" if percentile >= 0.7 else
+                         "中等" if percentile >= 0.4 else "偏低")
+            return RollEvaluation(name, value, stat, percentile, grade, note, False)
 
-    if negative:
-        magnitude = abs(value)
-        low = min(abs(stat.low), abs(stat.high))
-        high = max(abs(stat.low), abs(stat.high))
         if high <= low:
             percentile = 0.5
         else:
-            percentile = (magnitude - low) / (high - low)
-        if magnitude > high:
-            percentile = 1.0
-            grade = "负面过大"
-        elif magnitude < low:
-            percentile = 0.0
-            grade = "轻微"
-        elif percentile >= 0.75:
-            grade = "负面偏大"
-        elif percentile >= 0.4:
-            grade = "中等"
-        else:
-            grade = "轻微"
-        return RollEvaluation(name, value, stat, percentile, grade,
-                              "负面数值越小越好", True)
-
-    low, high = stat.low, stat.high
-    if high < 0:
-        magnitude = abs(value)
-        low, high = abs(stat.high), abs(stat.low)
-        if high <= low:
-            percentile = 0.5
-        else:
-            percentile = (magnitude - low) / (high - low)
-        if magnitude > high:
+            percentile = (value - low) / (high - low)
+        if value > high:
             percentile = 1.0
             grade = "超上限"
             note = "超过该配置理论上限，检查是否输错或倾向不符"
-        elif magnitude < low:
+        elif value < low:
             percentile = 0.0
             grade = "低于下限"
             note = "低于该配置理论下限"
         else:
             note = "位于可能范围的 %d%%" % int(round(percentile * 100))
-            grade = ("接近满值" if percentile >= 0.9 else
-                     "优秀" if percentile >= 0.7 else
-                     "中等" if percentile >= 0.4 else "偏低")
+            if percentile >= 0.9:
+                grade = "接近满值"
+            elif percentile >= 0.7:
+                grade = "优秀"
+            elif percentile >= 0.4:
+                grade = "中等"
+            else:
+                grade = "偏低"
         return RollEvaluation(name, value, stat, percentile, grade, note, False)
 
-    if high <= low:
-        percentile = 0.5
-    else:
-        percentile = (value - low) / (high - low)
-    if value > high:
-        percentile = 1.0
-        grade = "超上限"
-        note = "超过该配置理论上限，检查是否输错或倾向不符"
-    elif value < low:
-        percentile = 0.0
-        grade = "低于下限"
-        note = "低于该配置理论下限"
-    else:
-        note = "位于可能范围的 %d%%" % int(round(percentile * 100))
-        if percentile >= 0.9:
-            grade = "接近满值"
-        elif percentile >= 0.7:
-            grade = "优秀"
-        elif percentile >= 0.4:
-            grade = "中等"
-        else:
-            grade = "偏低"
-    return RollEvaluation(name, value, stat, percentile, grade, note, False)
+
+def evaluate_roll(analysis: RivenAnalysis,
+                  pairs: Sequence[Tuple[str, float]],
+                  scale: float = 1.0) -> List[RollEvaluation]:
+    """兼容入口；新代码可用 `analysis.evaluate()` 或 `RivenRollEvaluator()`。"""
+    return RivenRollEvaluator().evaluate(analysis, pairs, scale=scale)
+
+
+def _evaluate_one(name: str, value: float, stat: Optional[RivenStat],
+                  negative: bool) -> RollEvaluation:
+    """兼容旧内部入口。"""
+    return RivenRollEvaluator().evaluate_one(name, value, stat, negative)
