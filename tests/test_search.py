@@ -132,5 +132,76 @@ class SearchTest(unittest.TestCase):
         self.assertEqual(restored.ducats, item.ducats)
 
 
+def _frame(slug, name, tags):
+    return Item(slug=slug, name=name, name_en=name, tags=tags)
+
+
+class FrameAliasExpansionTest(unittest.TestCase):
+    """战甲：中文别名 / 英文名 + 总图·蓝图·部件 都要能精确命中。"""
+
+    @classmethod
+    def setUpClass(cls):
+        parts = ("neuroptics", "chassis", "systems")
+        items = [
+            _frame("volt_prime_set", "Volt Prime 一套", ("warframe", "prime", "set")),
+            _frame("volt_prime_blueprint", "Volt Prime 蓝图",
+                   ("warframe", "prime", "blueprint")),
+            _frame("primed_charged_shell", "充电弹头 Prime", ("mod", "legendary")),
+        ]
+        for part in parts:
+            items.append(_frame(
+                "volt_prime_%s_blueprint" % part, "Volt Prime %s 蓝图" % part,
+                ("warframe", "prime", "component", "blueprint")))
+        cls.index = ItemIndex(items, {"电男": "volt_prime_set"})
+
+    def _top(self, query):
+        hits = self.index.search(query, limit=1)
+        self.assertTrue(hits, "查询没有结果：%s" % query)
+        return hits[0].item.slug
+
+    def test_frame_name(self):
+        self.assertEqual(self._top("电男"), "volt_prime_set")
+        self.assertEqual(self._top("圣装电男"), "volt_prime_set")
+        self.assertEqual(self._top("电男p"), "volt_prime_set")
+
+    def test_frame_english_name(self):
+        for query in ("Volt Prime", "volt prime", "voltprime", "volt"):
+            self.assertEqual(self._top(query), "volt_prime_set", query)
+
+    def test_main_blueprint(self):
+        for query in ("电男总图", "电男蓝图", "圣装电男总图", "电男p总图",
+                      "Volt Prime Blueprint", "volt prime 总图", "volt 蓝图"):
+            self.assertEqual(self._top(query), "volt_prime_blueprint", query)
+
+    def test_parts_by_chinese(self):
+        self.assertEqual(self._top("电男头"), "volt_prime_neuroptics_blueprint")
+        self.assertEqual(self._top("电男头部"), "volt_prime_neuroptics_blueprint")
+        self.assertEqual(self._top("电男头部神经光元"),
+                         "volt_prime_neuroptics_blueprint")
+        self.assertEqual(self._top("电男机体"), "volt_prime_chassis_blueprint")
+        self.assertEqual(self._top("电男系统"), "volt_prime_systems_blueprint")
+        self.assertEqual(self._top("电男p头"), "volt_prime_neuroptics_blueprint")
+        self.assertEqual(self._top("圣装电男机体"), "volt_prime_chassis_blueprint")
+
+    def test_parts_by_english(self):
+        cases = {
+            "volt prime neuroptics": "volt_prime_neuroptics_blueprint",
+            "volt neuroptics": "volt_prime_neuroptics_blueprint",
+            "voltprime neuroptics": "volt_prime_neuroptics_blueprint",
+            "volt prime chassis": "volt_prime_chassis_blueprint",
+            "volt systems": "volt_prime_systems_blueprint",
+            "volt prime 机体": "volt_prime_chassis_blueprint",
+            "volt 头": "volt_prime_neuroptics_blueprint",
+        }
+        for query, slug in cases.items():
+            self.assertEqual(self._top(query), slug, query)
+
+    def test_manual_alias_wins(self):
+        index = ItemIndex(
+            [_frame("volt_prime_set", "Volt Prime 一套", ("warframe", "prime", "set"))],
+            {"电男": "volt_prime_set", "电男总图": "volt_prime_set"})
+        self.assertEqual(index.search("电男总图")[0].item.slug, "volt_prime_set")
+
+
 if __name__ == "__main__":
     unittest.main()

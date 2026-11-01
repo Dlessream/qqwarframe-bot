@@ -976,6 +976,15 @@ class BotApp:
             if entry.get("builtin"):
                 group["builtin"].append(entry["alias"])
         if index is not None:
+            # 战甲别名会自动派生出上万条（英文名+部件组合），这里先建反向索引，
+            # 否则每个部件都全表扫一遍会明显拖慢管理页。
+            reverse: Dict[str, List[str]] = {}
+            for alias, target in index.aliases.items():
+                reverse.setdefault(target, []).append(alias)
+
+            def part_aliases(slug: str) -> List[str]:
+                return sorted(reverse.get(slug, []), key=lambda text: (len(text), text))[:24]
+
             for group in groups.values():
                 slug = group["slug"]
                 parts = []
@@ -987,14 +996,12 @@ class BotApp:
                         component = "%s_%s_blueprint" % (stem, part)
                         if component not in index.by_slug:
                             continue
-                        aliases = sorted(alias for alias, target in index.aliases.items()
-                                         if target == component)
                         item = index.get(component)
                         parts.append({
                             "label": label,
                             "slug": component,
                             "name": item.name if item else "",
-                            "aliases": aliases,
+                            "aliases": part_aliases(component),
                         })
                 elif slug.endswith("_set"):
                     base = slug[:-len("_set")]
@@ -1002,14 +1009,12 @@ class BotApp:
                         component = "%s_%s" % (base, suffix)
                         if component not in index.by_slug:
                             continue
-                        aliases = sorted(alias for alias, target in index.aliases.items()
-                                         if target == component)
                         item = index.get(component)
                         parts.append({
                             "label": label,
                             "slug": component,
                             "name": item.name if item else "",
-                            "aliases": aliases,
+                            "aliases": part_aliases(component),
                         })
                 group["parts"] = parts
         source = self._market_source(index)

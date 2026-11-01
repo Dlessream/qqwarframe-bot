@@ -52,6 +52,19 @@ def component_label(slug: str) -> str:
             return label
     return ""
 
+
+# 战甲部件：slug 里的部件名 -> 玩家会输入的叫法（中文 + 英文都要能命中）
+FRAME_PART_WORDS: Dict[str, Tuple[str, ...]] = {
+    "neuroptics": ("头", "头部", "神经光元", "头部神经光元", "neuroptics"),
+    "chassis": ("机体", "chassis"),
+    "systems": ("系统", "systems"),
+}
+
+# 战甲总图（主蓝图）的叫法：国服说“总图”，市场上显示“蓝图”
+FRAME_MAIN_WORDS: Tuple[str, ...] = (
+    "总图", "蓝图", "总图蓝图", "主蓝图", "blueprint",
+)
+
 # 分类 -> 判定函数
 CATEGORY_LABELS = {
     "warframe": "战甲",
@@ -404,6 +417,7 @@ class ItemIndex:
                     generated = alias_key + label
                     if generated not in self.aliases:
                         self.aliases[generated] = part_slug
+        self._expand_frame_aliases()
         self._searchable: List[Tuple[Item, str, str, str]] = [
             (item,
              _normalize(item.name),
@@ -411,6 +425,91 @@ class ItemIndex:
              item.slug.replace("_", " "))
             for item in self.items
         ]
+
+    def _expand_frame_aliases(self) -> None:
+        """战甲名（中文别名或英文名）自动展开成 总图/蓝图/部件 别名。
+
+        战甲别名现在指向 `*_prime_set`，光靠别名表无法覆盖玩家的各种叫法，
+        所以按战甲 slug 统一派生，避免逐条人工维护：
+
+            电男 / Volt Prime / voltprime / 圣装电男        -> Volt Prime 一套
+            电男总图 / 电男蓝图 / Volt Prime Blueprint     -> Volt Prime 蓝图（总图）
+            电男头 / 电男头部神经光元 / volt prime neuroptics
+                / volt 机体 / 圣装电男系统                  -> 对应部件蓝图
+
+        只补不覆盖：人工维护的别名永远优先。
+        """
+        base_of_set: Dict[str, str] = {}
+        for item in self.items:
+            if "warframe" in item.tag_set and item.slug.endswith("_prime_set"):
+                base_of_set[item.slug] = item.slug[: -len("_set")]
+        if not base_of_set:
+            return
+
+        # base -> (中文叫法, 英文叫法)
+        chinese_names: Dict[str, List[str]] = {}
+        english_names: Dict[str, List[str]] = {}
+
+        def remember(bucket: Dict[str, List[str]], base: str, name: str) -> None:
+            key = _normalize(name).replace(" ", "")
+            if not key:
+                return
+            names = bucket.setdefault(base, [])
+            if key not in names:
+                names.append(key)
+
+        for alias_key, slug in self.aliases.items():
+            base = base_of_set.get(slug)
+            if base is None and slug.endswith("_prime_blueprint"):
+                base = base_of_set.get(slug[: -len("_blueprint")] + "_set")
+            if base is None:
+                continue
+            # “电男蓝图”这类本身已经是总图别名，不再当成战甲名去二次展开。
+            if alias_key.endswith(("蓝图", "总图")):
+                continue
+            remember(chinese_names, base, alias_key)
+            remember(chinese_names, base, "圣装" + alias_key)
+
+        for base in base_of_set.values():
+            english = base[: -len("_prime")] if base.endswith("_prime") else base
+            remember(english_names, base, base.replace("_", " "))     # volt prime
+            remember(english_names, base, english.replace("_", " "))  # volt
+
+        def put(key: str, slug: str) -> None:
+            if slug in self.by_slug and key not in self.aliases:
+                self.aliases[key] = slug
+
+        for base in base_of_set.values():
+            set_slug = base + "_set"
+            main_slug = base + "_blueprint"
+            parts: Dict[str, Tuple[str, ...]] = {}
+            for part, words in FRAME_PART_WORDS.items():
+                part_slug = "%s_%s_blueprint" % (base, part)
+                if part_slug in self.by_slug:
+                    parts[part_slug] = words
+
+            # 中文叫法：额外补 “p” 变体（女枪p头、圣装电男总图…）
+            for key in chinese_names.get(base, ()):
+                put(key, set_slug)
+                put(key + "p", set_slug)
+                if main_slug in self.by_slug:
+                    for word in FRAME_MAIN_WORDS:
+                        put(key + word, main_slug)
+                        put(key + "p" + word, main_slug)
+                for part_slug, words in parts.items():
+                    for word in words:
+                        put(key + word, part_slug)
+                        put(key + "p" + word, part_slug)
+
+            # 英文叫法本身已带 Prime 语义，不再拼 p
+            for key in english_names.get(base, ()):
+                put(key, set_slug)
+                if main_slug in self.by_slug:
+                    for word in FRAME_MAIN_WORDS:
+                        put(key + word, main_slug)
+                for part_slug, words in parts.items():
+                    for word in words:
+                        put(key + word, part_slug)
 
     def __len__(self) -> int:
         return len(self.items)
