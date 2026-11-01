@@ -94,7 +94,8 @@ class FakeWiki:
 
 
 def make_router(fail_market=False, alerts=None, riven=None, updater=None,
-                arbi=None, worldstate=None, subscriptions=None, index=None):
+                arbi=None, worldstate=None, subscriptions=None, index=None,
+                database=None):
     market = FakeMarket(index if index is not None else build_index())
     market.fail = fail_market
     wiki = FakeWiki()
@@ -105,7 +106,8 @@ def make_router(fail_market=False, alerts=None, riven=None, updater=None,
     return CommandRouter(market, wiki, config, alerts=alerts, riven=riven,
                          updater=updater, arbi=arbi,
                          worldstate=worldstate,
-                         subscriptions=subscriptions), market, wiki
+                         subscriptions=subscriptions,
+                         database=database), market, wiki
 
 
 class FakeUpdater:
@@ -120,6 +122,12 @@ class FakeUpdater:
     def status_text(self, prefix="#"):
         self.prefix = prefix
         return "【数据更新状态】\n市场物品：100 条（1.0 小时前）"
+
+
+class FakeDatabase:
+    def snapshot(self):
+        return {"available": True, "total_rows": 123, "items": 45,
+                "built_at": "2026-01-01 00:00"}
 
 
 class FakeRiven:
@@ -681,6 +689,13 @@ class UpdateCommandTest(unittest.TestCase):
         replies = router.handle("#数据状态", self.ctx)
         self.assertIn("数据更新状态", replies[0].text)
         self.assertEqual(updater.prefix, "#")
+
+    def test_status_includes_database(self):
+        router, _, _ = make_router(updater=FakeUpdater(),
+                                   database=FakeDatabase())
+        text = router.handle("#数据状态", self.ctx)[0].text
+        self.assertIn("数据库：123 行", text)
+        self.assertIn("物品 45", text)
 
     def test_disabled(self):
         router, _, _ = make_router(updater=None)

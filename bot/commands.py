@@ -239,12 +239,14 @@ class CommandRouter:
                  translator=None,
                  board=None,
                  rotation=None,
-                 subscriptions: Optional[SubscriptionService] = None):
+                 subscriptions: Optional[SubscriptionService] = None,
+                 database=None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
         self.log = logger or LOGGER
         self.translator = translator
+        self.database = database
         # 翻译接口失败后的冷却时间戳（见 _translate_wiki）
         self._translate_blocked_until = 0.0
         self.prefixes = list(config.get("behavior", {}).get("prefixes") or ["#"])
@@ -904,7 +906,22 @@ class CommandRouter:
     def _data_status(self, argument: str, ctx: Context) -> Reply:
         if self.updater is None:
             return present.error_reply("自动更新未启用。")
-        return Reply(text=self.updater.status_text(ctx.prefix))
+        text = self.updater.status_text(ctx.prefix)
+        if self.database is not None:
+            try:
+                snapshot = self.database.snapshot()
+            except Exception as exc:  # noqa: BLE001 - 状态页不该被数据库拖挂
+                self.log.warning("读取数据库状态失败：%s", exc)
+                snapshot = {"available": False, "message": str(exc)}
+            if snapshot.get("available"):
+                text += "\n数据库：%s 行 / 物品 %s / 构建 %s" % (
+                    snapshot.get("total_rows", 0),
+                    snapshot.get("items", 0),
+                    snapshot.get("built_at") or "?")
+            else:
+                text += "\n数据库：未生成（%s）" % (
+                    snapshot.get("message") or "python db/build.py")
+        return Reply(text=text)
 
     # ------------------------------------------------------------------ 世界状态
     def _baro(self, ctx: Context) -> Reply:

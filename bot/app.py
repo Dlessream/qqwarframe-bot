@@ -162,7 +162,8 @@ class BotApp:
             riven=self.riven, worldstate=self.worldstate, alerts=self.alerts,
             arbi=self.arbi, updater=self.updater,
             translator=self.translator, board=self.board,
-            rotation=self.rotation, subscriptions=self.subscriptions)
+            rotation=self.rotation, subscriptions=self.subscriptions,
+            database=self.database)
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
                                      logger=self.log)
