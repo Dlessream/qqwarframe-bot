@@ -19,7 +19,7 @@ import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .riven import RivenWeapon
+from .riven import RivenWeapon, weapon_category
 
 WIKI_URL = "https://wiki.warframe.com/w/Riven_Mods"
 
@@ -323,23 +323,27 @@ def disposition_dots(disposition: float) -> str:
 
 
 def category_for(weapon: RivenWeapon) -> str:
-    riven_type = (weapon.riven_type or "").lower()
-    group = (weapon.group or "").lower()
-    if riven_type == "archgun" or group == "archgun":
-        return "archgun"
-    if riven_type in CATEGORIES:
-        return riven_type
-    if riven_type == "zaw" or group == "zaw":
-        return "melee"
-    if riven_type == "kitgun" or group == "kitgun":
-        return "pistol"
-    if group == "melee":
-        return "melee"
-    if group == "secondary":
-        return "pistol"
-    if group == "primary":
-        return "rifle"
-    return "rifle"
+    """保留旧入口：类别判定统一走 riven.weapon_category。"""
+    return weapon_category(weapon)
+
+
+def calculate_group(label: str, category: str,
+                    disposition: float = 1.2) -> RivenAnalysis:
+    """按「武器组 + 类别」算一套紫卡数值范围（不针对某把武器）。
+
+    组命令（#紫卡分析 主武器）用：同一组武器的倾向各不相同，这里统一按
+    配置里的倾向（默认 1.2）算一把「虚拟武器」的范围，具体武器再单独查。
+    """
+    weapon = RivenWeapon(
+        slug="group:%s" % category,
+        name=label,
+        name_en=label,
+        riven_type=category,
+        group=category,
+        disposition=float(disposition or 1.2),
+        mastery_rank=0,
+    )
+    return calculate(weapon)
 
 
 def _positive(base: BaseStat, category: str, weight: float,

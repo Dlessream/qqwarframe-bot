@@ -185,6 +185,63 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
     return Reply(text="\n".join(lines), image=build_image)
 
 
+def riven_group_reply(label: str, sections: Sequence[Tuple[str, RivenAnalysis]],
+                      counts: Dict[str, int], disposition: float,
+                      group_counts: Optional[Dict[str, int]] = None) -> Reply:
+    """紫卡分组范围：#紫卡分析 主武器 / 副武器 / 近战 / 空战 / 同伴。"""
+    from .riven import CATEGORY_LABELS, GROUP_LABELS
+
+    lines = ["【%s】紫卡词条范围" % label,
+             "倾向按 %.2f 计算 · Lv.8 · 同组武器倾向不同，具体武器用「#紫卡 武器名」查"
+             % disposition]
+    # 文字只展开前两类（例如主武器的步枪/霰弹），其余（同伴的哨兵近战等）看图
+    for category, analysis in sections[:2]:
+        lines.append("")
+        lines.append("%s（%d 把）" % (CATEGORY_LABELS.get(category, category),
+                                    counts.get(category, 0)))
+        positives = list(analysis.two_neg or analysis.two or [])
+        for stat in positives[:6]:
+            lines.append("  %s %s" % (stat.name, stat.range_text()))
+        negatives = list(analysis.negatives_two or analysis.negatives_three or [])
+        if negatives:
+            lines.append("  负面：" + "、".join(
+                "%s %s" % (stat.name, stat.range_text()) for stat in negatives[:3]))
+    if len(sections) > 2:
+        rest = "、".join("%s %d 把" % (CATEGORY_LABELS.get(category, category),
+                                       counts.get(category, 0))
+                         for category, _ in sections[2:])
+        lines.append("")
+        lines.append("另有 %s，范围见图。" % rest)
+    lines.append("")
+    lines.append("完整 2 / 2+1 / 3 / 3+1 与负面范围见图。")
+    if group_counts:
+        lines.append("各组武器数：" + "、".join(
+            "%s %d" % (GROUP_LABELS.get(key, key), count)
+            for key, count in group_counts.items() if count))
+
+    def build_image():
+        return imagecard.riven_group_card(
+            [("%s · %s" % (label, CATEGORY_LABELS.get(category, category)),
+              analysis) for category, analysis in sections],
+            "数据 Warframe Wiki · 本地计算（倾向 %.2f）" % disposition)
+
+    return Reply(text="\n".join(lines), image=build_image)
+
+
+def riven_group_menu(group_counts: Optional[Dict[str, int]] = None) -> Reply:
+    """不带组名时列出可选分组。"""
+    from .riven import GROUP_KEYS, GROUP_LABELS
+
+    lines = ["用法：#紫卡分析 <组名>",
+             "例：#紫卡分析 主武器 · 副武器 · 近战 · 空战 · 同伴",
+             ""]
+    for key in GROUP_KEYS:
+        count = (group_counts or {}).get(key, 0)
+        lines.append("  %s%s" % (GROUP_LABELS.get(key, key),
+                                 "（%d 把）" % count if count else ""))
+    return Reply(text="\n".join(lines))
+
+
 # ---------------------------------------------------------------------- 世界状态
 def _translate_items(names: Sequence[str], index) -> List[str]:
     if index is None:

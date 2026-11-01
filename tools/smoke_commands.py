@@ -39,6 +39,7 @@ CASES: List[Tuple[str, str]] = [
     ("mod", "#mod 分裂膛室"),
     ("set", "#拆件 Mesa Prime"),
     ("riven", "#紫卡 绝路"),
+    ("riven_group", "#紫卡分析 主武器"),
     ("riven_rank", "#紫卡榜"),
     ("frame_rank", "#战甲榜"),
     ("junk_gold", "#金垃圾"),

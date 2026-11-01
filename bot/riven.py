@@ -71,6 +71,123 @@ _STRIP_SUFFIXES = (
     "_prime_blueprint", "_blueprint",
 )
 
+# 紫卡武器分组（玩家口径）：官方 group / rivenType -> 组 key。
+# 「自制武器」Kitgun 除近战外都按副武器算，Zaw 按近战算。
+GROUP_LABELS = {
+    "primary": "主武器",
+    "secondary": "副武器",
+    "melee": "近战",
+    "archgun": "空战",
+    "sentinel": "同伴",
+}
+GROUP_KEYS = ("primary", "secondary", "melee", "archgun", "sentinel")
+
+GROUP_ALIASES = {
+    "主武器": "primary", "主武": "primary", "主": "primary",
+    "primary": "primary", "步枪": "primary", "rifle": "primary",
+    "霰弹枪": "primary", "霰弹": "primary", "shotgun": "primary",
+    "副武器": "secondary", "副武": "secondary", "副": "secondary",
+    "secondary": "secondary", "手枪": "secondary", "pistol": "secondary",
+    "自制": "secondary", "组合枪": "secondary", "kitgun": "secondary",
+    "近战": "melee", "melee": "melee", "刀": "melee",
+    "组合近战": "melee", "zaw": "melee",
+    "空战": "archgun", "空战武器": "archgun", "archgun": "archgun",
+    "archwing": "archgun", "空战枪": "archgun",
+    "同伴": "sentinel", "同伴武器": "sentinel", "哨兵": "sentinel",
+    "哨兵武器": "sentinel", "守护": "sentinel", "sentinel": "sentinel",
+}
+
+# 类别（决定紫卡基础数值）→ 中文名
+CATEGORY_LABELS = {
+    "rifle": "步枪",
+    "shotgun": "霰弹枪",
+    "pistol": "手枪",
+    "melee": "近战",
+    "archgun": "空战",
+}
+
+# 组 key -> 类别显示顺序（主武器含步枪与霰弹，两套数值不一样）
+GROUP_CATEGORY_ORDER = {
+    "primary": ("rifle", "shotgun"),
+    "secondary": ("pistol",),
+    "melee": ("melee",),
+    "archgun": ("archgun",),
+    "sentinel": ("rifle",),
+}
+
+
+def weapon_group(weapon: "RivenWeapon") -> str:
+    """把紫卡武器归到玩家口径的分组：主武器/副武器/近战/空战/同伴。"""
+    group = str(getattr(weapon, "group", "") or "").lower()
+    riven_type = str(getattr(weapon, "riven_type", "") or "").lower()
+    if group == "archgun" or riven_type == "archgun":
+        return "archgun"          # 空战（含空战近战）
+    if group == "kitgun" or riven_type == "kitgun":
+        return "secondary"        # 自制枪按副武器算
+    if group == "zaw" or riven_type == "zaw":
+        return "melee"            # 自制近战按近战算
+    if group in GROUP_LABELS:
+        return group
+    if riven_type in ("rifle", "shotgun"):
+        return "primary"
+    if riven_type == "pistol":
+        return "secondary"
+    if riven_type == "melee":
+        return "melee"
+    return ""
+
+
+def weapon_category(weapon: "RivenWeapon") -> str:
+    """紫卡数值用的是哪一套基础值：rifle / shotgun / pistol / melee / archgun。"""
+    riven_type = str(getattr(weapon, "riven_type", "") or "").lower()
+    group = str(getattr(weapon, "group", "") or "").lower()
+    if riven_type == "archgun" or group == "archgun":
+        return "archgun"
+    if riven_type in ("rifle", "shotgun", "pistol", "melee"):
+        return riven_type
+    if riven_type == "zaw" or group == "zaw":
+        return "melee"
+    if riven_type == "kitgun" or group == "kitgun":
+        return "pistol"
+    if group == "melee":
+        return "melee"
+    if group == "secondary":
+        return "pistol"
+    return "rifle"
+
+
+# 「步枪」「霰弹」这类只指主武器里的某个类别，范围表也分开算
+CATEGORY_ALIASES = {
+    "步枪": "rifle", "rifle": "rifle",
+    "霰弹": "shotgun", "霰弹枪": "shotgun", "shotgun": "shotgun",
+}
+
+
+def parse_group_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
+    """解析成（组 key, 类别过滤）。例如「步枪」-> (primary, rifle)。"""
+    key = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(text or "").lower())
+    if not key:
+        return None, None
+    for alias, category in CATEGORY_ALIASES.items():
+        if key == alias:
+            group = "primary"
+            return group, category
+    return parse_group(text), None
+
+
+def parse_group(text: str) -> Optional[str]:
+    """把「主武器」「pistol」「空战」这类输入解析成组 key。"""
+    key = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(text or "").lower())
+    if not key:
+        return None
+    if key in GROUP_ALIASES:
+        return GROUP_ALIASES[key]
+    for alias, target in GROUP_ALIASES.items():
+        normalized = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", alias.lower())
+        if normalized and (normalized in key or key in normalized):
+            return target
+    return None
+
 
 @dataclass
 class RivenWeapon:
@@ -166,6 +283,26 @@ class RivenClient:
     def refresh(self) -> int:
         """强制刷新紫卡武器表（后台自动更新用）。"""
         return len(self.weapons(ttl=0))
+
+    def group_weapons(self, key: str) -> Dict[str, List[RivenWeapon]]:
+        """按玩家口径的分组取武器：类别（rifle/shotgun/…）-> 武器列表。"""
+        buckets: Dict[str, List[RivenWeapon]] = {}
+        for weapon in self.weapons().values():
+            if weapon_group(weapon) != key:
+                continue
+            buckets.setdefault(weapon_category(weapon), []).append(weapon)
+        for rows in buckets.values():
+            rows.sort(key=lambda item: item.name)
+        return buckets
+
+    def group_counts(self) -> Dict[str, int]:
+        """各组武器数量（主武器/副武器/近战/空战/同伴）。"""
+        counts = {key: 0 for key in GROUP_KEYS}
+        for weapon in self.weapons().values():
+            key = weapon_group(weapon)
+            if key in counts:
+                counts[key] += 1
+        return counts
 
     def attributes(self, ttl: int = 43200) -> Dict[str, str]:
         """紫卡词条 slug -> 中文名（官方 /v2/riven/attributes）。

@@ -1007,6 +1007,51 @@ def _encode(image: "Image.Image") -> bytes:
     return buffer.getvalue()
 
 
+def riven_group_card(sections: Sequence[Tuple[str, object]],
+                     footer: str = "数据 Warframe Wiki · 本地计算") -> Optional[bytes]:
+    """紫卡分组范围卡：把「步枪 / 霰弹枪」等类别的范围表纵向拼成一张图。
+
+    sections: [(类别中文名, RivenAnalysis)]
+    """
+    if Image is None or not sections:
+        return None
+    cards = []
+    for label, analysis in sections:
+        if analysis is None:
+            continue
+        analysis.name = label
+        try:
+            raw = riven_range_card(analysis, footer)
+        except Exception:  # pragma: no cover - 渲染失败就跳过这张
+            continue
+        if raw:
+            cards.append(raw)
+    if not cards:
+        return None
+    if len(cards) == 1:
+        return cards[0]
+
+    images = []
+    for raw in cards:
+        try:
+            images.append(Image.open(io.BytesIO(raw)).convert("RGB"))
+        except Exception:  # pragma: no cover
+            pass
+    if not images:
+        return None
+    if len(images) == 1:
+        return cards[0]
+
+    width = max(image.width for image in images)
+    height = sum(image.height for image in images) + 12 * (len(images) - 1)
+    canvas = Image.new("RGB", (width, height), BG_TOP)
+    y = 0
+    for image in images:
+        canvas.paste(image, (0, y))
+        y += image.height + 12
+    return _encode(canvas)
+
+
 def wiki_card(title: str, body: str, url: str, footer: str = "",
               chip: str = "WIKI") -> bytes:
     """维基词条卡：标题 + 自动换行正文 + 链接。"""
@@ -1085,6 +1130,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s战甲榜" % prefix, "Prime 战甲价格排行"],
         ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
+        ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
         ["%s轮换 言录使" % prefix, "本周 5 件（苦栓）"],
         ["%s轮换 格拉斯 / 埃莉诺" % prefix, "信条近战 / 终幕武器加成"],

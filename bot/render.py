@@ -244,6 +244,7 @@ def render_help(prefix: str = "#") -> str:
         "%s战甲                Prime 战甲价格（全表，高 → 低）" % prefix,
         "%s紫卡 <武器>        倾向 + 词条范围表（2 / 2+1 / 3 / 3+1 与负面）" % prefix,
         "%s紫卡                每把武器最贵的零洗卡（高 → 低）" % prefix,
+        "%s紫卡分析 <组>      主武器 / 副武器 / 近战 / 空战 / 同伴 的数值范围" % prefix,
         "%s轮换               言录使 / 格拉斯 / 埃莉诺 轮换商店" % prefix,
         "%s轮换 <言录使|格拉斯|埃莉诺>  单个商店明细" % prefix,
         "%s奸商 / %s突击 / %s仲裁  世界状态" % (prefix, prefix, prefix),

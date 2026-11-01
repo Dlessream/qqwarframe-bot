@@ -124,11 +124,20 @@ class FakeUpdater:
 class FakeRiven:
     def __init__(self):
         self.queries = []
+        self.disposition_override = 1.2
 
     def weapons(self):
         return {"soma": RivenWeapon(
             slug="soma", name="索玛", name_en="Soma", riven_type="rifle",
             group="primary", disposition=1.2, mastery_rank=6)}
+
+    def group_weapons(self, key):
+        from bot.riven import RivenClient
+        return RivenClient.group_weapons(self, key)
+
+    def group_counts(self):
+        from bot.riven import RivenClient
+        return RivenClient.group_counts(self)
 
     def find(self, item):
         self.queries.append(item.slug)
@@ -555,10 +564,25 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         replies = router.handle("#紫卡 绝路", self.ctx)
         self.assertIn("3+1", replies[0].text)
 
-    def test_riven_analysis_command_removed(self):
-        """#紫卡分析 已下线，不再解析成命令。"""
-        router, _, _ = make_router()
-        self.assertIsNone(router.parse("#紫卡分析 绝路"))
+    def test_riven_analysis_group_command(self):
+        """#紫卡分析 已恢复：按武器组看紫卡数值范围。"""
+        router, _, _ = make_router(riven=FakeRiven())
+        self.assertEqual(router.parse("#紫卡分析 主武器"), ("riven_group", "主武器"))
+        self.assertEqual(router.parse("#紫卡分析主武器"), ("riven_group", "主武器"))
+        reply = router.handle("#紫卡分析 主武器", self.ctx)[0]
+        self.assertIn("紫卡词条范围", reply.text)
+        self.assertIn("主武器", reply.text)
+        self.assertIn("倾向按 1.20 计算", reply.text)
+
+    def test_riven_analysis_group_menu(self):
+        router, _, _ = make_router(riven=FakeRiven())
+        reply = router.handle("#紫卡分析", self.ctx)[0]
+        self.assertIn("用法", reply.text)
+        self.assertIn("副武器", reply.text)
+
+    def test_riven_still_works_after_restore(self):
+        router, _, _ = make_router(riven=FakeRiven())
+        self.assertEqual(router.parse("#紫卡 绝路"), ("riven", "绝路"))
 
     def test_riven_disabled(self):
         router, _, _ = make_router(riven=None)

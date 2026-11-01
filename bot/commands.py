@@ -17,8 +17,9 @@ from .alerts import AlertStore
 from .arbi import ArbiClient, ArbiError
 from .market import Item, MarketClient, MarketError, SearchHit
 from .replies import Reply
-from .riven import RivenClient
-from .rivencalc import calculate
+from .riven import (CATEGORY_LABELS, GROUP_CATEGORY_ORDER, GROUP_LABELS,
+                    RivenClient, parse_group_detail)
+from .rivencalc import calculate, calculate_group
 from .subscriptions import (SubscriptionService, kind_label, kind_names,
                             parse_kind)
 from .updater import DataUpdater
@@ -27,25 +28,13 @@ from .worldstate import Arbitration, WorldStateClient, WorldStateError
 
 LOGGER = logging.getLogger("qqwarframe.commands")
 
-# 已经下线的功能前缀：这些词后面跟任何东西都不再当命令（例如 #紫卡分析）
-RETIRED_PREFIXES: Dict[str, Tuple[str, ...]] = {
-    "riven": ("分析", "测评"),
-}
+# 已经下线的功能前缀：这些词后面跟任何东西都不再当命令。
+# 「紫卡分析」已恢复成按武器组看数值范围（riven_group），不再属于下线写法。
+RETIRED_PREFIXES: Dict[str, Tuple[str, ...]] = {}
 
 
 def is_retired(text: str) -> bool:
-    """是否属于已经下线的功能写法（例如「紫卡分析 绝路」）。"""
-    value = str(text or "").strip().lower()
-    for alias, command in COMMANDS.items():
-        for word in RETIRED_PREFIXES.get(command, ()):
-            for sep in ("", " "):
-                if value.startswith(alias + sep + word):
-                    return True
-    return False
-
-
-def is_retired(text: str) -> bool:
-    """是否属于已经下线的功能写法（例如「紫卡分析 绝路」）。"""
+    """是否属于已经下线的功能写法。"""
     value = str(text or "").strip().lower()
     for alias, command in COMMANDS.items():
         for word in RETIRED_PREFIXES.get(command, ()):
@@ -66,6 +55,9 @@ COMMANDS: Dict[str, str] = {
     "mod": "mod", "mods": "mod", "卡片": "mod", "卡": "mod", "模组": "mod",
     "拆件": "set", "拆卖": "set", "拆": "set", "套装": "set", "parts": "set",
     "紫卡": "riven", "riven": "riven", "zk": "riven",
+    "紫卡分析": "riven_group", "紫卡分组": "riven_group",
+    "紫卡类别": "riven_group", "紫卡类型": "riven_group",
+    "紫卡数值": "riven_group", "zkfx": "riven_group",
     "紫卡榜": "riven_rank", "紫卡排行": "riven_rank", "紫卡排名": "riven_rank",
     "零洗紫卡": "riven_rank", "最贵紫卡": "riven_rank", "紫卡价格榜": "riven_rank",
     "金垃圾": "junk_gold", "金垃圾行情": "junk_gold", "goldjunk": "junk_gold",
@@ -372,6 +364,8 @@ class CommandRouter:
                 return [self._set(argument, ctx)]
             if command == "riven":
                 return [self._riven(argument, ctx)]
+            if command == "riven_group":
+                return [self._riven_group(argument, ctx)]
             if command == "riven_rank":
                 return [self._riven_rank(ctx)]
             if command == "frame_rank":
@@ -611,6 +605,51 @@ class CommandRouter:
         analysis = calculate(weapon)
         return present.riven_reply(weapon, auctions, note, platform,
                                    analysis=analysis)
+
+    def _riven_group(self, argument: str, ctx: Context) -> Reply:
+        """#紫卡分析 <组名>：按武器组看紫卡数值范围（主武器/副武器/近战/空战/同伴）。"""
+        if self.riven is None:
+            return present.error_reply("紫卡功能未启用。")
+        text = str(argument or "").strip()
+        key, category_filter = parse_group_detail(text) if text else (None, None)
+        counts = self.riven.group_counts()
+        if not sum(counts.values()):
+            return present.error_reply(
+                "紫卡武器表还没拉到（市场接口不通），稍后再试。")
+        if not key:
+            return present.riven_group_menu(counts)
+
+        buckets = self.riven.group_weapons(key)
+        if not buckets:
+            return present.error_reply("「%s」这一组暂时没有紫卡武器。" % text)
+        disposition = self.riven.disposition_override
+        if disposition is None:
+            disposition = 1.2
+        label = GROUP_LABELS.get(key, key)
+        if category_filter:
+            label = "%s·%s" % (label, CATEGORY_LABELS.get(category_filter,
+                                                        category_filter))
+        # 常用类别排在前面；市场里副武器有「霰弹手枪」、同伴里有近战/手枪/霰弹，
+        # 这些没在预设顺序里，按实际数据追加，别漏掉。
+        order = list(GROUP_CATEGORY_ORDER.get(key) or ())
+        for category in sorted(buckets):
+            if category not in order:
+                order.append(category)
+        sections = []
+        for category in order:
+            if category_filter and category != category_filter:
+                continue
+            rows = buckets.get(category) or []
+            if not rows:
+                continue
+            sections.append((category, calculate_group(
+                GROUP_LABELS.get(key, key), category, disposition)))
+        if not sections:
+            return present.error_reply("「%s」暂时没有紫卡武器。" % text)
+        return present.riven_group_reply(
+            label, sections,
+            {category: len(rows) for category, rows in buckets.items()},
+            float(disposition))
 
     # ------------------------------------------------------------------ 价格榜（后台快照）
     def _scanning_reply(self, label: str, ready: int, total: int) -> Reply:
