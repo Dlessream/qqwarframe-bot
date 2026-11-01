@@ -380,6 +380,15 @@ class RivenRankOrderTest(unittest.TestCase):
                                            board.riven_ttl, time.time()),
                          "stale_one")
 
+    def test_calibrated_counts_scanned_without_listings(self):
+        # 市场上一张卡都没有的武器也算校准过（否则进度永远差一大截）
+        board = self.board()
+        board._quotes["riven"]["empty"] = {"t": time.time(), "f": 1,
+                                           "av": RIVEN_METRIC_VERSION, "c": []}
+        board._quotes["riven"]["old"] = {"t": time.time(), "f": 1,
+                                         "av": 1, "a": 100.0, "c": []}
+        self.assertEqual(board.riven_calibrated(), (1, 2))
+
     def test_pending_recalibration_beats_junk_rotation(self):
         # 口径升级后紫卡待补量和垃圾的正常过期撞在一起，
         # 不加权重会被轮转饿死（实测 35 分钟只补了 1/3）

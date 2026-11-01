@@ -748,9 +748,9 @@ class BoardClient:
         with self._lock:
             entries = list(self._quotes[_KIND_RIVEN].values())
         total = len(entries)
+        # 市场上一张卡都没有的武器也算「已校准」，只是没有价格可上榜
         done = sum(1 for entry in entries
-                   if _as_float(entry.get("a")) > 0
-                   and _as_int(entry.get("av")) >= RIVEN_METRIC_VERSION)
+                   if _as_int(entry.get("av")) >= RIVEN_METRIC_VERSION)
         return done, total
 
     def _looks_like_bait(self, price: int, seller: str, below: int,
