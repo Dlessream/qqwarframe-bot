@@ -1245,7 +1245,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**643 个离线测试**，不联网、不连 QQ，覆盖：
+**779 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1265,6 +1265,23 @@ python -m unittest discover -s tests -t . -v
 - 短 TTL 缓存的命中/过期、各数据源缓存包装
 - 图片卡片的 PNG 尺寸与长文本换行、仲裁表两列排布高度
 - **端到端**：mock OneBot 服务端 + mock 市场/Wiki，验证收事件、发图片、@ 回复
+- **SQLite 数据库**：schema、JSON 导入、物品/别名/赏金/轮换/视图、校验、CLI、幂等构建
+
+### 数据库
+
+项目可以额外生成一份 SQLite 全量数据库，用于查询、校验和后续渐进式切换：
+
+```bash
+python db/build.py                 # 离线导入 data/*.json
+python db/build.py --online        # 服务器上补紫卡武器/词条
+python db/query.py stats
+python db/query.py search 女枪
+python db/query.py validate
+```
+
+详细表结构、命令和限制见 [docs/DATABASE.md](docs/DATABASE.md)。
+
+> 当前 bot 运行时仍读 JSON，数据库是只读副本；先保证建库稳定，再逐模块切换。
 
 ---
 
@@ -1295,7 +1312,8 @@ qqwarframe-bot/
 │   ├── alerts.json        # 降价提醒（运行后生成）
 │   ├── subscriptions.json # 事件订阅（运行后生成）
 │   └── mission_colors.json # 任务配色（改过才生成）
-├── docs/                  # 效果图
+├── docs/                  # 效果图、DATABASE.md
+├── db/                    # SQLite schema、导入脚本、只读查询 CLI
 ├── bot/
 │   ├── config.py          # 配置（含 QQWF_* 环境变量覆盖）
 │   ├── log.py             # 日志
@@ -1323,7 +1341,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 643 个测试 + fixtures
+├── tests/                 # 779 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

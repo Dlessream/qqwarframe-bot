@@ -1,4 +1,4 @@
-﻿# Linux 部署速查
+# Linux 部署速查
 
 五种方式任选一种，**Docker 和 screen 都不是必须的**。
 完整说明（配置项、指令、常见问题）见 [README.md](README.md)。
@@ -241,7 +241,7 @@ docker run -d --name napcat --restart unless-stopped \
 
 ```bash
 ./check.sh                              # 联网自检
-python3 -m unittest discover -s tests -t .   # 316 个离线测试
+python3 -m unittest discover -s tests -t .   # 779 个离线测试
 ```
 
 自检里维基可能显示 `WARN`（Cloudflare/WAF 拦截），不影响市场、图片、提醒等功能。

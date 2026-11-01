@@ -1064,8 +1064,13 @@ def _icon_image(source: str, size: int = 64):
 def _platinum_glyph(draw, cx: float, cy: float, r: float,
                     color=(216, 202, 242)) -> None:
     """白金符号：菱形外边 + 中心圆点。"""
-    draw.polygon([(cx, cy - r), (cx + r * 0.78, cy), (cx, cy + r), (cx - r * 0.78, cy)],
-                 outline=color, width=2)
+    points = [(cx, cy - r), (cx + r * 0.78, cy), (cx, cy + r), (cx - r * 0.78, cy)]
+    try:
+        draw.polygon(points, outline=color, width=2)
+    except TypeError:
+        # Pillow < 8 不支持 polygon(width=)，退回 polygon + line 描边。
+        draw.polygon(points, outline=color)
+        draw.line(points + [points[0]], fill=color, width=2)
     rr = max(1.0, r * 0.26)
     draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=color)
 

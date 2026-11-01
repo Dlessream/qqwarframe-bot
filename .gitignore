@@ -9,6 +9,9 @@ data/board_cache.json
 data/board_cache.json.tmp
 data/rotation_cache.json
 data/rotation_cache.json.tmp
+# db/build.py 生成的 SQLite 副本（可随时重建）
+data/warframe.db
+data/warframe.db-*
 logs/
 *.log
 preview_*.png

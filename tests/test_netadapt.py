@@ -88,7 +88,7 @@ class PickTest(unittest.TestCase):
         self.assertEqual(netadapt.pick(result, "fastest"), "c")
 
     def test_fastest_skips_inherited(self):
-        result = {"a": _ok(0, 200) | {"inherited": True}, "b": _ok(400)}
+        result = {"a": {**_ok(0, 200), "inherited": True}, "b": _ok(400)}
         self.assertEqual(netadapt.pick(result, "fastest"), "b")
 
     def test_blocked_is_not_usable(self):
