@@ -400,6 +400,12 @@ class BoardClient:
                                      and len(entry.get("c") or []) <= 1):
                     self._cursor[kind] = (position + 1) % count
                     return slugs[position]
+            # 其次是升级前抓的（没有 av 标记）：那时只存了候选，没有均价
+            for position in order:
+                entry = quotes.get(slugs[position])
+                if entry is not None and not entry.get("av"):
+                    self._cursor[kind] = (position + 1) % count
+                    return slugs[position]
         for position in order:
             slug = slugs[position]
             entry = quotes.get(slug)
@@ -531,7 +537,7 @@ class BoardClient:
                 # 别继续拿老缓存里的可疑单条价格充数。
                 if slug in self._quotes[_KIND_RIVEN]:
                     self._quotes[_KIND_RIVEN][slug] = {
-                        "t": time.time(), "f": 1, "c": []}
+                        "t": time.time(), "f": 1, "av": 1, "c": []}
                 return
             # 存多个候选而不是只存冠军：冠军可能是钓鱼价，查询时再往下顺延。
             # f=1 表示这条是按新接口完整抓过的（候选已补全），
@@ -540,6 +546,7 @@ class BoardClient:
             self._quotes[_KIND_RIVEN][slug] = {
                 "t": time.time(),
                 "f": 1,
+                "av": 1,
                 "a": round(average, 1),
                 "n": samples,
                 "c": [[quote.price, quote.rank, quote.seller,

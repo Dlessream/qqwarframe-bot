@@ -326,6 +326,32 @@ class RivenRankOrderTest(unittest.TestCase):
         self.assertAlmostEqual(quote.avg, 600.0)
         self.assertEqual(quote.count, 2)
 
+    def test_entries_without_avg_rescanned_first(self):
+        # 升级前抓的缓存没有 av 标记（也就没有均价），要排在正常过期扫描前面先补一遍，
+        # 否则榜单会用「最贵几张的均值」冒充均价
+        board = self.board()
+        board._targets["riven"] = ["old_one", "fresh_one"]
+        board._quotes["riven"]["old_one"] = {"t": time.time(), "f": 1,
+                                             "c": [[9000, 8, "a", [], "", 1]]}
+        board._quotes["riven"]["fresh_one"] = {"t": 0.0, "f": 1, "av": 1,
+                                               "a": 100.0,
+                                               "c": [[100, 8, "b", [], "", 1]]}
+        self.assertEqual(board._next_stale("riven", board._targets["riven"],
+                                           board.riven_ttl, time.time()),
+                         "old_one")
+
+    def test_empty_new_entry_not_requeued(self):
+        # 新格式抓过但市场没卡（av=1、无 a）不该反复插队
+        board = self.board()
+        board._targets["riven"] = ["empty_one", "stale_one"]
+        board._quotes["riven"]["empty_one"] = {"t": time.time(), "f": 1,
+                                               "av": 1, "c": []}
+        board._quotes["riven"]["stale_one"] = {"t": 0.0, "f": 1, "av": 1,
+                                               "a": 50.0, "c": []}
+        self.assertEqual(board._next_stale("riven", board._targets["riven"],
+                                           board.riven_ttl, time.time()),
+                         "stale_one")
+
     def test_zero_avg_entry_listed_last(self):
         board = self.board()
         self.put(board, "cheap", 0.0, [[0, 0, "", [], "", 0]])
@@ -381,6 +407,7 @@ class RivenBaitFilterTest(unittest.TestCase):
         board._targets["riven"] = ["fresh_one", "legacy_one"]
         self.put(board, "fresh_one", [[1200, 8, "a", [], "", 1]] * 2)
         board._quotes["riven"]["fresh_one"]["t"] = time.time()
+        board._quotes["riven"]["fresh_one"]["av"] = 1
         self.put(board, "legacy_one", [[9000, 0, "b", [], "", 1]])
         board._quotes["riven"]["legacy_one"]["v"] = 1
         board._quotes["riven"]["legacy_one"]["t"] = time.time()
@@ -476,6 +503,7 @@ class RivenBaitFilterTest(unittest.TestCase):
         entry = board._quotes["riven"]["rare_weapon"]
         self.assertEqual(entry["f"], 1)
         self.assertNotIn("v", entry)
+        self.assertEqual(entry["av"], 1)
         self.assertEqual([quote.price for quote in board.riven_quotes()], [4200])
 
     def test_cache_roundtrip_keeps_candidates(self):

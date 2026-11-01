@@ -235,11 +235,12 @@ def riven_market_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
         lines.append("    " + attrs)
     if auctions:
         lines.append("卡面样式见图；价格为在线一口价，从低到高。")
-
-    return Reply(text="\n".join(lines), image=lambda: imagecard.riven_market_card(
-        weapon, auctions, filters, note,
-        "数据 warframe.market · %s · %s" % (platform_label(platform),
-                                            _fresh(time.time()))))
+        return Reply(text="\n".join(lines), image=lambda: imagecard.riven_market_card(
+            weapon, auctions, filters, note,
+            "数据 warframe.market · %s · %s" % (platform_label(platform),
+                                                _fresh(time.time()))))
+    # 一张卡都没拿到时不出图，避免回复带一张空卡片
+    return Reply(text="\n".join(lines))
 
 
 def riven_group_reply(label: str, sections: Sequence[Tuple[str, RivenAnalysis]],
