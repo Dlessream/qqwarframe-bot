@@ -205,7 +205,16 @@ class RivenAttribute:
 
     @property
     def text(self) -> str:
+        # 对派系伤害（歧视）在卡面上是倍率：x1.4 对 Corpus 的伤害
+        if _is_multiplier(self.url_name):
+            return "x%.2f" % abs(self.value)
         return "%s%.1f%%" % ("+" if self.positive else "-", abs(self.value))
+
+
+def _is_multiplier(url_name: str) -> bool:
+    """对派系 / 对奥罗金这类词条是倍率，不是百分比。"""
+    raw = str(url_name or "").lower()
+    return "damage_to_" in raw or "damage_vs_" in raw or "faction" in raw
 
 
 @dataclass

@@ -216,6 +216,23 @@ class WeaponIconTest(unittest.TestCase):
         self.assertTrue(weapon.icon_url.endswith("okina.png"))
 
 
+class AttributeTextTest(unittest.TestCase):
+    """数值显示：普通词条百分比，对派系伤害是倍率。"""
+
+    def test_percent_attributes(self):
+        self.assertEqual(RivenAttribute("critical_damage", "暴击伤害", 94.8).text,
+                         "+94.8%")
+        self.assertEqual(RivenAttribute("range", "攻击范围", 55.1, False).text,
+                         "-55.1%")
+
+    def test_faction_damage_is_multiplier(self):
+        # 卡面上写的是 x1.4 对 Corpus 的伤害，不是 +1.4%
+        self.assertEqual(RivenAttribute("damage_to_corpus", "对 Corpus 的伤害",
+                                        1.4).text, "x1.40")
+        self.assertEqual(RivenAttribute("damage_vs_grineer", "对克隆尼伤害",
+                                        -0.9, False).text, "x0.90")
+
+
 class WeaponTypeLabelTest(unittest.TestCase):
     """卡面/文案里类别用中文，别直接把 melee 这种原文吐出来。"""
 
