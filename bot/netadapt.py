@@ -30,10 +30,17 @@ LOGGER = logging.getLogger("qqwarframe.netadapt")
 
 # 各数据源的探活地址：要足够轻，又要能反映真实链路。
 # config 指向该数据源代理在配置里的位置，便于把结果写回去。
+#
+# url 可以写多个：按序试，命中一个就算通。因为「探测目标」必须跟着
+# 「这个模块真正会请求的地址」走——拿一个已经下线 / 对机房 IP 403 的地址
+# 去探，会把明明能用的链路报成不可用（市场 v1 已下线、warframestat 与
+# wiki.warframe.com 对部分机房 IP 一律 403，就是这么来的）。
 TARGETS: Dict[str, Dict[str, Any]] = {
     "market": {
         "label": "市场报价",
-        "url": "https://api.warframe.market/v1/items",
+        # v1 已下线（一律 403），v2 才是现在在用的
+        "url": ["https://api.warframe.market/v2/items",
+                "https://api.warframe.market/v1/items"],
         # 市场按请求头分流，不带会被 Cloudflare 直接 403，探出来的结果就没参考价值
         "headers": {"Platform": "pc", "Language": "zh-hans",
                     "Accept": "application/json"},
@@ -41,13 +48,20 @@ TARGETS: Dict[str, Dict[str, Any]] = {
     },
     "worldstate": {
         "label": "世界状态",
-        "url": "https://api.warframestat.us/pc?only=timestamp",
+        # 主源 warframestat 对不少机房 IP 403，此时走官方 CDN 兜底，两者都算通
+        "url": ["https://api.warframestat.us/pc?only=timestamp",
+                "https://api.warframe.com/cdn/worldState.php"],
         "config": ("worldstate", "proxy"),
     },
     "wiki": {
         "label": "英文维基",
-        "url": ("https://wiki.warframe.com/api.php"
-                "?action=query&meta=siteinfo&format=json"),
+        # 官方 wiki 同样会被 403；国内可直连的 biligame、境外的 fandom 都是真实线路
+        "url": ["https://wiki.warframe.com/api.php"
+                "?action=query&meta=siteinfo&format=json",
+                "https://wiki.biligame.com/warframe/api.php"
+                "?action=query&meta=siteinfo&format=json",
+                "https://warframe.fandom.com/api.php"
+                "?action=query&meta=siteinfo&format=json"],
         "config": ("wiki", "proxy"),
     },
     "arbi": {
@@ -187,6 +201,14 @@ def _client_for(cfg: Dict[str, Any], proxy: str, timeout: float,
 COMMON_MODULE = "market"
 
 
+def target_urls(module: str) -> List[str]:
+    """这个模块的探活地址（可能多个，按优先级排列）。"""
+    raw = TARGETS[module].get("url")
+    if isinstance(raw, (list, tuple)):
+        return [str(item).strip() for item in raw if str(item or "").strip()]
+    return [str(raw or "").strip()] if str(raw or "").strip() else []
+
+
 def _probe_one(cfg: Dict[str, Any], proxy: str, url: str,
                timeout: float,
                headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -194,6 +216,36 @@ def _probe_one(cfg: Dict[str, Any], proxy: str, url: str,
                          user_agent=(cfg.get("warframe_market") or {})
                          .get("user_agent"))
     return client.probe(url, headers=headers)
+
+
+def _probe_chain(cfg: Dict[str, Any], proxy: str, urls: List[str],
+                 timeout: float,
+                 headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """依次试一个模块的多个探活地址，命中就停。
+
+    返回命中的那条结果，并附 `attempts`（每个地址各自什么状态）方便排查；
+    一个都没通时返回最后一条，由调用方判为不可用。
+    """
+    attempts: List[Dict[str, Any]] = []
+    last: Dict[str, Any] = {"ok": False, "status": 0, "blocked": False,
+                            "error": "未探测"}
+    for index, url in enumerate(urls):
+        outcome = _probe_one(cfg, proxy, url, timeout, headers)
+        outcome["url"] = url
+        attempts.append({"url": url, "status": outcome.get("status", 0),
+                         "ok": bool(outcome.get("ok")),
+                         "blocked": bool(outcome.get("blocked")),
+                         "ms": outcome.get("ms", 0),
+                         "error": outcome.get("error", "")})
+        last = outcome
+        if outcome.get("ok") and not outcome.get("blocked"):
+            # 命中的不是首选地址，说明走的是备用源
+            outcome["fallback_source"] = index > 0
+            outcome["attempts"] = attempts
+            return outcome
+    last["fallback_source"] = len(urls) > 1
+    last["attempts"] = attempts
+    return last
 
 
 def probe(cfg: Dict[str, Any], modules: Optional[List[str]] = None,
@@ -214,7 +266,7 @@ def probe(cfg: Dict[str, Any], modules: Optional[List[str]] = None,
 
     shared = collect_proxies(cfg)
     common = TARGETS[COMMON_MODULE]
-    common_url = str(common["url"])
+    common_url = target_urls(COMMON_MODULE)[0]
     common_headers = common.get("headers")
 
     # ---- 阶段一：代理本身活不活
@@ -233,7 +285,7 @@ def probe(cfg: Dict[str, Any], modules: Optional[List[str]] = None,
         return _dedupe([own] + alive + shared)
 
     def _run(module: str) -> Tuple[str, Dict[str, Dict[str, Any]]]:
-        url = str(TARGETS[module]["url"])
+        urls = target_urls(module)
         headers = TARGETS[module].get("headers")
         per_proxy: Dict[str, Dict[str, Any]] = {}
         # 只试到第一条能用的为止；整条链都不通才跑满
@@ -245,7 +297,7 @@ def probe(cfg: Dict[str, Any], modules: Optional[List[str]] = None,
                                   for item in per_proxy.values()):
                 break
             tried += 1
-            outcome = _probe_one(cfg, proxy, url, limit, headers)
+            outcome = _probe_chain(cfg, proxy, urls, limit, headers)
             outcome["label"] = TARGETS[module]["label"]
             per_proxy[proxy] = outcome
             if outcome.get("ok") and not outcome.get("blocked"):
@@ -428,8 +480,13 @@ def _status_text(item: Dict[str, Any]) -> str:
     if item.get("ok"):
         status = int(item.get("status") or 0)
         if status and status != 200:
-            return "通 %sms（HTTP %d）" % (item.get("ms"), status)
-        return "可用 %sms" % item.get("ms")
+            text = "通 %sms（HTTP %d）" % (item.get("ms"), status)
+        else:
+            text = "可用 %sms" % item.get("ms")
+        # 首选地址不通、命中备用地址，说明主源对这台机器不可用
+        if item.get("fallback_source"):
+            text += "（备用源）"
+        return text
     if item.get("status"):
         return "HTTP %s" % item.get("status")
     return "不通（%s）" % (str(item.get("error") or "")[:36] or "超时")

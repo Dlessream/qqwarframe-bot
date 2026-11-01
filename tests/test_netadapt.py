@@ -334,5 +334,89 @@ class ProxyChainTest(unittest.TestCase):
                 net_module.set_global_fallbacks([])
 
 
+class ProbeTargetsTest(unittest.TestCase):
+    """探活地址：主源不通时要能落到备用源，不能误报成整条链路不可用。"""
+
+    def test_market_has_backup_urls(self):
+        urls = netadapt.target_urls("market")
+        self.assertGreaterEqual(len(urls), 2)
+        self.assertIn("v2", urls[0])
+
+    def test_single_url_still_supported(self):
+        urls = netadapt.target_urls("rotation")
+        self.assertEqual(len(urls), 1)
+        self.assertTrue(urls[0].startswith("http"))
+
+    def test_chain_falls_to_backup(self):
+        cfg = _cfg()
+        calls = []
+
+        def fake(_cfg, _proxy, url, _timeout, headers=None):
+            calls.append(url)
+            if len(calls) == 1:
+                return dict(_blocked(403))
+            return dict(_ok(120))
+
+        with mock.patch.object(netadapt, "_probe_one", fake):
+            outcome = netadapt._probe_chain(cfg, "none",
+                                            ["https://a", "https://b"], 5)
+        self.assertTrue(outcome["ok"])
+        self.assertTrue(outcome["fallback_source"])
+        self.assertEqual(outcome["url"], "https://b")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(outcome["attempts"]), 2)
+        self.assertFalse(outcome["attempts"][0]["ok"])
+        self.assertTrue(outcome["attempts"][1]["ok"])
+
+    def test_chain_stops_at_first_success(self):
+        cfg = _cfg()
+        calls = []
+
+        def fake(_cfg, _proxy, url, _timeout, headers=None):
+            calls.append(url)
+            return dict(_ok(80))
+
+        with mock.patch.object(netadapt, "_probe_one", fake):
+            outcome = netadapt._probe_chain(cfg, "none",
+                                            ["https://a", "https://b"], 5)
+        self.assertTrue(outcome["ok"])
+        self.assertFalse(outcome.get("fallback_source"))
+        self.assertEqual(len(calls), 1)
+
+    def test_chain_all_blocked_reports_unusable(self):
+        cfg = _cfg()
+
+        def fake(_cfg, _proxy, url, _timeout, headers=None):
+            return dict(_blocked(403))
+
+        with mock.patch.object(netadapt, "_probe_one", fake):
+            outcome = netadapt._probe_chain(cfg, "none",
+                                            ["https://a", "https://b"], 5)
+        self.assertFalse(outcome["ok"])
+        self.assertTrue(outcome["blocked"])
+        self.assertEqual(len(outcome["attempts"]), 2)
+
+    def test_error_down_is_retried_on_backup(self):
+        cfg = _cfg()
+        calls = []
+
+        def fake(_cfg, _proxy, url, _timeout, headers=None):
+            calls.append(url)
+            if len(calls) == 1:
+                return dict(_down("timeout"))
+            return dict(_ok(60))
+
+        with mock.patch.object(netadapt, "_probe_one", fake):
+            outcome = netadapt._probe_chain(cfg, "none",
+                                            ["https://a", "https://b"], 5)
+        self.assertTrue(outcome["ok"])
+        self.assertTrue(outcome["fallback_source"])
+
+    def test_status_text_marks_backup(self):
+        self.assertIn("备用源",
+                      netadapt._status_text(dict(_ok(90), fallback_source=True)))
+        self.assertNotIn("备用源", netadapt._status_text(dict(_ok(90))))
+
+
 if __name__ == "__main__":
     unittest.main()
