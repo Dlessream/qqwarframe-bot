@@ -34,6 +34,14 @@ python db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
 
 默认只绑定 `127.0.0.1`，不对外网开放。
 
+浏览器打开：
+
+```text
+http://127.0.0.1:8090/
+```
+
+页面包含数据库状态、物品搜索、物品详情、套装部件、完整性校验和数据源列表。
+
 带 token：
 
 ```bash
@@ -46,6 +54,7 @@ DB_API_TOKEN='你的token' python db/server.py --db data/warframe.db
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
+| GET | `/` | 网页管理界面 |
 | GET | `/health` | 健康检查，不需要 token |
 | GET | `/stats` | schema、行数、数据源 |
 | GET | `/sources` | 导入源清单 |

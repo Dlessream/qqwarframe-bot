@@ -82,6 +82,22 @@ class DatabaseServerTest(unittest.TestCase):
         status, _ = self.request("/nope", headers=self.auth())
         self.assertEqual(status, 404)
 
+    def test_web_ui_assets_are_public(self):
+        with urllib.request.urlopen(self.base + "/", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            self.assertEqual(response.status, 200)
+            self.assertIn("WARFRAME DATABASE", body)
+            self.assertIn("/static/app.js", body)
+        with urllib.request.urlopen(self.base + "/static/app.js",
+                                    timeout=5) as response:
+            script = response.read().decode("utf-8")
+            self.assertEqual(response.status, 200)
+            self.assertIn("/search?q=", script)
+        with urllib.request.urlopen(self.base + "/static/style.css",
+                                    timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn("--accent", response.read().decode("utf-8"))
+
     def test_missing_database(self):
         server = DatabaseServer(os.path.join(self.tmp, "missing.db"),
                                 "127.0.0.1", 0)

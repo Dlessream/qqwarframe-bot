@@ -7,6 +7,7 @@ WORKDIR /service
 
 # 独立服务只依赖 db/query.py + db/server.py，不复制 bot 代码
 COPY db/query.py db/server.py ./
+COPY db/web ./web
 
 EXPOSE 8090
 

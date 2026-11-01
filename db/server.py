@@ -12,6 +12,7 @@
     python db/server.py --token 你的token
 
 接口：
+    GET /                   网页管理界面
     GET /health
     GET /stats
     GET /sources
@@ -43,6 +44,7 @@ except ImportError:  # 独立目录直接 python server.py
 LOGGER = logging.getLogger("qqwarframe.db.service")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB = os.path.join(ROOT, "data", "warframe.db")
+WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 
 
 class DatabaseService:
@@ -166,6 +168,22 @@ class DatabaseServer:
             def _error(self, message: str, status: int) -> None:
                 self._json({"ok": False, "error": message}, status)
 
+            def _file(self, filename: str, content_type: str) -> None:
+                path = os.path.join(WEB_DIR, filename)
+                try:
+                    with open(path, "rb") as handle:
+                        body = handle.read()
+                except OSError:
+                    self._error("not found", HTTPStatus.NOT_FOUND)
+                    return
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(body)
+
             def _require_db(self) -> bool:
                 if service.available():
                     return True
@@ -177,6 +195,19 @@ class DatabaseServer:
                 parsed = urlparse(self.path)
                 path = parsed.path
                 params = parse_qs(parsed.query)
+                if path in ("/", "/index.html"):
+                    self._file("index.html", "text/html; charset=utf-8")
+                    return
+                if path == "/static/style.css":
+                    self._file("style.css", "text/css; charset=utf-8")
+                    return
+                if path == "/static/app.js":
+                    self._file("app.js", "application/javascript; charset=utf-8")
+                    return
+                if path == "/favicon.ico":
+                    self.send_response(HTTPStatus.NO_CONTENT)
+                    self.end_headers()
+                    return
                 if path == "/health":
                     result = service.health()
                     self._json(result, HTTPStatus.OK if result["ok"]

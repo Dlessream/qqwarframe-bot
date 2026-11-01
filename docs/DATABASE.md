@@ -76,6 +76,7 @@ python db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
 接口：
 
 ```text
+GET /                     网页管理界面
 GET /health
 GET /stats
 GET /sources
@@ -84,6 +85,8 @@ GET /item?q=mesa_prime_set
 GET /parts?q=女枪
 GET /validate
 ```
+
+浏览器直接打开 `http://127.0.0.1:8090/` 即可使用搜索、物品详情、套装部件、校验和数据源面板。
 
 设置 token 后（`--token` 或 `DB_API_TOKEN`），除 `/health` 外需带
 `X-API-Token` 或 `Authorization: Bearer`。

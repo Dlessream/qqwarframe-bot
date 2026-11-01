@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Warframe Database</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="glow"></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">WF</span>
+      <div>
+        <h1>WARFRAME DATABASE</h1>
+        <p>独立只读数据服务 · SQLite</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="tokenBtn" class="ghost" type="button">API Token</button>
+      <span id="health" class="pill">连接中…</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="stats" id="stats">
+      <div class="stat"><span>总行数</span><strong id="statRows">—</strong></div>
+      <div class="stat"><span>物品</span><strong id="statItems">—</strong></div>
+      <div class="stat"><span>套装关系</span><strong id="statRelations">—</strong></div>
+      <div class="stat"><span>Schema</span><strong id="statSchema">—</strong></div>
+      <div class="stat wide"><span>构建时间</span><strong id="statBuilt">—</strong></div>
+    </section>
+
+    <section class="panel token-panel hidden" id="tokenPanel">
+      <div>
+        <strong>API Token</strong>
+        <p>服务设置了鉴权时填写；只保存在当前浏览器。</p>
+      </div>
+      <div class="token-row">
+        <input id="tokenInput" type="password" autocomplete="off" placeholder="X-API-Token">
+        <button id="tokenSave" class="primary" type="button">保存</button>
+        <button id="tokenClear" class="ghost" type="button">清除</button>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="功能">
+      <button class="tab active" data-view="search" type="button">搜索</button>
+      <button class="tab" data-view="parts" type="button">套装部件</button>
+      <button class="tab" data-view="validate" type="button">完整性校验</button>
+      <button class="tab" data-view="sources" type="button">数据源</button>
+    </nav>
+
+    <section class="panel view" id="view-search">
+      <div class="search-row">
+        <input id="searchInput" type="search" placeholder="中文名 / 英文名 / slug / 别名，例如：女枪、Mesa Prime、mesa_prime_set" autocomplete="off">
+        <button id="searchBtn" class="primary" type="button">搜索</button>
+      </div>
+      <div class="hint">回车搜索；点击结果查看物品详情。</div>
+      <div id="searchResult" class="result"></div>
+      <div id="itemDetail" class="detail hidden"></div>
+    </section>
+
+    <section class="panel view hidden" id="view-parts">
+      <div class="search-row">
+        <input id="partsInput" type="search" placeholder="套装或部件名，例如：女枪、mesa_prime_blueprint" autocomplete="off">
+        <button id="partsBtn" class="primary" type="button">查询部件</button>
+      </div>
+      <div class="hint">输入套装名或任意部件名，自动定位所属套装。</div>
+      <div id="partsResult" class="result"></div>
+    </section>
+
+    <section class="panel view hidden" id="view-validate">
+      <div class="section-head">
+        <div>
+          <h2>完整性校验</h2>
+          <p>检查外键、孤立别名/部件关系、关键空表和数据质量。</p>
+        </div>
+        <button id="validateBtn" class="primary" type="button">运行校验</button>
+      </div>
+      <div id="validateResult" class="result"></div>
+    </section>
+
+    <section class="panel view hidden" id="view-sources">
+      <div class="section-head">
+        <div>
+          <h2>数据源</h2>
+          <p>每个导入源的路径、行数和说明。</p>
+        </div>
+        <button id="sourcesBtn" class="ghost" type="button">刷新</button>
+      </div>
+      <div id="sourcesResult" class="result"></div>
+    </section>
+
+    <section class="panel error hidden" id="errorBox"></section>
+  </main>
+
+  <footer>
+    <span>QQ Warframe DB Service</span>
+    <span id="endpoint"></span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

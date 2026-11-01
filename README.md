@@ -1245,7 +1245,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**791 个离线测试**，不联网、不连 QQ，覆盖：
+**792 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1290,7 +1290,7 @@ python db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
 docker compose -f docker-compose.db.yml up -d --build
 ```
 
-详见 [db/README.md](db/README.md)。
+浏览器打开 `http://127.0.0.1:8090/` 即可搜索、查看物品/套装部件、校验和数据源。详见 [db/README.md](db/README.md)。
 
 详细表结构、命令和限制见 [docs/DATABASE.md](docs/DATABASE.md)。
 
@@ -1354,7 +1354,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 791 个测试 + fixtures
+├── tests/                 # 792 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
