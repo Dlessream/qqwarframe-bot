@@ -53,6 +53,12 @@ def not_found_reply(query: str) -> Reply:
     return Reply(text=render.render_not_found(query))
 
 
+def with_hint(reply: Reply, hint: str) -> Reply:
+    """在已有回复后面追加一行提示（保留原来的图片）。"""
+    reply.text = ("%s\n%s" % (reply.text.rstrip(), hint)) if reply.text else hint
+    return reply
+
+
 def untradable_frame_reply(query: str, english: str, chinese: str = "") -> Reply:
     """市场里没有可交易物品的战甲（多为无 Prime 的新战甲）。"""
     label = "%s（%s）" % (chinese, english) if chinese else english

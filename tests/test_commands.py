@@ -48,10 +48,11 @@ class FakeMarket:
         self.force = []
         self.fail = False
 
-    def lookup(self, query, category=None, limit=5):
+    def lookup(self, query, category=None, limit=5, allow_arcane=None):
         if self.fail:
             raise MarketError("测试故障")
-        return self.index.search(query, category=category, limit=limit)
+        return self.index.search(query, category=category, limit=limit,
+                                 allow_arcane=allow_arcane)
 
     def item_detail(self, slug):
         self.detail_calls.append(slug)
@@ -93,8 +94,8 @@ class FakeWiki:
 
 
 def make_router(fail_market=False, alerts=None, riven=None, updater=None,
-                arbi=None, worldstate=None, subscriptions=None):
-    market = FakeMarket(build_index())
+                arbi=None, worldstate=None, subscriptions=None, index=None):
+    market = FakeMarket(index if index is not None else build_index())
     market.fail = fail_market
     wiki = FakeWiki()
     config = {
@@ -376,6 +377,20 @@ class HandleTest(unittest.TestCase):
         replies = texts(self.router.handle("#wm 双子", self.ctx))
         self.assertIn("Sirius & Orion", replies[0])
         self.assertIn("没有 Prime", replies[0])
+
+    def test_arcane_needs_prefix(self):
+        """赋能要带「赋能」前缀；不带时不匹配，并提示加前缀。"""
+        from bot.market import Item, ItemIndex
+        index = ItemIndex([Item.from_dict({
+            "slug": "arcane_arachne", "name": "赋能·蜘蛛",
+            "name_en": "Arcane Arachne", "tags": ["arcane_enhancement"]})])
+        router, _market, _wiki = make_router(index=index)
+        replies = texts(router.handle("#wm 蜘蛛", self.ctx))
+        self.assertIn("赋能", replies[0])
+        self.assertIn("#wm 赋能蜘蛛", replies[0])
+
+        replies = texts(router.handle("#wm 赋能蜘蛛", self.ctx))
+        self.assertIn("赋能·蜘蛛", replies[0])
 
     def test_unknown_item_still_not_found(self):
         replies = texts(self.router.handle("#查 完全不存在的东西", self.ctx))

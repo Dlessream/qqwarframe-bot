@@ -16,7 +16,8 @@ from . import present
 from . import zh2en
 from .alerts import AlertStore
 from .arbi import ArbiClient, ArbiError
-from .market import Item, MarketClient, MarketError, SearchHit
+from .market import (Item, MarketClient, MarketError, SearchHit, is_arcane,
+                     wants_arcane)
 from .replies import Reply
 from .riven import (CATEGORY_LABELS, GROUP_CATEGORY_ORDER, GROUP_LABELS,
                     RivenClient, parse_group_detail)
@@ -511,11 +512,23 @@ class CommandRouter:
 
         hits = self.market.lookup(argument, category=category, limit=5)
         if not hits:
+            # 赋能被「必须带赋能前缀」挡掉了：提示加上前缀再查
+            arcane_hint = ""
+            if not wants_arcane(argument):
+                only_arcane = self.market.lookup(
+                    argument, category=category, limit=1, allow_arcane=True)
+                if only_arcane and is_arcane(only_arcane[0].item):
+                    arcane_hint = "想查赋能请加「赋能」前缀：%s%s 赋能%s" % (
+                        ctx.prefix, "价格" if price_only else "wm", argument)
             english = names.frame_nickname(argument)
             if english:
-                return present.untradable_frame_reply(
+                reply = present.untradable_frame_reply(
                     argument, english, names.warframe(english) or "")
-            return present.not_found_reply(argument)
+            else:
+                reply = present.not_found_reply(argument)
+            if arcane_hint:
+                reply = present.with_hint(reply, arcane_hint)
+            return reply
 
         best = hits[0]
         if len(hits) > 1 and best.score < 940:

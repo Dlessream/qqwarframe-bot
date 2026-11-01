@@ -53,6 +53,32 @@ def component_label(slug: str) -> str:
     return ""
 
 
+# 赋能：名称都带「赋能·」前缀，玩家说「赋能迅速」才指赋能；
+# 只说「迅速」「蜘蛛」时指的是武器/战甲，不该被赋能的低分模糊匹配抢走。
+ARCANE_TAG = "arcane_enhancement"
+ARCANE_WORDS = ("赋能", "arcane")
+
+
+def is_arcane(item: "Item") -> bool:
+    """是否是「赋能·」系列。
+
+    只管名字带「赋能·」的（Arcane Barrier…）。同属 arcane_enhancement 的
+    「魔导·活力」「正直·打击」「和平·高飞」玩家本来就会带系列名查，不受影响；
+    秘奥头盔（`arcane_helmet`）也不算，查「秘奥头盔」时仍要能找到。
+    """
+    if ARCANE_TAG not in (item.tag_set or set()):
+        return False
+    name = str(item.name or "")
+    english = str(item.name_en or "").strip().lower()
+    return "赋能" in name or english.startswith("arcane ")
+
+
+def wants_arcane(query: str) -> bool:
+    """查询词里带「赋能」/「arcane」才算想查赋能。"""
+    key = _normalize(query).replace(" ", "").replace("·", "")
+    return bool(key) and any(word in key for word in ARCANE_WORDS)
+
+
 # 战甲部件：slug 里的部件名 -> 玩家会输入的叫法（中文 + 英文都要能命中）
 FRAME_PART_WORDS: Dict[str, Tuple[str, ...]] = {
     "neuroptics": ("头", "头部", "神经光元", "头部神经光元", "neuroptics"),
@@ -523,12 +549,14 @@ class ItemIndex:
         return self.by_slug.get(slug)
 
     def search(self, query: str, category: Optional[str] = None,
-               limit: int = 5) -> List[SearchHit]:
+               limit: int = 5, allow_arcane: Optional[bool] = None) -> List[SearchHit]:
         normalized = _normalize(query)
         if not normalized:
             return []
         compact = normalized.replace(" ", "")
         alias_slug = self.aliases.get(compact)
+        if allow_arcane is None:
+            allow_arcane = wants_arcane(query)
 
         # “绝路p”“mesa p”这类简写自动展开成 prime
         variants = [normalized]
@@ -538,6 +566,10 @@ class ItemIndex:
         results: List[SearchHit] = []
         for item, name_zh, name_en, slug_text in self._searchable:
             if not item.matches_category(category):
+                continue
+            # 没说「赋能」就不返回赋能；人工把某个词直接指向赋能时仍然尊重
+            if not allow_arcane and is_arcane(item) \
+                    and not (alias_slug and item.slug == alias_slug):
                 continue
             score = 0.0
             for variant in variants:
@@ -1026,8 +1058,9 @@ class MarketClient:
 
     # ------------------------------------------------------------------ 组合
     def lookup(self, query: str, category: Optional[str] = None,
-               limit: int = 5) -> List[SearchHit]:
-        return self.load_items().search(query, category=category, limit=limit)
+               limit: int = 5, allow_arcane: Optional[bool] = None) -> List[SearchHit]:
+        return self.load_items().search(query, category=category, limit=limit,
+                                        allow_arcane=allow_arcane)
 
     # ------------------------------------------------------------------ 错误
     def _friendly_error(self, exc: Exception) -> str:

@@ -1045,7 +1045,8 @@ class BotApp:
         query = str(query or "").strip()
         if not query:
             return []
-        hits = self.market.lookup(query, limit=8)
+        # 管理页找物品是维护用途，赋能不受「必须带赋能前缀」的限制
+        hits = self.market.lookup(query, limit=8, allow_arcane=True)
         return [{"slug": hit.item.slug, "name": hit.item.name,
                  "name_en": hit.item.name_en} for hit in hits]
 
@@ -1088,7 +1089,7 @@ class BotApp:
         index = self.market.index
         if target in index.by_slug:
             return target
-        hits = self.market.lookup(target, limit=8)
+        hits = self.market.lookup(target, limit=8, allow_arcane=True)
         if not hits:
             raise ValueError("找不到目标物品：%s" % target)
         compact = re.sub(r"[\s_\-]+", "", target.lower())
