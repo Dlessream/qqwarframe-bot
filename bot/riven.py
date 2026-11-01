@@ -769,8 +769,3 @@ class RivenClient:
 def format_auction(auction: RivenAuction) -> str:
     attrs = " / ".join(auction.attributes[:3]) or "未洗"
     return "%dp · %s · %s" % (auction.price, attrs, auction.seller)
-
-
-def format_auction(auction: RivenAuction) -> str:
-    attrs = " / ".join(auction.attributes[:3]) or "未洗"
-    return "%dp · %s · %s" % (auction.price, attrs, auction.seller)
