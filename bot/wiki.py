@@ -11,6 +11,7 @@ from __future__ import annotations
 import html
 import logging
 import re
+import time
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -54,6 +55,11 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _SPACE_RE = re.compile(r"[ \t\u00a0\u2000-\u200b\u202f\u205f\u3000]+")
 _NEWLINE_RE = re.compile(r"\n{3,}")
 _STYLE_RE = re.compile(r"<(style|script)[^>]*>.*?</\1>", re.I | re.S)
+
+
+# 官方接口被 Cloudflare / IDC IP 拦下后，多久内不再重复尝试。
+# 一次查询常要试好几个候选词条名，冷却期内直接走镜像能省掉好几秒。
+OFFICIAL_BLOCK_SECONDS = 600.0
 
 
 class WikiError(Exception):
@@ -137,6 +143,8 @@ class WikiClient:
         self.bwiki = None
         if config.get("fallback_bwiki", False):
             self.bwiki = BWikiClient(config, logger=self.log)
+        # 官方接口被拦截后的冷却时间戳（见 _lookup_uncached）
+        self._official_blocked_until = 0.0
 
     # ------------------------------------------------------------------ 基础
     def _call(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,20 +276,27 @@ class WikiClient:
                          limit: int = 3) -> Tuple[Optional[WikiPage], List[WikiHit]]:
         """官方英文 Wiki 优先；被 Cloudflare 拦截时用 Fandom 英文镜像内容。
 
+        官方接口一旦返回 403，短期内不再重复试——一次查询往往要试好几个候选
+        词条名，每次都先撞一次 403 再回落，白白多花好几秒。
+
         返回页面的链接始终指向 https://wiki.warframe.com/。
         """
         official_error: Optional[WikiError] = None
-        try:
-            page = self.page(query)
-            if page:
-                return page, []
-            hits = self.search(query, limit=limit)
-            if hits:
-                first = self.page(hits[0].title)
-                return first, hits
-        except WikiError as exc:
-            official_error = exc
-            self.log.warning("官方英文 Wiki 查询失败，尝试 Fandom 英文镜像：%s", exc)
+        if time.time() >= self._official_blocked_until:
+            try:
+                page = self.page(query)
+                if page:
+                    return page, []
+                hits = self.search(query, limit=limit)
+                if hits:
+                    first = self.page(hits[0].title)
+                    return first, hits
+            except WikiError as exc:
+                official_error = exc
+                if "403" in str(exc):
+                    self._official_blocked_until = (time.time()
+                                                    + OFFICIAL_BLOCK_SECONDS)
+                self.log.warning("官方英文 Wiki 查询失败，尝试 Fandom 英文镜像：%s", exc)
 
         if self.fandom is not None:
             try:
