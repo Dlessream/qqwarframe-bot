@@ -169,8 +169,9 @@ class FrameAliasExpansionTest(unittest.TestCase):
             self.assertEqual(self._top(query), "volt_prime_set", query)
 
     def test_main_blueprint(self):
-        for query in ("电男总图", "电男蓝图", "圣装电男总图", "电男p总图",
-                      "Volt Prime Blueprint", "volt prime 总图", "volt 蓝图"):
+        for query in ("电男总图", "电男蓝图", "电男图", "电男图纸", "圣装电男总图",
+                      "电男p图", "Volt Prime Blueprint", "volt prime 总图",
+                      "volt 蓝图", "voltprime图"):
             self.assertEqual(self._top(query), "volt_prime_blueprint", query)
 
     def test_parts_by_chinese(self):
@@ -182,6 +183,8 @@ class FrameAliasExpansionTest(unittest.TestCase):
         self.assertEqual(self._top("电男系统"), "volt_prime_systems_blueprint")
         self.assertEqual(self._top("电男p头"), "volt_prime_neuroptics_blueprint")
         self.assertEqual(self._top("圣装电男机体"), "volt_prime_chassis_blueprint")
+        self.assertEqual(self._top("电男头图"), "volt_prime_neuroptics_blueprint")
+        self.assertEqual(self._top("电男机体蓝图"), "volt_prime_chassis_blueprint")
 
     def test_parts_by_english(self):
         cases = {

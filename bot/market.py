@@ -60,9 +60,10 @@ FRAME_PART_WORDS: Dict[str, Tuple[str, ...]] = {
     "systems": ("系统", "systems"),
 }
 
-# 战甲总图（主蓝图）的叫法：国服说“总图”，市场上显示“蓝图”
+# 战甲总图（主蓝图）的叫法：国服说“总图”，市场上显示“蓝图”；
+# 群里也常简写成“图”（电男图 = 电男总图）。
 FRAME_MAIN_WORDS: Tuple[str, ...] = (
-    "总图", "蓝图", "总图蓝图", "主蓝图", "blueprint",
+    "总图", "蓝图", "图", "图纸", "总图蓝图", "主蓝图", "blueprint",
 )
 
 # 分类 -> 判定函数
@@ -500,6 +501,9 @@ class ItemIndex:
                     for word in words:
                         put(key + word, part_slug)
                         put(key + "p" + word, part_slug)
+                        # “电男头图”“电男机体蓝图”这类：部件后再补图纸说法
+                        put(key + word + "图", part_slug)
+                        put(key + word + "蓝图", part_slug)
 
             # 英文叫法本身已带 Prime 语义，不再拼 p
             for key in english_names.get(base, ()):
@@ -510,6 +514,7 @@ class ItemIndex:
                 for part_slug, words in parts.items():
                     for word in words:
                         put(key + word, part_slug)
+                        put(key + word + "图", part_slug)
 
     def __len__(self) -> int:
         return len(self.items)

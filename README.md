@@ -586,15 +586,16 @@ http://127.0.0.1:8080
 
 ```text
 wm 电男 / 电男p / 圣装电男 / Volt Prime / volt   → Volt Prime 一套
-wm 电男总图 / 电男蓝图 / Volt Prime Blueprint    → Volt Prime 蓝图（总图）
-wm 电男头 / 电男头部 / 电男头部神经光元           → Volt Prime 头部神经光元 蓝图
+wm 电男总图 / 电男蓝图 / 电男图 / Volt Prime Blueprint  → Volt Prime 蓝图（总图）
+wm 电男头 / 电男头部 / 电男头部神经光元 / 电男头图  → Volt Prime 头部神经光元 蓝图
 wm 电男机体 / volt 机体 / Volt Prime Chassis     → Volt Prime 机体 蓝图
 wm 电男系统 / volt prime systems                → Volt Prime 系统 蓝图
 ```
 
 - 参考表里的战甲中文别名已批量写入 `data/aliases.json`（牛甲、音妈、火鸡、咖喱、摸尸等）；
 - 战甲基础别名指向该 Prime 战甲的**整套**（如 `忍者` → Ash Prime 一套）；
-- 基础别名加 `总图` 或 `蓝图` 都指向**总图蓝图**（国服叫总图，市场显示蓝图）；
+- 基础别名加 `总图` / `蓝图` / `图` / `图纸` 都指向**总图蓝图**（国服叫总图，市场显示蓝图，
+  群里也常简写成 `电男图`）；
 - 系统会根据整套自动展开 `头` / `头部` / `神经光元` / `头部神经光元` / `机体` / `系统` 部件别名；
 - 英文名同样生效：`Volt Prime`、`volt`、`Volt Prime Neuroptics`、`volt 机体` 都能命中；
 - 武器/守护/Archwing 套装同样生成部件，例如：`绝路枪管` / `绝路枪机` / `绝路枪托` / `绝路蓝图`；
