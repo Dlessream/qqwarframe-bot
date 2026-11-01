@@ -1245,7 +1245,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**779 个离线测试**，不联网、不连 QQ，覆盖：
+**782 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1278,6 +1278,8 @@ python db/query.py stats
 python db/query.py search 女枪
 python db/query.py validate
 ```
+
+Web 控制台也提供只读接口：`/api/database`、`/api/database/search?q=`、`/api/database/validate`。
 
 详细表结构、命令和限制见 [docs/DATABASE.md](docs/DATABASE.md)。
 
@@ -1341,7 +1343,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 779 个测试 + fixtures
+├── tests/                 # 782 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

@@ -223,6 +223,10 @@ DEFAULTS: Dict[str, Any] = {
         "worldstate_seconds": 60,
         "wiki_seconds": 600,
     },
+    "database": {
+        "enabled": True,
+        "path": "data/warframe.db",
+    },
     "log": {
         "level": "INFO",
         "file": "logs/bot.log",

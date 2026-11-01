@@ -22,6 +22,7 @@ from .arbi import ArbiClient, ArbiError
 from .board import BoardClient
 from .rotation import RotationClient
 from .commands import CommandRouter, Context, strip_cq
+from .database import DatabaseService
 from .market import COMPONENT_LABELS, Item, MarketClient, MarketError
 from .net import HttpClient, HttpError
 from .onebot import OneBotClient, OneBotError, escape_cq
@@ -98,6 +99,10 @@ class BotApp:
         self.translator = Translator(
             config.get("wiki", {}), cache_config=config.get("cache", {}),
             logger=self.log)
+        self.database = DatabaseService(config.get("database", {}),
+                                        root=os.path.dirname(os.path.dirname(
+                                            os.path.abspath(__file__))),
+                                        logger=self.log)
         self.riven = RivenClient(
             self.market, self.log,
             cache_config=config.get("cache", {}),
@@ -276,6 +281,7 @@ class BotApp:
                       else {"enabled": False}),
             "rotation": (self.rotation.status() if self.rotation is not None
                          else {"enabled": False}),
+            "database": self.database.snapshot(),
             "updater": {
                 "last_run": self.updater.last_run if self.updater else 0,
                 "last_duration": self.updater.last_duration if self.updater else 0,

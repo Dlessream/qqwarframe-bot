@@ -50,6 +50,19 @@ python db/query.py --json stats
 
 找不到数据库时先运行 `python db/build.py`。
 
+## Web API
+
+Web 控制台启动后（默认 `http://127.0.0.1:8080`），带 `X-Admin-Token` 可访问：
+
+```text
+GET /api/database                  数据库状态/行数/构建时间
+GET /api/database/search?q=女枪&limit=10
+GET /api/database/validate         完整性校验
+```
+
+`/api/status` 的返回里也带有 `database` 字段；没有建库时返回
+`available: false`，不会影响机器人启动。
+
 ## 表结构
 
 ### 元信息

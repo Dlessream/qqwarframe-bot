@@ -25,9 +25,23 @@ class FakeUpdate:
         pass
 
 
+class FakeDatabase:
+    def snapshot(self):
+        return {"available": True, "items": 3893, "total_rows": 53274,
+                "schema_version": "1", "sources": 20}
+
+    def search(self, text, limit=10):
+        return {"query": text, "items": [{"slug": "mesa_prime_set",
+                                          "name_zh": "Mesa Prime 一套"}]}
+
+    def validate(self):
+        return {"ok": True, "errors": [], "warnings": [], "integrity": "ok"}
+
+
 class FakeApp:
     def __init__(self):
         self.update_checker = FakeUpdate()
+        self.database = FakeDatabase()
         self.restarted = False
         self.applied = 0
         self.groups = {"whitelist": ["100"], "blacklist": []}
@@ -415,6 +429,24 @@ class AdminServerTest(unittest.TestCase):
             "/api/status", headers={"X-Admin-Token": "secret"})
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["version"], "2.0.0")
+
+    def test_database_api(self):
+        status, _ = self.request("/api/database")
+        self.assertEqual(status, 401)
+        headers = {"X-Admin-Token": "secret"}
+        status, body = self.request("/api/database", headers=headers)
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["items"], 3893)
+        status, body = self.request(
+            "/api/database/search?q=mesa", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)["items"])
+        status, body = self.request(
+            "/api/database/validate", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)["ok"])
 
     def test_update_check(self):
         status, body = self.request(

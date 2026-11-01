@@ -146,6 +146,10 @@
     "worldstate_seconds": 60,
     "wiki_seconds": 600
   },
+  "database": {
+    "enabled": true,
+    "path": "data/warframe.db"
+  },
   "riven": {
     "disposition_override": 1.2
   },

@@ -13,6 +13,7 @@ if BASE not in sys.path:
 
 from db import build as dbbuild  # noqa: E402
 from db import query  # noqa: E402
+from bot.database import DatabaseService  # noqa: E402
 
 
 class DatabaseTest(unittest.TestCase):
@@ -117,6 +118,25 @@ class DatabaseTest(unittest.TestCase):
         self.assertEqual(code, 0)
         data = json.loads(output.getvalue())
         self.assertGreater(data["key"]["items"], 3800)
+
+    def test_database_service(self):
+        service = DatabaseService({"enabled": True, "path": self.path})
+        snapshot = service.snapshot()
+        self.assertTrue(snapshot["available"])
+        self.assertGreater(snapshot["items"], 3800)
+        self.assertEqual(snapshot["schema_version"], "1")
+        found = service.search("女枪", 3)
+        self.assertTrue(found["items"])
+        result = service.validate()
+        self.assertTrue(result["ok"], result["errors"])
+
+    def test_database_service_missing(self):
+        service = DatabaseService(
+            {"enabled": True, "path": os.path.join(self.tmp, "missing.db")})
+        snapshot = service.snapshot()
+        self.assertFalse(snapshot["available"])
+        with self.assertRaises(RuntimeError):
+            service.search("女枪")
 
     def test_build_is_idempotent(self):
         before = os.path.getsize(self.path)
