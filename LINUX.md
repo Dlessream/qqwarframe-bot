@@ -1,6 +1,7 @@
 ﻿# Linux 部署速查
 
-四种方式任选一种。完整说明（配置项、指令、常见问题）见 [README.md](README.md)。
+五种方式任选一种，**Docker 和 screen 都不是必须的**。
+完整说明（配置项、指令、常见问题）见 [README.md](README.md)。
 
 ---
 
@@ -63,6 +64,53 @@ docker compose -f docker-compose.full.yml restart xray
 
 ---
 
+## 0B. 裸机一键部署（推荐：不装 Docker，也不用 screen）
+
+要求：Linux（Debian/Ubuntu/Fedora/Arch/Alpine 均可），Python 3.8+（缺了脚本会自己装）。
+
+```bash
+cd qqwarframe-bot
+./deploy/baremetal.sh --ws-url ws://127.0.0.1:3001 --proxy none
+
+# 或者部署到 /opt 并注册 systemd 服务
+sudo ./deploy/baremetal.sh --dir /opt/qqwarframe-bot --proxy none
+```
+
+脚本自动完成：装系统依赖 → 建 `.venv` 装 pip 依赖 → 写 `config.json` → 注册常驻。
+
+| 环境 | 常驻方式 |
+| --- | --- |
+| 有 systemd 且以 root 运行 | 写入 `/etc/systemd/system/qqwarframe-bot.service` |
+| 没有 systemd / 非 root | 自带 `deploy/daemon.sh`（setsid + pid 文件，崩溃自动拉起） |
+
+常用操作：
+
+```bash
+# systemd 方式
+sudo systemctl status qqwarframe-bot
+sudo journalctl -u qqwarframe-bot -f
+
+# 守护脚本方式（不需要 screen / tmux）
+./deploy/daemon.sh status      # 看是否在跑
+./deploy/daemon.sh restart     # 重启
+./deploy/daemon.sh logs        # 跟日志（Ctrl+C 不会杀掉机器人）
+
+# 更新（自动识别上面三种部署方式）
+git pull && ./deploy/update.sh
+```
+
+可选参数：`--with-xray`（装 xray-core 做本地代理）、`--with-napcat`（装 NapCat Shell 版）、
+`--no-service`（只装依赖自己跑）、`--no-start`（注册但不启动）。完整用法
+`./deploy/baremetal.sh --help`。
+
+NapCat 也可以单独装：
+
+```bash
+./deploy/install_napcat.sh     # Shell 版，非 Docker
+```
+
+---
+
 ## A. 直接运行（不用 Docker）
 
 ```bash
@@ -82,6 +130,9 @@ nano config.json        # 填 onebot.ws_url / access_token，确认 proxy
 ./check.sh
 ./start.sh
 ```
+
+`start.sh` 是前台运行；要后台常驻就用
+`./deploy/daemon.sh start`（不需要 screen，进程挂了会自动拉起）。
 
 没有虚拟环境时也可以直接：
 

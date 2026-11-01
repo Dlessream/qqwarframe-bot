@@ -278,11 +278,17 @@ python run.py
 
 ## Linux 部署
 
-代码本身跨平台；Linux 提供 **一键部署（NapCat + Xray + 机器人）**、直接运行、
-Docker、systemd 四种方式。项目里已经带了这些文件：
+代码本身跨平台；Linux 提供 **裸机一键部署**、**一键部署（NapCat + Xray + 机器人，Docker）**、
+直接运行、Docker、systemd 五种方式。**Docker 不是必须的**，也不用 screen 挂着：
+裸机方式有 systemd 就用 systemd，没有就用自带的 `deploy/daemon.sh`（崩溃自动拉起）。
+项目里已经带了这些文件：
 
 ```text
-deploy/oneclick.sh              # 一键部署（含 NapCat 与代理）
+deploy/baremetal.sh             # 裸机一键部署（无 Docker / 无 screen）
+deploy/daemon.sh                # 无 systemd 时的常驻管理（start/stop/restart/status/logs）
+deploy/install_napcat.sh        # NapCat Shell 版安装（非 Docker）
+deploy/setup_config.py          # 用 JSON 读写改配置，替代 sed 硬替换
+deploy/oneclick.sh              # 一键部署（含 NapCat 与代理，Docker；--bare 走裸机）
 docker-compose.full.yml         # napcat + xray + bot
 deploy/vless_to_xray.py         # VLESS 链接转 Xray 配置
 xray/config.json                # 已按你的节点生成（含凭据，600）
@@ -310,6 +316,42 @@ sudo ./deploy/oneclick.sh
 完成后按脚本提示：打开 WebUI 扫码登录 QQ → 确认 WS 服务器 3001 →
 `docker compose -f docker-compose.full.yml logs -f bot` → 打开
 `http://127.0.0.1:8080` → 群里发 `#帮助`。
+
+### 方式 0B：裸机一键部署（无 Docker / 无 screen，推荐不想装 Docker 的机器）
+
+```bash
+# 当前目录就地部署（普通用户也行，装系统包和注册 systemd 才需要 root）
+./deploy/baremetal.sh --ws-url ws://127.0.0.1:3001 --proxy none
+
+# 或者部署到 /opt 并注册 systemd 服务
+sudo ./deploy/baremetal.sh --dir /opt/qqwarframe-bot --proxy none
+```
+
+脚本会依次做：装系统依赖（python3 / venv / pip / 中文字体）→ 建 `.venv` 装依赖 →
+用 `deploy/setup_config.py` 写 `config.json` → 注册常驻。
+
+常用参数：
+
+| 参数 | 作用 |
+| --- | --- |
+| `--dir PATH` | 部署到别的目录（默认当前目录） |
+| `--ws-url` / `--token` | OneBot 地址与 access_token |
+| `--proxy none` | 全部直连；`--proxy http://127.0.0.1:7890` 用已有代理；`--proxy-all` 连官方兜底源一起改 |
+| `--with-xray` | 装 xray-core，并用 `deploy/vless.txt` 生成配置做本地代理 |
+| `--with-napcat` | 顺带装 NapCat（Shell 版，非 Docker） |
+| `--no-service` | 只装依赖，不注册常驻（自己 `./start.sh` 跑） |
+| `--no-start` | 装好并注册，但不立即启动 |
+
+常驻方式二选一（脚本自动判断，不用你选）：
+
+| 环境 | 方式 | 管理命令 |
+| --- | --- | --- |
+| 有 systemd 且以 root 运行 | 写入 `/etc/systemd/system/qqwarframe-bot.service` | `systemctl status/restart qqwarframe-bot`、`journalctl -u qqwarframe-bot -f` |
+| 没有 systemd / 非 root | 自带守护脚本 `deploy/daemon.sh` | `./deploy/daemon.sh status/restart/stop/logs` |
+
+`daemon.sh` 用 `setsid` + pid 文件实现，**不需要 screen / tmux**，进程退出 5 秒后自动拉起。
+
+更新：`git pull` 后执行 `./deploy/update.sh`（自动识别 systemd / daemon.sh / compose 三种方式）。
 
 ### 国内加速
 
@@ -373,7 +415,9 @@ nano config.json      # 填 ws_url / access_token / proxy
 
 - 无桌面环境的服务器也能跑，图片由 Pillow 在本地画。
 - 如果 `check.sh` 显示“图片渲染 FAIL”，就是缺中文字体，装 `fonts-noto-cjk`。
-- 后台常驻用 `nohup`/`tmux` 也可以，但更推荐下面的 systemd。
+- 想省事就用 `./deploy/baremetal.sh`：装依赖、写配置、注册常驻一条龙。
+- 后台常驻不需要 screen：`./deploy/daemon.sh start`（崩溃自动拉起）；
+  有 systemd 时更推荐下面的方式 C。
 
 ### 方式 B：Docker（最省事）
 
@@ -397,6 +441,8 @@ docker compose logs -f
   按 `docker-compose.yml` 注释启用 bridge 网络，`ws_url` 改成 `ws://napcat:3001`。
 
 ### 方式 C：systemd 常驻
+
+（用 `sudo ./deploy/baremetal.sh` 的话，这一步脚本已经替你做完了，可直接跳到查看日志。）
 
 ```bash
 sudo useradd -r -s /usr/sbin/nologin qqwarframe
