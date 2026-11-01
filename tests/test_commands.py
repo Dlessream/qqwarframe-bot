@@ -146,8 +146,42 @@ class FakeRiven:
             slug="rubico", name="绝路", name_en="Rubico", riven_type="rifle",
             group="primary", disposition=0.95, mastery_rank=12)
 
-    def auctions(self, slug, limit=5):
+    def auctions(self, slug, limit=5, query=None, names=None):
         return [], "暂无在售紫卡。"
+
+
+class FakeRivenMarket:
+    """#wr 用：固定一张紫卡，记录收到的词条筛选。"""
+
+    def __init__(self):
+        self.calls = []
+        self.disposition_override = 1.2
+        self.weapon = RivenWeapon(
+            slug="okina", name="翁", name_en="Okina", riven_type="melee",
+            group="melee", disposition=1.4, mastery_rank=5,
+            thumb="items/images/en/thumbs/okina.png")
+
+    def weapons(self):
+        return {"okina": self.weapon}
+
+    def resolve(self, text):
+        return self.weapon if str(text).strip() == "翁" else None
+
+    def find(self, item):
+        return self.weapon if getattr(item, "slug", "") == "okina" else None
+
+    def auctions(self, slug, limit=5, query=None, names=None):
+        from bot.riven import RivenAttribute, RivenAuction
+        self.calls.append({"slug": slug, "limit": limit, "query": query})
+        auction = RivenAuction(
+            price=300, seller="SellerA", rank=8, re_rolls=12,
+            attributes=["+94.8% 暴击伤害", "+79.2% 攻击速度", "-55.1% 穿刺伤害"],
+            detail=[RivenAttribute("critical_damage", "暴击伤害", 94.8, True),
+                    RivenAttribute("fire_rate_/_attack_speed", "攻击速度", 79.2, True),
+                    RivenAttribute("puncture_damage", "穿刺伤害", 55.1, False)],
+            name="crita-visican", polarity="naramon", mastery_level=12,
+            weapon_slug="okina", status="ingame")
+        return [auction][:limit], ""
 
 
 def texts(replies):
@@ -871,8 +905,9 @@ class BoardCommandTest(unittest.TestCase):
         router = self.router(FakeBoard())
         router.riven = FakeRiven()
         reply = router.handle("#紫卡", self.ctx)[0]
-        self.assertIn("零洗紫卡", reply.text)
-        self.assertIn("5000p", reply.text)
+        self.assertIn("紫卡排行", reply.text)
+        self.assertIn("直售均价", reply.text)
+        self.assertIn("5000.0p", reply.text)
 
     def test_riven_rank_shows_every_row(self):
         from bot.board import RivenQuote
@@ -884,11 +919,12 @@ class BoardCommandTest(unittest.TestCase):
         router = self.router(board)
         router.riven = FakeRiven()
         reply = router.handle("#紫卡", self.ctx)[0]
-        lines = reply.text.strip().splitlines()
-        # 文字只给前 20 名 + 一行「后面还有」，完整榜单在图里
-        self.assertEqual(len(lines), 22)  # 标题 + 20 行 + 收尾提示
-        self.assertTrue(lines[-2].startswith("20. weapon 19"))
-        self.assertIn("后面还有 50 把", lines[-1])
+        lines = [line for line in reply.text.strip().splitlines() if line]
+        # 排行只取前 30；文字列前 10 名，其余在图片里
+        self.assertEqual(len([l for l in lines if l[:1].isdigit() and "." in l[:4]]), 10)
+        self.assertIn("11–30 名见下图", reply.text)
+        self.assertIn("weapon 00", reply.text)
+        self.assertNotIn("weapon 30", reply.text)
 
     def test_scanning_hint_when_empty(self):
         reply = self.router(FakeBoard(ready=False)).handle("#银垃圾", self.ctx)[0]
@@ -1061,6 +1097,60 @@ class BountyCommandTest(unittest.TestCase):
         self.assertIn("霍瓦尼亚", reply.text)
         self.assertIn("125–130", reply.text)   # 霍瓦尼亚 T7
         self.assertNotIn("暂无可接赏金", reply.text)
+
+
+
+class RivenMarketCommandTest(unittest.TestCase):
+    """#wr：紫卡市场（warframe.market 在线紫卡）。"""
+
+    def setUp(self):
+        self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
+        self.router, _, _ = make_router()
+        self.riven = FakeRivenMarket()
+        self.router.riven = self.riven
+
+    def test_parse(self):
+        self.assertEqual(self.router.parse("#wr 翁"), ("riven_market", "翁"))
+        self.assertEqual(self.router.parse("#紫卡市场 翁 攻速"),
+                         ("riven_market", "翁 攻速"))
+
+    def test_basic(self):
+        reply = self.router.handle("#wr 翁", self.ctx)[0]
+        self.assertIn("紫卡市场", reply.text)
+        self.assertIn("300p", reply.text)
+        self.assertIn("暴击伤害", reply.text)
+        self.assertTrue(reply.has_image)
+        self.assertEqual(self.riven.calls[-1]["slug"], "okina")
+        self.assertEqual(self.riven.calls[-1]["limit"], 5)
+
+    def test_filters_forwarded(self):
+        self.router.handle("#wr 翁 攻击速度 范围 暴击伤害 负任意", self.ctx)
+        query = self.riven.calls[-1]["query"]
+        self.assertEqual([item.word for item in query.filters],
+                         ["攻击速度", "范围", "暴击伤害"])
+        self.assertTrue(query.need_negative)
+        self.assertIn("词条 攻击速度 + 范围 + 暴击伤害 + 负任意",
+                      self.router.handle("#wr 翁 攻击速度 范围 暴击伤害 负任意",
+                                         self.ctx)[0].text)
+
+    def test_unknown_filter_hint(self):
+        reply = self.router.handle("#wr 翁 电磁炮", self.ctx)[0]
+        self.assertIn("没认出这些词条", reply.text)
+
+    def test_usage_without_weapon(self):
+        reply = self.router.handle("#wr", self.ctx)[0]
+        self.assertIn("用法", reply.text)
+
+    def test_platform_is_not_a_filter(self):
+        self.router.handle("#wr 翁 pc", self.ctx)
+        self.assertEqual(self.riven.calls[-1]["query"].unknown, [])
+
+    def test_image_renders(self):
+        from bot import imagecard
+        if not imagecard.available():
+            self.skipTest("本机没有可用中文字体")
+        raw = self.router.handle("#wr 翁", self.ctx)[0].image()
+        self.assertTrue(raw.startswith(b"\x89PNG"))
 
 
 if __name__ == "__main__":

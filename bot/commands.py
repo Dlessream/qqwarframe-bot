@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from . import imagecard
 from . import names
 from . import present
 from . import zh2en
@@ -20,7 +23,7 @@ from .market import (Item, MarketClient, MarketError, SearchHit, is_arcane,
                      wants_arcane)
 from .replies import Reply
 from .riven import (CATEGORY_LABELS, GROUP_CATEGORY_ORDER, GROUP_LABELS,
-                    RivenClient, parse_group_detail)
+                    RivenClient, parse_group_detail, parse_riven_filters)
 from .rivencalc import calculate, calculate_group
 from .subscriptions import (SubscriptionService, kind_label, kind_names,
                             parse_kind)
@@ -57,6 +60,10 @@ COMMANDS: Dict[str, str] = {
     "mod": "mod", "mods": "mod", "卡片": "mod", "卡": "mod", "模组": "mod",
     "拆件": "set", "拆卖": "set", "拆": "set", "套装": "set", "parts": "set",
     "紫卡": "riven", "riven": "riven", "zk": "riven",
+    # wr = 紫卡市场（warframe.market 在线紫卡拍卖）
+    "wr": "riven_market", "wriven": "riven_market", "紫卡市场": "riven_market",
+    "紫卡拍卖": "riven_market", "紫卡行情": "riven_market", "收紫卡": "riven_market",
+    "zkmarket": "riven_market", "wm紫卡": "riven_market",
     "紫卡分析": "riven_group", "紫卡分组": "riven_group",
     "紫卡类别": "riven_group", "紫卡类型": "riven_group",
     "紫卡数值": "riven_group", "zkfx": "riven_group",
@@ -255,6 +262,41 @@ class CommandRouter:
         self.board = board
         self.rotation = rotation
         self.subscriptions = subscriptions
+        # 紫卡排行/卡面要武器小图标：给图片模块接一个带磁盘缓存的下载器
+        self.icon_dir = str(config.get("warframe_market", {}).get(
+            "icon_dir") or "data/cache/icons")
+        imagecard.set_icon_loader(self._load_icon)
+
+    def _load_icon(self, url: str) -> Optional[bytes]:
+        """武器图标下载（磁盘缓存，失败返回 None，不影响出图）。"""
+        url = str(url or "").strip()
+        if not url:
+            return None
+        try:
+            os.makedirs(self.icon_dir, exist_ok=True)
+        except OSError:
+            return None
+        name = hashlib.md5(url.encode("utf-8")).hexdigest() + ".img"
+        path = os.path.join(self.icon_dir, name)
+        if os.path.isfile(path):
+            try:
+                with open(path, "rb") as handle:
+                    return handle.read()
+            except OSError:
+                pass
+        try:
+            raw = self.market.http.request(
+                url, headers={"User-Agent": "qqwarframe-bot/1.0"})
+        except Exception as exc:  # 图标是装饰，网络失败不报错
+            self.log.info("图标下载失败（%s）：%s", url, exc)
+            return None
+        if raw:
+            try:
+                with open(path, "wb") as handle:
+                    handle.write(raw)
+            except OSError:
+                pass
+        return raw
 
     # ------------------------------------------------------------------ 解析
     def parse(self, text: str,
@@ -366,6 +408,8 @@ class CommandRouter:
                 return [self._set(argument, ctx)]
             if command == "riven":
                 return [self._riven(argument, ctx)]
+            if command == "riven_market":
+                return [self._riven_market(argument, ctx)]
             if command == "riven_group":
                 return [self._riven_group(argument, ctx)]
             if command == "riven_rank":
@@ -632,6 +676,59 @@ class CommandRouter:
         return present.riven_reply(weapon, auctions, note, platform,
                                    analysis=analysis)
 
+    # 紫卡市场一次给几张
+    RIVEN_MARKET_LIMIT = 5
+
+    def _resolve_riven_weapon(self, text: str):
+        """武器名 → RivenWeapon（先按紫卡武器表，再借市场物品索引）。"""
+        if self.riven is None or not text:
+            return None
+        weapon = self.riven.resolve(text)
+        if weapon is not None:
+            return weapon
+        try:
+            hits = self.market.lookup(text, limit=3)
+        except MarketError:
+            hits = []
+        if not hits:
+            return None
+        return self.riven.find(hits[0].item)
+
+    def _riven_market(self, argument: str, ctx: Context) -> Reply:
+        """#wr <武器> [词条…] [负任意]：warframe.market 在线紫卡，最便宜 5 张。"""
+        if self.riven is None:
+            return present.error_reply("紫卡功能未启用。")
+        argument, platform = split_platform(argument)
+        platform = platform or self.default_platform
+        text = str(argument or "").strip()
+        if not text:
+            return present.error_reply(
+                "用法：%swr <武器> [词条…] [负任意]\n"
+                "例如：%swr 翁\n　　　%swr 翁 攻击速度 范围 暴击伤害 负任意"
+                % (ctx.prefix, ctx.prefix, ctx.prefix))
+
+        # 武器名可能带空格（阿利乌双枪 / Dex 侍刃），从长到短试前缀
+        words = text.split()
+        weapon = None
+        rest: List[str] = []
+        for cut in range(min(4, len(words)), 0, -1):
+            weapon = self._resolve_riven_weapon(" ".join(words[:cut]))
+            if weapon is not None:
+                rest = words[cut:]
+                break
+        if weapon is None:
+            return present.error_reply(
+                "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
+                % text)
+
+        query = parse_riven_filters(rest)
+        auctions, note = self.riven.auctions(
+            weapon.slug, limit=self.RIVEN_MARKET_LIMIT, query=query)
+        for auction in auctions:
+            auction.weapon_name = weapon.name
+            auction.weapon_icon = weapon.icon_url
+        return present.riven_market_reply(weapon, auctions, note, platform, query)
+
     def _riven_group(self, argument: str, ctx: Context) -> Reply:
         """#紫卡分析 <组名>：按武器组看紫卡数值范围（主武器/副武器/近战/空战/同伴）。"""
         if self.riven is None:
@@ -770,24 +867,32 @@ class CommandRouter:
 
     def _riven_rank(self, ctx: Context) -> Reply:
         if self.board is None:
-            return present.error_reply("零洗紫卡价格未启用（board.enabled = false）。")
+            return present.error_reply("紫卡排行未启用（board.enabled = false）。")
         quotes = self.board.riven_quotes()
         ready, total = self.board.riven_coverage()
         if not quotes:
-            return self._scanning_reply("零洗紫卡价格", ready, total)
+            return self._scanning_reply("紫卡排行", ready, total)
+
+        def weapon_of(slug: str):
+            if self.riven is None:
+                return None
+            try:
+                return self.riven.weapons().get(slug)
+            except Exception:  # 武器表拉取失败不影响榜单
+                return None
 
         def name_of(slug: str) -> str:
-            weapon = None
-            if self.riven is not None:
-                try:
-                    weapon = self.riven.weapons().get(slug)
-                except Exception:  # 武器表拉取失败不影响榜单
-                    weapon = None
+            weapon = weapon_of(slug)
             if weapon is not None and weapon.name:
                 return weapon.name
             return str(slug).replace("_", " ")
 
-        return present.riven_rank_reply(quotes, name_of, (ready, total))
+        def icon_of(slug: str) -> str:
+            weapon = weapon_of(slug)
+            return weapon.icon_url if weapon is not None else ""
+
+        return present.riven_rank_reply(quotes, name_of, (ready, total),
+                                        icon_of=icon_of)
 
     # ------------------------------------------------------------------ 数据更新
     def _update(self, argument: str, ctx: Context) -> Reply:

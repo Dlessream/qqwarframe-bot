@@ -1007,6 +1007,309 @@ def _encode(image: "Image.Image") -> bytes:
     return buffer.getvalue()
 
 
+# ---------------------------------------------------------------------- 紫卡卡面
+RIVEN_BG_TOP = (30, 16, 46)
+RIVEN_BG_BOTTOM = (64, 31, 76)
+RIVEN_GOLD = (206, 172, 96)
+RIVEN_TEXT = (238, 232, 248)
+RIVEN_NEG = (255, 126, 126)
+
+POLARITY_LABELS = {
+    "madurai": "马杜莱",
+    "naramon": "纳拉蒙",
+    "vazarin": "瓦兹林",
+    "zenurik": "泽努里",
+    "unairu": "乌奈鲁",
+    "penjaga": "彭加加",
+    "umbra": "暗影",
+    "universal": "万能",
+}
+
+_ICON_LOADER = None
+
+
+def set_icon_loader(loader) -> None:
+    """注入武器图标加载器（url -> bytes）；命令层负责网络与磁盘缓存。"""
+    global _ICON_LOADER
+    _ICON_LOADER = loader
+
+
+def _icon_image(source: str, size: int = 64):
+    if not source or _ICON_LOADER is None or Image is None:
+        return None
+    try:
+        raw = _ICON_LOADER(source)
+    except Exception:  # 图标是装饰，失败就当没有
+        return None
+    if not raw:
+        return None
+    try:
+        image = Image.open(io.BytesIO(raw)).convert("RGBA")
+    except Exception:
+        return None
+    return image.resize((size, size), Image.LANCZOS)
+
+
+def _platinum_glyph(draw, cx: float, cy: float, r: float,
+                    color=(216, 202, 242)) -> None:
+    """白金符号：菱形外边 + 中心圆点。"""
+    draw.polygon([(cx, cy - r), (cx + r * 0.78, cy), (cx, cy + r), (cx - r * 0.78, cy)],
+                 outline=color, width=2)
+    rr = max(1.0, r * 0.26)
+    draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=color)
+
+
+def _polarity_glyph(draw, cx: float, cy: float, r: float, polarity: str,
+                    color=(222, 206, 250)) -> None:
+    """极性徽章：外环 + 内部符号（按游戏里的五种极性简化绘制）。"""
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=color, width=2)
+    key = str(polarity or "").lower()
+    if key == "madurai":
+        draw.polygon([(cx - r * 0.44, cy - r * 0.48), (cx + r * 0.44, cy - r * 0.48),
+                      (cx, cy)], fill=color)
+        draw.polygon([(cx - r * 0.44, cy + r * 0.48), (cx + r * 0.44, cy + r * 0.48),
+                      (cx, cy)], fill=color)
+    elif key == "vazarin":
+        draw.polygon([(cx, cy - r * 0.52), (cx + r * 0.46, cy),
+                      (cx, cy + r * 0.52), (cx - r * 0.46, cy)], fill=color)
+    elif key == "naramon":
+        draw.polygon([(cx - r * 0.46, cy + r * 0.36), (cx, cy - r * 0.48),
+                      (cx + r * 0.46, cy + r * 0.36)], outline=color, width=2)
+    elif key == "zenurik":
+        draw.arc([cx - r * 0.52, cy - r * 0.52, cx + r * 0.16, cy + r * 0.16],
+                 10, 330, fill=color, width=2)
+        draw.arc([cx - r * 0.16, cy - r * 0.16, cx + r * 0.52, cy + r * 0.52],
+                 190, 150, fill=color, width=2)
+    elif key == "unairu":
+        draw.polygon([(cx - r * 0.46, cy - r * 0.38), (cx + r * 0.46, cy - r * 0.38),
+                      (cx + r * 0.36, cy + r * 0.26), (cx, cy + r * 0.52),
+                      (cx - r * 0.36, cy + r * 0.26)], outline=color, width=2)
+    elif key == "penjaga":
+        draw.arc([cx - r * 0.52, cy - r * 0.52, cx + r * 0.08, cy + r * 0.52],
+                 300, 60, fill=color, width=2)
+        draw.arc([cx - r * 0.08, cy - r * 0.52, cx + r * 0.52, cy + r * 0.52],
+                 120, 240, fill=color, width=2)
+    else:
+        draw.line([(cx, cy - r * 0.46), (cx, cy + r * 0.46)], fill=color, width=2)
+        draw.line([(cx - r * 0.46, cy), (cx + r * 0.46, cy)], fill=color, width=2)
+
+
+def _riven_card(auction, width: int = 340, height: int = 470,
+                weapon_name: str = "") -> "Image.Image":
+    """一张游戏风紫卡：卡名 / 词条 / 极性 / 段位 / 等级点 / 洗数 + 卡下报价。"""
+    info_h = 88
+    canvas = Image.new("RGBA", (width, height + info_h), (0, 0, 0, 0))
+    card = _gradient(width, height, RIVEN_BG_TOP, RIVEN_BG_BOTTOM).convert("RGBA")
+
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    for y in range(0, height, 3):
+        od.line([(0, y), (width, y)], fill=(0, 0, 0, 22))
+    for i in range(16, 0, -1):
+        od.ellipse([width / 2 - i * 15, 78 - i * 10, width / 2 + i * 15, 78 + i * 10],
+                   fill=(170, 130, 226, 4))
+    card = Image.alpha_composite(card, overlay)
+    cd = ImageDraw.Draw(card)
+
+    _rrect(cd, (0, 0, width - 1, height - 1), 16, outline=RIVEN_GOLD, width=3)
+    _rrect(cd, (7, 7, width - 8, height - 8), 12, outline=(124, 92, 164), width=1)
+    for cx, cy in ((18, 18), (width - 18, 18), (18, height - 18),
+                   (width - 18, height - 18)):
+        cd.polygon([(cx, cy - 7), (cx + 7, cy), (cx, cy + 7), (cx - 7, cy)],
+                   fill=RIVEN_GOLD)
+
+    name = str(getattr(auction, "name", "") or "").strip()
+    # 游戏里紫卡名只首字母大写（laci-acricron → Laci-acricron）
+    name = (name[0].upper() + name[1:]) if name else "Riven"
+    title_font = _font(29, bold=True)
+    name = _fit(cd, name, title_font, width - 56)
+    tw, _ = _tsize(cd, name, title_font)
+    cd.text(((width - tw) / 2, 30), name, font=title_font, fill=RIVEN_TEXT)
+    small = _font(12, bold=True)
+    lw, _ = _tsize(cd, "RIVEN MOD", small)
+    cd.text(((width - lw) / 2, 70), "RIVEN MOD", font=small, fill=RIVEN_GOLD)
+
+    cd.line([(34, 100), (width - 34, 100)], fill=(150, 122, 190), width=1)
+    cd.polygon([(width / 2, 96), (width / 2 + 5, 100), (width / 2, 104),
+                (width / 2 - 5, 100)], fill=RIVEN_GOLD)
+
+    attrs = list(getattr(auction, "detail", None) or [])
+    y = 120
+    value_font = _font(23, bold=True)
+    label_font = _font(18)
+    for attr in attrs[:4]:
+        color = RIVEN_TEXT if attr.positive else RIVEN_NEG
+        cd.text((34, y), attr.text, font=value_font, fill=color)
+        label = _fit(cd, attr.label, label_font, width - 160)
+        cd.text((152, y + 4), label, font=label_font, fill=color)
+        y += 35
+
+    py = 318
+    _polarity_glyph(cd, 58, py, 25, getattr(auction, "polarity", ""))
+    pol_key = str(getattr(auction, "polarity", "") or "").lower()
+    pol = POLARITY_LABELS.get(pol_key, getattr(auction, "polarity", "") or "—")
+    cd.text((96, py - 20), pol, font=_font(17, bold=True), fill=(214, 200, 240))
+    cd.text((96, py + 3), "极性", font=_font(12), fill=(146, 130, 176))
+
+    mr = "MR %d" % (int(getattr(auction, "mastery_level", 0) or 0))
+    mf = _font(18, bold=True)
+    mw, _ = _tsize(cd, mr, mf)
+    cd.text((width - 34 - mw, py - 18), mr, font=mf, fill=RIVEN_GOLD)
+    rolls = "%d 洗" % (int(getattr(auction, "re_rolls", 0) or 0))
+    rf = _font(13)
+    rw, _ = _tsize(cd, rolls, rf)
+    cd.text((width - 34 - rw, py + 8), rolls, font=rf, fill=(158, 142, 184))
+
+    dots_y = height - 72
+    rank = max(0, min(8, int(getattr(auction, "rank", 0) or 0)))
+    total_w = 8 * 15 + 7 * 9
+    x = (width - total_w) / 2
+    for i in range(8):
+        box = (x, dots_y, x + 15, dots_y + 15)
+        if i < rank:
+            _rrect(cd, box, 3, fill=(196, 168, 246), outline=(242, 230, 255))
+        else:
+            _rrect(cd, box, 3, fill=(46, 27, 66), outline=(112, 86, 152))
+        x += 24
+    rk = "RANK %d" % rank
+    kf = _font(12, bold=True)
+    kw, _ = _tsize(cd, rk, kf)
+    cd.text(((width - kw) / 2, dots_y + 22), rk, font=kf, fill=RIVEN_GOLD)
+
+    info = Image.new("RGBA", (width, info_h), (0, 0, 0, 0))
+    idraw = ImageDraw.Draw(info)
+    _rrect(idraw, (0, 8, width - 1, info_h - 1), 12, fill=(20, 13, 32, 240))
+    label = weapon_name or getattr(auction, "weapon_name", "") or ""
+    idraw.text((16, 16), _fit(idraw, label, _font(18, bold=True), width - 96),
+               font=_font(18, bold=True), fill=RIVEN_GOLD)
+    price = "%dp" % int(getattr(auction, "price", 0) or 0)
+    pf = _font(25, bold=True)
+    pw, _ = _tsize(idraw, price, pf)
+    idraw.text((width - 44 - pw, 11), price, font=pf, fill=RIVEN_TEXT)
+    _platinum_glyph(idraw, width - 26, 26, 8)
+    status = str(getattr(auction, "status", "") or "")
+    tag = {"ingame": "游戏中", "online": "在线"}.get(status, "离线")
+    idraw.text((16, 48), "%s · %s" % (getattr(auction, "seller", "?") or "?", tag),
+               font=_font(12), fill=(168, 154, 196))
+    buys = "一口价" if getattr(auction, "buyout", True) else "起拍"
+    bw, _ = _tsize(idraw, buys, _font(12))
+    idraw.text((width - 18 - bw, 48), buys, font=_font(12), fill=(168, 154, 196))
+
+    canvas.alpha_composite(card, (0, 0))
+    canvas.alpha_composite(info, (0, height))
+    return canvas
+
+
+def riven_market_card(weapon, auctions, filters=(), note: str = "",
+                      footer: str = "") -> Optional[bytes]:
+    """#wr：武器头部 + 最便宜几张紫卡（卡面网格）。"""
+    if Image is None or not auctions:
+        return None
+    cards = [_riven_card(item, weapon_name=getattr(weapon, "name", ""))
+             for item in auctions]
+    if not cards:
+        return None
+    cw, ch = cards[0].size
+    count = len(cards)
+    cols = 2 if count > 2 else max(1, count)
+    rows = (count + cols - 1) // cols
+    gap_x, gap_y = 22, 18
+    content_w = cols * cw + (cols - 1) * gap_x
+    left = (WIDTH - content_w) // 2
+
+    filters = [str(item) for item in (filters or ()) if str(item)]
+    header_h = 168 + (44 if filters else 0) + (34 if note else 0)
+    height = header_h + rows * ch + (rows - 1) * gap_y + 76
+
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+
+    inclination = float(getattr(weapon, "disposition", 0) or 0)
+    subtitle = "倾向 %.2f（%s）｜ %s ｜ MR %d ｜ 最便宜 %d 张" % (
+        inclination, getattr(weapon, "disposition_label", ""),
+        getattr(weapon, "type_label", "") or "—",
+        int(getattr(weapon, "mastery_rank", 0) or 0), count)
+    y = _header(draw, "%s · 紫卡市场" % getattr(weapon, "name", ""), subtitle,
+                "WARFRAME MARKET", PURPLE)
+    if filters:
+        y = _pills(draw, y, [("词条", " + ".join(filters))], PURPLE)
+    if note:
+        draw.text((PAD, y), _fit(draw, note, _font(15), WIDTH - 2 * PAD),
+                  font=_font(15), fill=GOLD)
+        y += 34
+
+    for index, card in enumerate(cards):
+        row, col = divmod(index, cols)
+        x = left + col * (cw + gap_x)
+        top = header_h + row * (ch + gap_y)
+        image.alpha_composite(card, (x, top))
+
+    _footer(draw, height - 62, footer or "数据 warframe.market · 实时紫卡拍卖")
+    return _encode(image)
+
+
+def riven_rank_card(rows, subtitle: str = "价格为紫卡直售均价",
+                    footer: str = "") -> Optional[bytes]:
+    """紫卡排行：序号 + 武器图标 + 名称 + 价格（参考游戏内榜单样式）。"""
+    if Image is None or not rows:
+        return None
+    width = 620
+    row_h = 46
+    top = 138
+    bottom = 70
+    height = top + len(rows) * row_h + bottom
+    image = _gradient(width, height, (52, 38, 82), (96, 76, 138)).convert("RGBA")
+
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    for i in range(18, 0, -1):
+        od.ellipse([width / 2 - i * 26, 70 - i * 14, width / 2 + i * 26, 70 + i * 14],
+                   fill=(190, 170, 235, 3))
+    image = Image.alpha_composite(image, overlay)
+    draw = ImageDraw.Draw(image)
+
+    title_font = _font(40, bold=True)
+    draw.text((36, 34), "紫卡排行", font=title_font, fill=(250, 246, 255))
+    sub_font = _font(14)
+    sw, _ = _tsize(draw, subtitle, sub_font)
+    draw.text((width - 36 - sw, 46), subtitle, font=sub_font, fill=(206, 194, 224))
+    draw.line([(36, 106), (width - 36, 106)], fill=(178, 160, 214), width=1)
+
+    for index, row in enumerate(rows, 1):
+        rank, name, price, icon_url = row
+        y = top + (index - 1) * row_h
+        if index % 2 == 0:
+            bar = Image.new("RGBA", (width - 56, row_h - 6), (255, 255, 255, 10))
+            image.alpha_composite(bar, (28, y - 1))
+        color = (255, 214, 130) if index <= 3 else (236, 228, 248)
+        num_font = _font(23, bold=True)
+        draw.text((44, y + 6), "%02d" % rank, font=num_font, fill=color)
+
+        icon = _icon_image(icon_url, 34)
+        if icon is not None:
+            mask = Image.new("L", (34, 34), 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, 33, 33], fill=255)
+            image.paste(icon, (96, y + 3), mask)
+        else:
+            draw.ellipse([96, y + 3, 130, y + 37], fill=(70, 54, 100))
+
+        name_font = _font(21, bold=index <= 3)
+        draw.text((146, y + 9), _fit(draw, name, name_font, 330),
+                  font=name_font, fill=(250, 246, 255))
+
+        price_text = "%.1f" % price if isinstance(price, float) else "%d" % price
+        pf = _font(21, bold=True)
+        pw, _ = _tsize(draw, price_text, pf)
+        draw.text((width - 62 - pw, y + 10), price_text, font=pf, fill=(252, 248, 255))
+        _platinum_glyph(draw, width - 46, y + 21, 9, (222, 208, 246))
+
+    draw.line([(36, height - 58), (width - 36, height - 58)],
+              fill=(178, 160, 214), width=1)
+    foot = footer or "数据 warframe.market · 紫卡直售均价"
+    draw.text((36, height - 44), foot, font=_font(12), fill=(206, 194, 224))
+    return _encode(image)
+
+
 def riven_group_card(sections: Sequence[Tuple[str, object]],
                      footer: str = "数据 Warframe Wiki · 本地计算") -> Optional[bytes]:
     """紫卡分组范围卡：把「步枪 / 霰弹枪」等类别的范围表纵向拼成一张图。

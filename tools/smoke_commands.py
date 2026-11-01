@@ -40,6 +40,8 @@ CASES: List[Tuple[str, str]] = [
     ("set", "#拆件 Mesa Prime"),
     ("riven", "#紫卡 绝路"),
     ("riven_group", "#紫卡分析 主武器"),
+    ("riven_market", "#wr 翁"),
+    ("riven_market_attrs", "#wr 翁 攻击速度 范围 暴击伤害 负任意"),
     ("riven_rank", "#紫卡榜"),
     ("frame_rank", "#战甲榜"),
     ("junk_gold", "#金垃圾"),

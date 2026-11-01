@@ -138,7 +138,7 @@ class RivenCacheTest(unittest.TestCase):
         client = RivenClient(market, cache_config={"enabled": True, "riven_seconds": 300})
         calls = []
 
-        def fake(slug, limit=5):
+        def fake(slug, limit=5, query=None, names=None):
             calls.append(slug)
             return [], "暂无"
 

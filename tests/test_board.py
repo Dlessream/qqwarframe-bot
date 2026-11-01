@@ -5,7 +5,8 @@ import time
 import unittest
 
 from bot.board import (JUNK_LABELS, BoardClient, BoardQuote, junk_ducats,
-                       parse_riven_auctions, parse_top_orders, riven_candidates)
+                       parse_riven_auctions, parse_top_orders, riven_average,
+                       riven_candidates)
 from bot.market import Item, ItemIndex
 from bot.net import HttpError
 from bot.riven import RivenWeapon
@@ -225,6 +226,112 @@ class RivenCandidateTest(unittest.TestCase):
             self.row(900, buyout=900), self.row(2400, buyout=2400),
             self.row(1500, buyout=1500)])
         self.assertEqual([quote.price for quote in quotes], [2400, 1500, 900])
+
+
+class RivenAverageTest(unittest.TestCase):
+    """紫卡均价口径：所有在售单取平均，中位数 8 倍截断离群。"""
+
+    def row(self, price, buyout=None, closed=False, rank=8, re_rolls=0):
+        return {
+            "closed": closed,
+            "buyout_price": buyout,
+            "starting_price": price,
+            "item": {"url_name": "okina", "re_rolls": re_rolls, "mod_rank": rank,
+                     "attributes": []},
+            "owner": {"ingame_name": "s1"},
+        }
+
+    def test_average_of_all_listed_prices(self):
+        average, samples = riven_average([self.row(100), self.row(200),
+                                          self.row(300)])
+        self.assertAlmostEqual(average, 200.0)
+        self.assertEqual(samples, 3)
+
+    def test_buyout_preferred_over_starting_price(self):
+        average, samples = riven_average([self.row(900, buyout=150)])
+        self.assertAlmostEqual(average, 150.0)
+        self.assertEqual(samples, 1)
+
+    def test_closed_and_zero_prices_ignored(self):
+        average, samples = riven_average([self.row(0), self.row(500, closed=True),
+                                          self.row(200)])
+        self.assertAlmostEqual(average, 200.0)
+        self.assertEqual(samples, 1)
+
+    def test_rolled_and_low_rank_still_counted(self):
+        # 排行看的是「这把武器的紫卡值多少钱」，洗数/等级不限
+        average, samples = riven_average([self.row(400, re_rolls=7, rank=0),
+                                          self.row(600, re_rolls=2, rank=3)])
+        self.assertAlmostEqual(average, 500.0)
+        self.assertEqual(samples, 2)
+
+    def test_outlier_trimmed_by_median(self):
+        # 中位数 300，8 倍 = 2400，50000 的占位单被剔掉
+        average, samples = riven_average([self.row(100), self.row(300),
+                                          self.row(500), self.row(50000)])
+        self.assertAlmostEqual(average, 300.0)
+        self.assertEqual(samples, 3)
+
+    def test_above_max_price_dropped(self):
+        average, samples = riven_average([self.row(300), self.row(99999)],
+                                         max_price=50000)
+        self.assertAlmostEqual(average, 300.0)
+        self.assertEqual(samples, 1)
+
+    def test_empty_returns_zero(self):
+        self.assertEqual(riven_average([]), (0.0, 0))
+        self.assertEqual(riven_average(None), (0.0, 0))
+
+
+class RivenRankOrderTest(unittest.TestCase):
+    """排行榜按均价（avg）降序，而不是按单张最高价。"""
+
+    def board(self):
+        board, _market, _http = build_board(DEFAULT_TOPS)
+        return board
+
+    def put(self, board, slug, average, candidates):
+        board._quotes["riven"][slug] = {
+            "t": time.time(), "f": 1, "a": average, "n": 4,
+            "c": candidates,
+        }
+
+    def test_ranked_by_average_not_by_best_price(self):
+        board = self.board()
+        # a 有一张天价单但整体便宜；b 张张都贵 → b 应该排在前面
+        self.put(board, "a", 400.0, [[4000, 8, "s1", [], "", 1],
+                                      [300, 8, "s2", [], "", 1]])
+        self.put(board, "b", 900.0, [[900, 8, "s3", [], "", 1],
+                                      [900, 8, "s4", [], "", 1]])
+        quotes = board.riven_quotes()
+        self.assertEqual([quote.slug for quote in quotes], ["b", "a"])
+        self.assertEqual(quotes[0].avg, 900.0)
+
+    def test_avg_and_count_carried_into_quote(self):
+        board = self.board()
+        self.put(board, "okina", 1234.5, [[1200, 8, "s1", ["暴击伤害 +94.8%"], "", 1]])
+        quote = board.riven_quotes()[0]
+        self.assertAlmostEqual(quote.avg, 1234.5)
+        self.assertEqual(quote.count, 4)
+        # 代表卡仍取候选里可信的那张
+        self.assertEqual(quote.price, 1200)
+        self.assertEqual(quote.attributes, ("暴击伤害 +94.8%",))
+
+    def test_legacy_cache_without_avg_falls_back_to_candidates(self):
+        board = self.board()
+        board._quotes["riven"]["soma"] = {"t": time.time(), "v": 0,
+                                          "c": [[500, 8, "a", [], "", 1],
+                                                [700, 8, "b", [], "", 1]]}
+        quote = board.riven_quotes()[0]
+        self.assertAlmostEqual(quote.avg, 600.0)
+        self.assertEqual(quote.count, 2)
+
+    def test_zero_avg_entry_listed_last(self):
+        board = self.board()
+        self.put(board, "cheap", 0.0, [[0, 0, "", [], "", 0]])
+        self.put(board, "rich", 800.0, [[800, 8, "s", [], "", 1]])
+        self.assertEqual([quote.slug for quote in board.riven_quotes()],
+                         ["rich", "cheap"])
 
 
 class RivenBaitFilterTest(unittest.TestCase):

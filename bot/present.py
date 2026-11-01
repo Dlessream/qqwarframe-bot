@@ -152,7 +152,7 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
     lines = [
         "【%s】紫卡" % weapon.name,
         "倾向 %.2f（%s）｜ 类型 %s ｜ MR %d" % (
-            weapon.disposition, weapon.disposition_label, weapon.riven_type,
+            weapon.disposition, weapon.disposition_label, weapon.type_label,
             weapon.mastery_rank),
     ]
     if auctions:
@@ -183,7 +183,7 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
         ])
     subtitle = "倾向 %.2f（%s）｜ %s ｜ MR %d" % (
         weapon.disposition, weapon.disposition_label,
-        weapon.riven_type or weapon.group, weapon.mastery_rank)
+        weapon.type_label, weapon.mastery_rank)
 
     def build_image() -> bytes:
         if analysis is not None:
@@ -200,6 +200,46 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
             aligns=["right", "left", "left", "right"])
 
     return Reply(text="\n".join(lines), image=build_image)
+
+
+def riven_market_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
+                       note: str = "", platform: str = "pc",
+                       query=None, limit: int = 5) -> Reply:
+    """#wr：紫卡市场在我这个武器上最便宜的在售紫卡（卡面图）。"""
+    filters: List[str] = []
+    if query is not None and query.has_filters:
+        filters = [item.word for item in query.filters]
+        if query.need_negative:
+            filters.append("负任意")
+        if query.forbid_negative:
+            filters.append("无负面")
+
+    lines = ["【%s】紫卡市场 · 最便宜 %d 张" % (weapon.name, len(auctions))]
+    meta = "倾向 %.2f（%s）｜ %s ｜ MR %d" % (
+        weapon.disposition, weapon.disposition_label,
+        weapon.type_label, weapon.mastery_rank)
+    if filters:
+        meta += "｜ 词条 " + " + ".join(filters)
+    lines.append(meta)
+    if query is not None and query.unknown:
+        lines.append("没认出这些词条：%s（已忽略）" % "、".join(query.unknown))
+    if note:
+        lines.append(note)
+    if not auctions:
+        lines.append("现在没有符合条件的在售紫卡，稍后再试，或去掉词条限制。")
+    for index, auction in enumerate(auctions, 1):
+        lines.append("%d. %dp · R%d · %d 洗 · MR%d · %s" % (
+            index, auction.price, auction.rank, auction.re_rolls,
+            auction.mastery_level, auction.seller))
+        attrs = " / ".join(auction.attributes[:4]) or "未洗词条"
+        lines.append("    " + attrs)
+    if auctions:
+        lines.append("卡面样式见图；价格为在线一口价，从低到高。")
+
+    return Reply(text="\n".join(lines), image=lambda: imagecard.riven_market_card(
+        weapon, auctions, filters, note,
+        "数据 warframe.market · %s · %s" % (platform_label(platform),
+                                            _fresh(time.time()))))
 
 
 def riven_group_reply(label: str, sections: Sequence[Tuple[str, RivenAnalysis]],
@@ -1634,45 +1674,35 @@ def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 
 def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
-                     limit: Optional[int] = None) -> Reply:
-    """零洗紫卡价格榜（高 → 低）：每把武器取一张最贵的零洗卡，默认全列。"""
-    pool = list(quotes) if limit is None else list(quotes)[:limit]
+                     limit: int = 30, icon_of=None) -> Reply:
+    """紫卡排行：按每把武器的紫卡直售均价取前 30（参考游戏内榜单样式）。"""
+    pool = list(quotes)[:limit]
     rows = []
-    lines = ["【零洗紫卡价格】每把武器取最贵的零洗卡，从高到低"]
     for index, quote in enumerate(pool, 1):
-        attrs = " / ".join(quote.attributes[:3]) or "未洗词条"
-        rank_tag = "" if not quote.rank or quote.rank >= 8 else " · %d 级" % quote.rank
-        if index <= RIVEN_TEXT_ROWS:
-            lines.append("%d. %s  %dp（%s%s）· %s · %s" % (
-                index, name_of(quote.slug), quote.price,
-                "一口价" if quote.buyout else "起拍价", rank_tag, attrs,
-                quote.seller))
-        rows.append([
-            "%d" % index,
-            name_of(quote.slug),
-            "%dp" % quote.price,
-            " / ".join(quote.attributes[:2]) or "未洗词条",
-        ])
-    if len(rows) > RIVEN_TEXT_ROWS:
-        # 榜单可能有上百把，文字只给前段，完整版在图片里
-        lines.append("…… 后面还有 %d 把，完整榜单见下图。" % (len(rows) - RIVEN_TEXT_ROWS))
+        average = getattr(quote, "avg", 0) or quote.price
+        rows.append((index, name_of(quote.slug), round(float(average), 1),
+                     icon_of(quote.slug) if icon_of else ""))
+
+    lines = ["【紫卡排行】武器紫卡直售均价 · 前 %d" % len(pool)]
+    for index, name, price, _icon in rows[:10]:
+        lines.append("%d. %s  %.1fp" % (index, name, price))
+    if len(rows) > 10:
+        lines.append("…… 11–%d 名见下图。" % len(rows))
     if not rows:
-        lines.append("还没有拿到零洗紫卡报价，稍后再试。")
+        lines.append("还没有拿到紫卡报价，稍后再试。")
     ready, total = coverage if coverage else (0, 0)
-    updated = max((quote.updated for quote in quotes), default=0.0)
-    note = ("零洗 = re_rolls 0、只算一口价、满级卡优先（0 级卡的词条只有满级零头）；"
-            "已剔除刷在多把武器上的同价占位单。已扫描 %d/%d 把。" % (ready, total))
-    return Reply(
-        text="\n".join(lines),
-        image=lambda: imagecard.build_table(
-            "零洗紫卡价格", "每把武器取最贵零洗，再全局从高到低 ｜ %d/%d 把" % (ready, total),
-            ["#", "武器", "价格", "词条"], rows,
-            "数据 warframe market · %s" % _fresh(updated),
-            accent=imagecard.PURPLE, chip="紫卡",
-            note=note,
-            highlights=[[None, None, imagecard.PURPLE, None]] * len(rows),
-            ratios=[0.4, 1.7, 1.0, 3.9],
-            aligns=["right", "left", "right", "left"]))
+    updated = max((getattr(quote, "updated", 0.0) for quote in quotes), default=0.0)
+    note = ("均价 = 该武器当前所有在售紫卡的平均价（剔除极端离群挂单），"
+            "洗数/等级不限。已扫描 %d/%d 把武器。" % (ready, total))
+    lines.append("")
+    lines.append(note)
+
+    def build_image() -> bytes:
+        return imagecard.riven_rank_card(
+            rows, "价格为紫卡直售均价",
+            "数据 warframe.market · %s ｜ %d/%d 把" % (_fresh(updated), ready, total))
+
+    return Reply(text="\n".join(lines), image=build_image)
 
 
 # ---------------------------------------------------------------------- 订阅

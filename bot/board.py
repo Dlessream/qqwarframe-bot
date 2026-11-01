@@ -88,7 +88,7 @@ class BoardQuote:
 
 @dataclass
 class RivenQuote:
-    """一把武器的「最贵零洗紫卡」快照。"""
+    """一把武器的紫卡行情快照（均价 + 一张代表卡）。"""
 
     slug: str
     price: int = 0
@@ -98,6 +98,8 @@ class RivenQuote:
     created: str = ""
     updated: float = 0.0
     rank: int = 0
+    avg: float = 0.0        # 该武器紫卡直售均价
+    count: int = 0          # 参与均价的挂单数
 
 
 def _online(order: Dict[str, Any]) -> bool:
@@ -187,6 +189,30 @@ def parse_riven_auctions(rows: Iterable[Dict[str, Any]],
     """从拍卖列表里挑最贵的零洗（re_rolls = 0）紫卡。"""
     quotes = riven_candidates(rows, names=names, max_price=max_price)
     return quotes[0] if quotes else None
+
+
+def riven_average(rows: Iterable[Dict[str, Any]],
+                  max_price: int = 50000) -> Tuple[float, int]:
+    """该武器在线紫卡直售均价（一口价优先，剔除极端离群）。
+
+    排行要的是「这把武器的紫卡值多少钱」，所以不看洗数/等级，
+    把所有在售单取平均；再用中位数 8 倍截断明显钓鱼价，
+    否则一张 50000 的占位单能把均价拉飞。
+    """
+    prices: List[int] = []
+    for row in rows or []:
+        if not isinstance(row, dict) or row.get("closed") or row.get("private"):
+            continue
+        price = _as_int(row.get("buyout_price")) or _as_int(row.get("starting_price"))
+        if price <= 0 or (max_price and price > max_price):
+            continue
+        prices.append(price)
+    if not prices:
+        return 0.0, 0
+    prices.sort()
+    median = prices[len(prices) // 2]
+    kept = [price for price in prices if price <= median * 8] or prices
+    return sum(kept) / len(kept), len(kept)
 
 
 class BoardClient:
@@ -487,18 +513,21 @@ class BoardClient:
             }
 
     def _fetch_riven(self, slug: str) -> None:
-        path = ("/v1/auctions/search?type=riven&weapon_url_name=%s&sort_by=price_desc"
+        # 升序拿低价段：均价要贴近「现在真能买到的价格」
+        path = ("/v1/auctions/search?type=riven&weapon_url_name=%s&sort_by=price_asc"
                 % slug)
         data = self._get_json(path)
         if data is None:
             return
         payload = data.get("payload") or data.get("data") or {}
         rows = payload.get("auctions") if isinstance(payload, dict) else payload
-        quotes = riven_candidates(rows or [], names=self._attribute_names(),
-                                 max_price=self.max_riven_price)
+        rows = list(rows or [])
+        quotes = riven_candidates(rows, names=self._attribute_names(),
+                                  max_price=self.max_riven_price)
+        average, samples = riven_average(rows, max_price=self.max_riven_price)
         with self._lock:
-            if not quotes:
-                # 接口通了但一张合格的零洗卡都没有：记成「已抓过、无报价」，
+            if not quotes and not average:
+                # 接口通了但一张合格的卡都没有：记成「已抓过、无报价」，
                 # 别继续拿老缓存里的可疑单条价格充数。
                 if slug in self._quotes[_KIND_RIVEN]:
                     self._quotes[_KIND_RIVEN][slug] = {
@@ -506,10 +535,13 @@ class BoardClient:
                 return
             # 存多个候选而不是只存冠军：冠军可能是钓鱼价，查询时再往下顺延。
             # f=1 表示这条是按新接口完整抓过的（候选已补全），
+            # a/n 是该武器的紫卡直售均价与样本数（排行用），
             # 即使只抓到 1 条也说明市场就这么多，可以照价上榜。
             self._quotes[_KIND_RIVEN][slug] = {
                 "t": time.time(),
                 "f": 1,
+                "a": round(average, 1),
+                "n": samples,
                 "c": [[quote.price, quote.rank, quote.seller,
                        list(quote.attributes[:6]), quote.created,
                        1 if quote.buyout else 0]
@@ -576,22 +608,25 @@ class BoardClient:
         return self._ranked(_KIND_FRAME)
 
     def riven_quotes(self) -> List[RivenQuote]:
-        """每把武器取一张最贵的可信零洗卡，再按价格从高到低。
+        """每把武器的紫卡直售均价，按均价从高到低。
 
-        可信 = 剔除钓鱼/占位价：WM 上大量挂单是「议价」性质的整数天价
-        （50000、11111 刷在几十把武器上），不剔掉就会整榜都是它们。
+        均价来自扫描时保存的 `a`（所有在售单平均，剔除离群）；旧缓存没有
+        这个字段时，用候选挂单的均值近似，保证升级后榜首不会空掉。
+        单价（price/attribute/seller）仍取一张可信的代表卡，用于详情展示。
         """
         with self._lock:
             entries = {slug: (_as_float(entry.get("t")),
                               [list(row) for row in (entry.get("c") or [])],
-                              bool(entry.get("v")))
+                              bool(entry.get("v")),
+                              _as_float(entry.get("a")),
+                              _as_int(entry.get("n")))
                        for slug, entry in self._quotes[_KIND_RIVEN].items()}
         if not entries:
             return []
         floor = self.bait_price_floor
         price_weapons: Counter = Counter()
         seller_weapons: Counter = Counter()
-        for _ts, rows, _legacy in entries.values():
+        for _ts, rows, _legacy, _avg, _samples in entries.values():
             high = [_as_int(row[0]) for row in rows if _as_int(row[0]) >= floor]
             for price in set(high):
                 price_weapons[price] += 1
@@ -599,12 +634,13 @@ class BoardClient:
                            if _as_int(row[0]) >= floor} - {""}:
                 seller_weapons[seller] += 1
         quotes: List[RivenQuote] = []
-        for slug, (updated, rows, legacy) in entries.items():
+        for slug, (updated, rows, legacy, average, samples) in entries.items():
             prices = [_as_int(row[0]) for row in rows]
             if legacy and len(prices) == 1 and prices[0] >= floor:
                 # 老缓存只有一条候选，判断不了是不是议价占位单；
                 # 这种高价先不上榜，等重扫补全候选（下方 _next_stale 会优先扫它）
                 continue
+            best = None
             for index, row in enumerate(rows):
                 price = prices[index]
                 if price <= 0:
@@ -613,13 +649,26 @@ class BoardClient:
                 if self._looks_like_bait(price, str(row[2] or ""), below,
                                          price_weapons, seller_weapons):
                     continue
-                quotes.append(RivenQuote(
-                    slug=slug, price=price, rank=_as_int(row[1]),
-                    buyout=bool(_as_int(row[5])), seller=str(row[2] or "?"),
-                    attributes=tuple(row[3] or ()), created=str(row[4] or ""),
-                    updated=updated))
+                best = row
                 break
-        quotes.sort(key=lambda quote: (-quote.price, quote.slug))
+            if not average:
+                if not prices:
+                    continue
+                average = sum(prices) / len(prices)
+                samples = len(prices)
+            quotes.append(RivenQuote(
+                slug=slug,
+                price=_as_int(best[0]) if best else int(round(average)),
+                buyout=bool(_as_int(best[5])) if best else True,
+                seller=str(best[2] or "?") if best else "",
+                attributes=tuple(best[3] or ()) if best else (),
+                created=str(best[4] or "") if best else "",
+                rank=_as_int(best[1]) if best else 0,
+                updated=updated,
+                avg=round(average, 1),
+                count=samples,
+            ))
+        quotes.sort(key=lambda quote: (-quote.avg, quote.slug))
         return quotes
 
     def _looks_like_bait(self, price: int, seller: str, below: int,

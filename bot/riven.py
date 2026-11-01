@@ -12,8 +12,8 @@ import re
 import threading
 import time
 import urllib.parse
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from . import wiki_zh
 from .cache import TTLCache
@@ -63,6 +63,224 @@ ATTRIBUTE_NAMES = {
     "additional_combo_count": "额外连击数",
     "chance_to_gain_combo_count": "获得连击几率",
 }
+
+# 拍卖接口（/v1/auctions/search）里的 url_name 与官方 attributes 表的 slug
+# 不完全一致（实测 2026-11）：近战攻速是 `fire_rate_/_attack_speed`、
+# 基础伤害是 `base_damage_/_melee_damage`、电击是 `electric_damage`……
+# 这些写法补进来，卡面和筛选才不会露出生 slug。
+AUCTION_ATTRIBUTE_NAMES = {
+    "base_damage_/_melee_damage": "伤害",
+    "fire_rate_/_attack_speed": "攻击速度",
+    "electric_damage": "电击伤害",
+    "melee_damage_on_heavy_attack": "重击伤害",
+    "critical_chance_on_slide_attack": "滑行攻击暴击几率",
+    "chance_to_gain_extra_combo_count": "额外连击数几率",
+    "chance_to_gain_combo_count": "获得连击几率",
+    "channeling_damage": "初始连击",
+    "channeling_efficiency": "重击效率",
+    "damage_to_techrot": "对科腐者伤害",
+    "damage_to_orokin": "对奥罗金伤害",
+    "status_damage": "异常状态伤害",
+    "viral": "病毒伤害",
+    "blast": "爆炸伤害",
+    "range": "攻击范围",
+    "recoil": "后坐力",
+    "zoom": "变焦",
+}
+
+# 玩家叫法 → 该词条在拍卖 / 官方表里的所有写法（同一组内任写法即算命中）
+ATTRIBUTE_GROUPS: Tuple[Tuple[Tuple[str, ...], Tuple[str, ...]], ...] = (
+    (("暴击伤害", "爆伤", "暴伤", "critical damage", "crit damage"),
+     ("critical_damage",)),
+    (("暴击几率", "暴击概率", "暴击率", "暴击", "爆率", "暴率",
+      "critical chance", "crit chance"),
+     ("critical_chance",)),
+    (("多重射击", "多重", "multishot"), ("multishot",)),
+    (("触发几率", "触发概率", "触发", "状态几率", "异常几率", "status chance"),
+     ("status_chance",)),
+    (("触发时间", "状态持续时间", "status duration"), ("status_duration",)),
+    (("攻击速度", "攻速", "射速", "挥舞速度", "attack speed", "fire rate"),
+     ("fire_rate_/_attack_speed", "attack_speed", "fire_rate",
+      "heavy_attack_speed")),
+    (("伤害", "基础伤害", "近战伤害", "damage", "base damage", "melee damage"),
+     ("base_damage_/_melee_damage", "damage", "melee_damage")),
+    (("重击伤害", "重击", "heavy attack damage"), ("melee_damage_on_heavy_attack",)),
+    (("攻击范围", "范围", "range"), ("range", "melee_range")),
+    (("装填速度", "装填", "reload speed", "reload"), ("reload_speed",)),
+    (("弹匣容量", "弹匣", "magazine capacity", "magazine"), ("magazine_capacity",)),
+    (("弹药最大值", "弹药上限", "弹药", "ammo maximum", "ammo"), ("ammo_maximum",)),
+    (("后坐力", "recoil"), ("recoil",)),
+    (("变焦", "zoom"), ("zoom",)),
+    (("穿透", "punch through"), ("punch_through",)),
+    (("投射物速度", "飞行速度", "弹速", "projectile speed"),
+     ("projectile_speed", "flight_speed")),
+    (("连击持续时间", "连击时间", "连击", "combo duration"), ("combo_duration",)),
+    (("初始连击", "initial combo"), ("channeling_damage", "initial_combo")),
+    (("额外连击数几率", "额外连击", "extra combo"),
+     ("chance_to_gain_extra_combo_count",)),
+    (("获得连击几率", "连击几率", "combo chance"), ("chance_to_gain_combo_count",)),
+    (("重击效率", "heavy attack efficiency"),
+     ("channeling_efficiency", "heavy_attack_efficiency")),
+    (("处决伤害", "处决", "finisher"), ("finisher_damage",)),
+    (("滑行攻击暴击几率", "滑铲暴击", "滑行暴击", "slide crit"),
+     ("critical_chance_on_slide_attack", "critical_chance_on_slide")),
+    (("毒素伤害", "毒素", "毒", "toxin"), ("toxin_damage",)),
+    (("电击伤害", "电击", "电", "electric", "electricity"),
+     ("electric_damage", "electricity_damage")),
+    (("火焰伤害", "火焰", "火", "heat"), ("heat_damage",)),
+    (("冰冻伤害", "冰冻", "冰", "cold", "ice"), ("cold_damage",)),
+    (("切割伤害", "切割", "slash"), ("slash_damage",)),
+    (("冲击伤害", "冲击", "impact"), ("impact_damage",)),
+    (("穿刺伤害", "穿刺", "puncture"), ("puncture_damage",)),
+    (("病毒伤害", "病毒", "viral"), ("viral", "viral_damage")),
+    (("爆炸伤害", "爆炸", "blast"), ("blast", "blast_damage")),
+    (("对克隆尼伤害", "对g系", "克隆尼", "grineer"), ("damage_vs_grineer",)),
+    (("对科普斯伤害", "对c系", "科普斯", "corpus"), ("damage_vs_corpus",)),
+    (("对异变体伤害", "对i系", "异变体", "infested"), ("damage_vs_infested",)),
+    (("对堕落者伤害", "对o系", "堕落者", "corrupted"), ("damage_vs_corrupted",)),
+    (("对奥罗金伤害", "奥罗金", "orokin"), ("damage_to_orokin",)),
+    (("对科腐者伤害", "科腐者", "techrot"), ("damage_to_techrot",)),
+    (("异常状态伤害", "状态伤害", "status damage"), ("status_damage",)),
+)
+
+# 「负任意」这类控制词
+NEGATIVE_WORDS = ("负任意", "负面任意", "任意负面", "负词条", "带负面", "有负面")
+POSITIVE_ONLY_WORDS = ("无负", "不要负面", "纯正面", "正面向")
+
+_SPLIT_RE = re.compile(r"[\s_/\-]+")
+
+
+def normalize_attribute(text: str) -> str:
+    """词条归一：小写 + 去掉空格/下划线/斜杠/连字符。"""
+    return _SPLIT_RE.sub("", str(text or "").lower())
+
+
+_ATTRIBUTE_GROUPS_INDEX: Optional[Dict[str, frozenset]] = None
+
+
+def _attribute_group_index() -> Dict[str, frozenset]:
+    global _ATTRIBUTE_GROUPS_INDEX
+    if _ATTRIBUTE_GROUPS_INDEX is not None:
+        return _ATTRIBUTE_GROUPS_INDEX
+    index: Dict[str, frozenset] = {}
+    for aliases, slugs in ATTRIBUTE_GROUPS:
+        group = frozenset(normalize_attribute(slug) for slug in slugs)
+        for word in list(aliases) + list(slugs):
+            index.setdefault(normalize_attribute(word), group)
+    _ATTRIBUTE_GROUPS_INDEX = index
+    return index
+
+
+def resolve_attribute(word: str) -> Optional[frozenset]:
+    """单个词条词 → 可接受的 url_name 集合；认不出来返回 None。"""
+    key = normalize_attribute(word)
+    if not key:
+        return None
+    return _attribute_group_index().get(key)
+
+
+def attribute_label(url_name: str, names: Optional[Dict[str, str]] = None) -> str:
+    """url_name → 中文显示名（官方表 → 拍卖补充表 → 英文兜底）。"""
+    url_name = str(url_name or "")
+    table = names or {}
+    for candidate in (url_name, url_name.replace("/", ""), *url_name.split("/")):
+        key = str(candidate).strip("_")
+        if key and key in table:
+            return table[key]
+    for candidate in (url_name, *url_name.split("/")):
+        key = str(candidate).strip("_")
+        if key and key in AUCTION_ATTRIBUTE_NAMES:
+            return AUCTION_ATTRIBUTE_NAMES[key]
+    return url_name.replace("/", " ").replace("_", " ").strip().title()
+
+
+@dataclass
+class RivenAttribute:
+    """紫卡上的一条词条（带正负与数值）。"""
+
+    url_name: str = ""
+    label: str = ""
+    value: float = 0.0
+    positive: bool = True
+
+    @property
+    def text(self) -> str:
+        return "%s%.1f%%" % ("+" if self.positive else "-", abs(self.value))
+
+
+@dataclass
+class RivenFilter:
+    """词条筛选条件：values 里任写法命中即算这条满足。"""
+
+    word: str = ""
+    values: frozenset = frozenset()
+    negative: bool = False
+
+    def matches(self, attributes: Sequence[RivenAttribute]) -> bool:
+        for attr in attributes:
+            # 列出的词条默认按正面算（负词条要显式说「负任意」，不点名具体负面）
+            if attr.positive != self.negative and \
+                    normalize_attribute(attr.url_name) in self.values:
+                return True
+        return False
+
+
+@dataclass
+class RivenQuery:
+    """`wr 翁 攻击速度 范围 负任意` 解析结果。"""
+
+    weapon: str = ""
+    filters: List[RivenFilter] = field(default_factory=list)
+    need_negative: bool = False
+    forbid_negative: bool = False
+    unknown: List[str] = field(default_factory=list)
+
+    @property
+    def has_filters(self) -> bool:
+        return bool(self.filters or self.need_negative or self.forbid_negative)
+
+    def match(self, attributes: Sequence[RivenAttribute]) -> bool:
+        for item in self.filters:
+            if not item.matches(attributes):
+                return False
+        has_negative = any(not attr.positive for attr in attributes)
+        if self.need_negative and not has_negative:
+            return False
+        if self.forbid_negative and has_negative:
+            return False
+        return True
+
+
+def parse_riven_filters(words: Sequence[str]) -> RivenQuery:
+    """解析词条部分（不含武器名）。"""
+    query = RivenQuery()
+    for word in words:
+        key = normalize_attribute(word)
+        if not key:
+            continue
+        if key in {normalize_attribute(item) for item in NEGATIVE_WORDS}:
+            query.need_negative = True
+            continue
+        if key in {normalize_attribute(item) for item in POSITIVE_ONLY_WORDS}:
+            query.forbid_negative = True
+            continue
+        group = resolve_attribute(word)
+        if group:
+            query.filters.append(RivenFilter(word=word, values=group))
+        else:
+            query.unknown.append(word)
+    return query
+
+
+def parse_riven_query(text: str) -> RivenQuery:
+    """解析 `武器 [词条…] [负任意]`，第一个词是武器名。"""
+    words = [word for word in str(text or "").split() if word]
+    if not words:
+        return RivenQuery()
+    query = parse_riven_filters(words[1:])
+    query.weapon = words[0]
+    return query
+
 
 _STRIP_SUFFIXES = (
     "_prime_set", "_prime_blueprint", "_prime", "_set", "_wraith", "_vandal",
@@ -199,6 +417,7 @@ class RivenWeapon:
     disposition: float
     mastery_rank: int
     disposition_raw: float = 0.0
+    thumb: str = ""
 
     @property
     def disposition_label(self) -> str:
@@ -208,6 +427,19 @@ class RivenWeapon:
             return "中"
         return "低"
 
+    @property
+    def icon_url(self) -> str:
+        """武器图标（warframe.market 静态资源，128×128）。"""
+        if not self.thumb:
+            return ""
+        return "https://warframe.market/static/assets/" + self.thumb.lstrip("/")
+
+    @property
+    def type_label(self) -> str:
+        """类别中文名（rifle → 步枪）；认不出的原样返回。"""
+        raw = str(self.riven_type or self.group or "")
+        return CATEGORY_LABELS.get(raw) or raw or "—"
+
 
 @dataclass
 class RivenAuction:
@@ -216,6 +448,16 @@ class RivenAuction:
     rank: int
     re_rolls: int
     attributes: List[str]
+    detail: List[RivenAttribute] = field(default_factory=list)
+    name: str = ""                 # 紫卡名（laci-acricron）
+    polarity: str = ""             # naramon / madurai / vazarin …
+    mastery_level: int = 0
+    weapon_slug: str = ""
+    weapon_name: str = ""
+    weapon_icon: str = ""
+    status: str = ""               # ingame / online / offline
+    buyout: bool = True
+    platform: str = "pc"
 
 
 class RivenClient:
@@ -275,6 +517,7 @@ class RivenClient:
                                  else raw_disposition),
                     mastery_rank=int(row.get("reqMasteryRank") or 0),
                     disposition_raw=raw_disposition,
+                    thumb=str(localized.get("thumb") or english.get("thumb") or ""),
                 )
             self._weapons = result
             self._weapons_at = time.time()
@@ -399,14 +642,24 @@ class RivenClient:
         return self.resolve(item.name) or self.resolve(item.name_en)
 
     # ------------------------------------------------------------------ 拍卖
-    def auctions(self, slug: str, limit: int = 5) -> Tuple[List[RivenAuction], str]:
-        key = ("auctions", slug, int(limit))
+    def auctions(self, slug: str, limit: int = 5,
+                 query: Optional[RivenQuery] = None,
+                 names: Optional[Dict[str, str]] = None
+                 ) -> Tuple[List[RivenAuction], str]:
+        """在线紫卡拍卖，按价格升序；query 非空时按词条筛选。"""
+        filters = tuple(sorted((item.word, item.negative)
+                               for item in (query.filters if query else ())))
+        key = ("auctions", slug, int(limit), filters,
+               bool(query and query.need_negative),
+               bool(query and query.forbid_negative))
         return self.cache.get_or_set(
-            key, lambda: self._auctions_uncached(slug, limit),
+            key, lambda: self._auctions_uncached(slug, limit, query, names),
             self.auction_cache_seconds)
 
-    def _auctions_uncached(self, slug: str,
-                           limit: int = 5) -> Tuple[List[RivenAuction], str]:
+    def _auctions_uncached(self, slug: str, limit: int = 5,
+                           query: Optional[RivenQuery] = None,
+                           names: Optional[Dict[str, str]] = None
+                           ) -> Tuple[List[RivenAuction], str]:
         """官方拍卖搜索：/v1/auctions/search（2026-10 实测可用）。"""
         quoted = urllib.parse.quote(slug)
         paths = (
@@ -443,7 +696,8 @@ class RivenClient:
             rows = payload.get("auctions") or []
         else:
             rows = []
-        result: List[RivenAuction] = []
+        table = names or self.attributes()
+        parsed: List[RivenAuction] = []
         for row in rows:
             if not isinstance(row, dict) or row.get("closed"):
                 continue
@@ -455,31 +709,57 @@ class RivenClient:
             if price <= 0:
                 continue
             item = row.get("item") if isinstance(row.get("item"), dict) else row
-            attributes = []
+            detail: List[RivenAttribute] = []
             for attr in item.get("attributes") or []:
                 if not isinstance(attr, dict):
                     continue
                 url_name = str(attr.get("url_name") or "")
-                label = ATTRIBUTE_NAMES.get(url_name, url_name.replace("_", " "))
                 try:
                     value = float(attr.get("value") or 0)
                 except (TypeError, ValueError):
                     value = 0.0
-                positive = bool(attr.get("positive", True))
-                if value == 0:
+                if not url_name or value == 0:
                     continue
-                sign = "+" if positive else "-"
-                attributes.append("%s %s%.1f%%" % (label, sign, abs(value)))
+                detail.append(RivenAttribute(
+                    url_name=url_name,
+                    label=attribute_label(url_name, table),
+                    value=value,
+                    positive=bool(attr.get("positive", True)),
+                ))
+            detail.sort(key=lambda attr: (not attr.positive, attr.label))
             owner = row.get("owner") or {}
-            result.append(RivenAuction(
+            parsed.append(RivenAuction(
                 price=price,
                 seller=str(owner.get("ingame_name") or owner.get("ingameName") or "?"),
                 rank=int(item.get("mod_rank") or row.get("rank") or 0),
                 re_rolls=int(item.get("re_rolls") or row.get("re_rolls") or 0),
-                attributes=attributes,
+                attributes=["%s %s" % (attr.label, attr.text) for attr in detail],
+                detail=detail,
+                name=str(item.get("name") or ""),
+                polarity=str(item.get("polarity") or ""),
+                mastery_level=int(item.get("mastery_level") or 0),
+                weapon_slug=str(item.get("weapon_url_name") or slug),
+                status=str(owner.get("status") or ""),
+                buyout=bool(row.get("buyout_price")),
+                platform=str(row.get("platform") or "pc"),
             ))
-        result.sort(key=lambda auction: auction.price)
-        return result[:limit], ""
+        parsed.sort(key=lambda auction: auction.price)
+
+        note = ""
+        if query is not None and query.has_filters:
+            matched = [auction for auction in parsed if query.match(auction.detail)]
+            if matched:
+                parsed = matched
+            elif parsed:
+                # 词条太严没有命中：退回最便宜的几张，并说明原因
+                note = ("没有符合这些词条的紫卡，下面是该武器最便宜的 %d 张（未按词条筛）。"
+                        % len(parsed[:limit]))
+        return parsed[:limit], note
+
+
+def format_auction(auction: RivenAuction) -> str:
+    attrs = " / ".join(auction.attributes[:3]) or "未洗"
+    return "%dp · %s · %s" % (auction.price, attrs, auction.seller)
 
 
 def format_auction(auction: RivenAuction) -> str:
