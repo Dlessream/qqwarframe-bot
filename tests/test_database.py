@@ -40,6 +40,7 @@ class DatabaseTest(unittest.TestCase):
         self.assertGreaterEqual(result["key"]["items"], 3800)
         self.assertGreaterEqual(result["key"]["item_tags"], 10000)
         self.assertGreaterEqual(result["key"]["baro_names"], 29000)
+        self.assertGreaterEqual(result["key"]["item_relations"], 100)
         self.assertGreaterEqual(len(result["sources"]), 19)
         self.assertGreater(result["total_rows"], 50000)
 
@@ -65,6 +66,11 @@ class DatabaseTest(unittest.TestCase):
             item = query.item_detail(conn, "mesa_prime_set")
             self.assertEqual(item["name_en"], "Mesa Prime Set")
             self.assertIn("aliases", item)
+            self.assertTrue(item["parts"])
+            self.assertIn("mesa_prime_blueprint",
+                          [part["child_slug"] for part in item["parts"]])
+            parts = query.set_parts(conn, "mesa_prime_blueprint")
+            self.assertEqual(parts["slug"], "mesa_prime_set")
         finally:
             conn.close()
 
@@ -76,6 +82,7 @@ class DatabaseTest(unittest.TestCase):
             self.assertIn("v_item_detail", views)
             self.assertIn("v_junk", views)
             self.assertIn("v_riven_rank", views)
+            self.assertIn("v_set_parts", views)
             frames = query.rank(conn, "frames", 5)
             self.assertTrue(all("price" in row for row in frames))
         finally:
@@ -124,9 +131,12 @@ class DatabaseTest(unittest.TestCase):
         snapshot = service.snapshot()
         self.assertTrue(snapshot["available"])
         self.assertGreater(snapshot["items"], 3800)
-        self.assertEqual(snapshot["schema_version"], "1")
+        self.assertEqual(snapshot["schema_version"], "2")
         found = service.search("女枪", 3)
         self.assertTrue(found["items"])
+        parts = service.parts("mesa_prime_blueprint")
+        self.assertEqual(parts["slug"], "mesa_prime_set")
+        self.assertTrue(parts["parts"])
         result = service.validate()
         self.assertTrue(result["ok"], result["errors"])
 

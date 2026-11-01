@@ -28,7 +28,7 @@ if ROOT not in sys.path:
 SCHEMA = os.path.join(ROOT, "db", "schema.sql")
 DEFAULT_DB = os.path.join(ROOT, "data", "warframe.db")
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 
 # --------------------------------------------------------------------------
@@ -146,6 +146,30 @@ def import_items(load: Loader) -> None:
                 _as_float(data.get("fetched_at")) or None,
                 "warframe.market 物品表（%s / %s）" % (data.get("language", ""),
                                                       data.get("platform", "")))
+
+
+def import_item_relations(load: Loader) -> None:
+    """由 `*_set` 与同前缀部件 slug 派生套装 → 部件关系。"""
+    load.clear("item_relations")
+    slugs = [str(row[0]) for row in load.conn.execute(
+        "SELECT slug FROM items ORDER BY slug")]
+    parents = [slug for slug in slugs if slug.endswith("_set")]
+    rows: List[Tuple[str, str, str, int]] = []
+    for parent in parents:
+        base = parent[:-len("_set")]
+        prefix = base + "_"
+        children = sorted(
+            slug for slug in slugs
+            if slug.startswith(prefix) and slug != parent
+            and not slug.endswith("_set"))
+        for position, child in enumerate(children):
+            rows.append((parent, child, "component", position))
+    written = load.many(
+        "INSERT OR REPLACE INTO item_relations"
+        " (parent_slug, child_slug, relation, position) VALUES (?,?,?,?)",
+        rows)
+    load.source("item_relations", "data/items_cache.json", "derived", written,
+                None, "由套装 slug 与同前缀部件自动派生")
 
 
 # --------------------------------------------------------------------------
@@ -684,6 +708,7 @@ def build(db_path: str = DEFAULT_DB, online: bool = False,
         print("建库 %s" % db_path)
     with conn:
         import_items(load)
+        import_item_relations(load)
         import_zh_names(load)
         import_baro_names(load)
         import_frame_alias(load)

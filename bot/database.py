@@ -77,6 +77,16 @@ class DatabaseService:
             conn.close()
         return {"query": text, "items": rows}
 
+    def parts(self, text: str) -> Dict[str, Any]:
+        if not self.available():
+            raise RuntimeError("数据库尚未生成，先运行 python db/build.py")
+        query = self._query()
+        conn = query.connect(self.path)
+        try:
+            return query.set_parts(conn, text)
+        finally:
+            conn.close()
+
     def validate(self) -> Dict[str, Any]:
         if not self.available():
             return {"ok": False, "errors": ["数据库尚未生成"],

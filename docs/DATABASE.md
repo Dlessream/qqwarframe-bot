@@ -35,6 +35,7 @@ python db/query.py sources
 
 python db/query.py search 女枪
 python db/query.py item mesa_prime_set
+python db/query.py parts 女枪
 python db/query.py alias 电男
 python db/query.py bounty 希图斯
 python db/query.py riven 翁
@@ -57,6 +58,7 @@ Web 控制台启动后（默认 `http://127.0.0.1:8080`），带 `X-Admin-Token`
 ```text
 GET /api/database                  数据库状态/行数/构建时间
 GET /api/database/search?q=女枪&limit=10
+GET /api/database/parts?q=女枪      套装 → 部件
 GET /api/database/validate         完整性校验
 ```
 
@@ -74,6 +76,7 @@ GET /api/database/validate         完整性校验
 
 - `items`：warframe.market 物品（slug、中英文名、杜卡德、MR、thumb）
 - `item_tags`：mod / prime / weapon / relic / arcane 等标签
+- `item_relations`：套装 → 部件关系（由 `*_set` 与同前缀部件自动派生）
 - `zh_names`：多来源中英译名
 - `baro_names`：Baro 物品唯一名 → 中文
 - `frame_alias_zh`：战甲英文名 → 国服黑话（如 Mesa → 女枪）
@@ -106,6 +109,7 @@ GET /api/database/validate         完整性校验
 ### 视图
 
 - `v_item_detail`：物品 + 标签 + 别名
+- `v_set_parts`：套装 → 部件
 - `v_junk`：可换杜卡特的 Prime 部件 + 地板价
 - `v_riven_rank`：紫卡行情排行
 
@@ -128,7 +132,8 @@ python db/query.py validate
 ```text
 items             3893
 item_tags        11629
-item_aliases      1796
+item_aliases      1795
+item_relations     857
 baro_names       29676
 t2s               3221
 sol_nodes          452
@@ -136,7 +141,7 @@ bounty_rewards     445
 rotation_items      24
 riven_weapons        0   ← 需 --online
 price_quotes         5   ← 本地 board_cache 只有样本
-总行数          ~53,000
+总行数          ~54,132
 ```
 
 ## 已知限制

@@ -169,6 +169,29 @@ class AdminServer:
                         return
                     self._json({"ok": bool(result.get("ok")), **result})
                     return
+                if path == "/api/database/parts":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    service = getattr(server.app, "database", None)
+                    if service is None:
+                        self._json({"ok": False, "message": "数据库服务未启用"},
+                                   HTTPStatus.SERVICE_UNAVAILABLE)
+                        return
+                    params = parse_qs(parsed.query)
+                    text = (params.get("q") or [""])[0].strip()
+                    if not text:
+                        self._json({"ok": False, "message": "缺少 q 参数"},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    try:
+                        result = service.parts(text)
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, **result})
+                    return
                 if path == "/api/logs":
                     if not self._authorized():
                         self._unauthorized()

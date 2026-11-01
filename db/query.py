@@ -98,7 +98,8 @@ def stats(conn: sqlite3.Connection) -> Dict[str, Any]:
                          " ORDER BY name")
     key_tables = ("items", "item_tags", "item_aliases", "zh_names",
                   "baro_names", "sol_nodes", "bounty_rewards", "rotation_items",
-                  "riven_weapons", "riven_market", "price_quotes")
+                  "riven_weapons", "riven_market", "price_quotes",
+                  "item_relations")
     return {
         "db": getattr(conn, "database", ""),
         "meta": meta,
@@ -127,6 +128,11 @@ def validate(conn: sqlite3.Connection) -> Dict[str, Any]:
         ("price_quotes 指向不存在的物品",
          "SELECT COUNT(*) FROM price_quotes q LEFT JOIN items i ON i.slug=q.slug"
          " WHERE i.slug IS NULL"),
+        ("item_relations 指向不存在的物品",
+         "SELECT COUNT(*) FROM item_relations r"
+         " LEFT JOIN items p ON p.slug=r.parent_slug"
+         " LEFT JOIN items c ON c.slug=r.child_slug"
+         " WHERE p.slug IS NULL OR c.slug IS NULL"),
     )
     for label, sql in checks:
         count = int(_scalar(conn, sql) or 0)
@@ -187,11 +193,36 @@ def item_detail(conn: sqlite3.Connection, text: str) -> Dict[str, Any]:
         row["price_quotes"] = _all(
             conn, "SELECT kind, price, buy_price, orders, updated"
                   " FROM price_quotes WHERE slug=? ORDER BY kind", (slug,))
+        row["parts"] = _all(
+            conn, "SELECT child_slug, child_name_zh, child_name_en, position"
+                  " FROM v_set_parts WHERE parent_slug=? ORDER BY position", (slug,))
+        row["parent_sets"] = _all(
+            conn, "SELECT parent_slug, position FROM item_relations"
+                  " WHERE child_slug=? ORDER BY parent_slug", (slug,))
         return row
     hits = search_items(conn, query, limit=5)
     if hits:
         return item_detail(conn, hits[0]["slug"])
     raise QueryError("没有找到物品：%s" % query)
+
+
+def set_parts(conn: sqlite3.Connection, text: str) -> Dict[str, Any]:
+    """查套装 → 部件；输入部件时反查它所属的套装。"""
+    item = item_detail(conn, text)
+    parent = item
+    if not parent.get("parts"):
+        parents = parent.get("parent_sets") or []
+        if not parents:
+            raise QueryError("这个物品不是套装，也没有关联的套装：%s" % text)
+        parent = item_detail(conn, parents[0]["parent_slug"])
+    if not parent.get("parts"):
+        raise QueryError("没有找到套装部件：%s" % text)
+    return {
+        "slug": parent["slug"],
+        "name_zh": parent.get("name_zh"),
+        "name_en": parent.get("name_en"),
+        "parts": parent["parts"],
+    }
 
 
 def resolve_alias(conn: sqlite3.Connection, text: str) -> Dict[str, Any]:
@@ -348,6 +379,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = sub.add_parser("item")
     p.add_argument("query")
 
+    p = sub.add_parser("parts")
+    p.add_argument("query")
+
     p = sub.add_parser("alias")
     p.add_argument("query")
 
@@ -383,6 +417,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                       "items": search_items(conn, args.query, args.limit)}
         elif args.command == "item":
             result = item_detail(conn, args.query)
+        elif args.command == "parts":
+            result = set_parts(conn, args.query)
         elif args.command == "alias":
             result = resolve_alias(conn, args.query)
         elif args.command == "bounty":
@@ -434,6 +470,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print("aliases:", row["aliases"])
         if row.get("price_quotes"):
             print("price_quotes:", row["price_quotes"])
+        if row.get("parts"):
+            print("parts:", len(row["parts"]))
+        if row.get("parent_sets"):
+            print("parent_sets:", row["parent_sets"])
+    elif args.command == "parts":
+        print("%s  %s  (%s)" % (
+            result.get("name_zh"), result.get("name_en"), result.get("slug")))
+        _print_table(result["parts"],
+                     ["child_slug", "child_name_zh", "child_name_en"])
     elif args.command == "alias":
         if not result["hits"]:
             print("（无匹配）")

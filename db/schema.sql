@@ -68,6 +68,20 @@ CREATE TABLE IF NOT EXISTS item_tags (
 
 CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag);
 
+-- 套装 → 部件关系（由 *_set 与同前缀的部件 slug 自动派生）
+CREATE TABLE IF NOT EXISTS item_relations (
+    parent_slug TEXT NOT NULL REFERENCES items(slug) ON DELETE CASCADE,
+    child_slug  TEXT NOT NULL REFERENCES items(slug) ON DELETE CASCADE,
+    relation    TEXT NOT NULL DEFAULT 'component',
+    position    INTEGER DEFAULT 0,
+    PRIMARY KEY (parent_slug, child_slug, relation)
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_relations_parent
+    ON item_relations(parent_slug, position);
+CREATE INDEX IF NOT EXISTS idx_item_relations_child
+    ON item_relations(child_slug);
+
 -- ============================================================
 -- 2. 中英译名（多来源）
 -- ============================================================
@@ -339,6 +353,18 @@ SELECT i.slug,
           FROM (SELECT DISTINCT alias FROM item_aliases
                  WHERE slug = i.slug ORDER BY alias) a) AS aliases
   FROM items i;
+
+-- 套装 → 部件（带部件中英文名）
+DROP VIEW IF EXISTS v_set_parts;
+CREATE VIEW v_set_parts AS
+SELECT r.parent_slug,
+       r.child_slug,
+       r.position,
+       i.name_zh AS child_name_zh,
+       i.name_en AS child_name_en
+  FROM item_relations r
+  LEFT JOIN items i ON i.slug = r.child_slug
+ WHERE r.relation = 'component';
 
 -- 垃圾（能换杜卡特的 Prime 部件）+ 当前地板价
 DROP VIEW IF EXISTS v_junk;

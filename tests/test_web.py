@@ -34,6 +34,10 @@ class FakeDatabase:
         return {"query": text, "items": [{"slug": "mesa_prime_set",
                                           "name_zh": "Mesa Prime 一套"}]}
 
+    def parts(self, text):
+        return {"slug": "mesa_prime_set", "name_zh": "Mesa Prime 一套",
+                "parts": [{"child_slug": "mesa_prime_blueprint"}]}
+
     def validate(self):
         return {"ok": True, "errors": [], "warnings": [], "integrity": "ok"}
 
@@ -443,6 +447,10 @@ class AdminServerTest(unittest.TestCase):
             "/api/database/search?q=mesa", headers=headers)
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["items"])
+        status, body = self.request(
+            "/api/database/parts?q=mesa", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)["parts"])
         status, body = self.request(
             "/api/database/validate", headers=headers)
         self.assertEqual(status, 200)
