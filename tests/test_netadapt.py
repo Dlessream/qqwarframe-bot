@@ -412,6 +412,42 @@ class ProbeTargetsTest(unittest.TestCase):
         self.assertTrue(outcome["ok"])
         self.assertTrue(outcome["fallback_source"])
 
+    def test_html_landing_page_is_not_usable(self):
+        """HTTP 200 但内容是落地页 / 拦截页的源，不能算通（biligame 就是这么骗人的）。"""
+        cfg = _cfg()
+
+        def fake(_cfg, _proxy, url, _timeout, headers=None):
+            item = dict(_ok(90))
+            item["snippet"] = "<!DOCTYPE html><html><head><title>BWIKI</title>"
+            return item
+
+        with mock.patch.object(netadapt, "_probe_one", fake):
+            outcome = netadapt._probe_chain(cfg, "none", ["https://a"], 5,
+                                            None, expect="{")
+        self.assertFalse(outcome["ok"])
+        self.assertTrue(outcome["blocked"])
+        self.assertIn("内容", outcome.get("error") or "")
+
+    def test_json_response_passes_expect(self):
+        cfg = _cfg()
+
+        def fake(_cfg, _proxy, url, _timeout, headers=None):
+            item = dict(_ok(90))
+            item["snippet"] = '{"batchcomplete": true}'
+            return item
+
+        with mock.patch.object(netadapt, "_probe_one", fake):
+            outcome = netadapt._probe_chain(cfg, "none", ["https://a"], 5,
+                                            None, expect="{")
+        self.assertTrue(outcome["ok"])
+
+    def test_wiki_has_no_biligame(self):
+        """biligame 子站已下线（返回 HTML 落地页），不能再当探测源。"""
+        urls = netadapt.target_urls("wiki")
+        self.assertTrue(urls)
+        for url in urls:
+            self.assertNotIn("biligame", url)
+
     def test_status_text_marks_backup(self):
         self.assertIn("备用源",
                       netadapt._status_text(dict(_ok(90), fallback_source=True)))

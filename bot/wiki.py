@@ -23,6 +23,10 @@ LOGGER = logging.getLogger("qqwarframe.wiki")
 
 BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+# 注意：wiki.biligame.com 的 warframe 子站已下线（2026-11 实测：api.php 与
+# 词条页都返回 HTTP 200 的 BWIKI 通用落地页，解析不出任何内容）。
+# 这里保留实现但默认不启用（config 校验里 fallback_bwiki 恒为 False），
+# 别再把它加回查询链路或网络探测里——状态码 200 会假报可用。
 BWIKI_BASE = "https://wiki.biligame.com/warframe"
 
 

@@ -431,6 +431,7 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
             wiki["site_url"] = "https://wiki.warframe.com/w/"
             wiki["language"] = "en"
         wiki["fallback_fandom"] = bool(wiki.get("fallback_fandom", True))
+        # biligame 的 warframe 子站已下线（返回通用落地页），兜底恒关
         wiki["fallback_bwiki"] = False
     wiki["proxy_fallbacks"] = _as_str_list(
         wiki.get("proxy_fallbacks"), "wiki.proxy_fallbacks")

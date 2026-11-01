@@ -55,13 +55,15 @@ TARGETS: Dict[str, Dict[str, Any]] = {
     },
     "wiki": {
         "label": "英文维基",
-        # 官方 wiki 同样会被 403；国内可直连的 biligame、境外的 fandom 都是真实线路
+        # 官方 wiki 对部分机房 IP 403，此时真正能用的是 Fandom 镜像。
+        # 注意别用 wiki.biligame.com/warframe：那个子站已下线，api.php 会返回
+        # HTTP 200 的通用落地页（1.3MB HTML），光看状态码会假报「可用」。
         "url": ["https://wiki.warframe.com/api.php"
-                "?action=query&meta=siteinfo&format=json",
-                "https://wiki.biligame.com/warframe/api.php"
                 "?action=query&meta=siteinfo&format=json",
                 "https://warframe.fandom.com/api.php"
                 "?action=query&meta=siteinfo&format=json"],
+        # 维基接口一律返回 JSON；拿到 HTML 说明撞上了落地页 / 拦截页
+        "expect": "{",
         "config": ("wiki", "proxy"),
     },
     "arbi": {
@@ -218,9 +220,24 @@ def _probe_one(cfg: Dict[str, Any], proxy: str, url: str,
     return client.probe(url, headers=headers)
 
 
+def _content_matches(outcome: Dict[str, Any], expect: Optional[str]) -> bool:
+    """响应内容是不是这个源该有的样子。
+
+    有些站点（已下线的子站、拦截页）会返回 HTTP 200 的 HTML 落地页，
+    只看状态码会把它当成可用链路。
+    """
+    if not expect:
+        return True
+    snippet = str(outcome.get("snippet") or "").lstrip()
+    if not snippet:
+        return False
+    return snippet.startswith(expect)
+
+
 def _probe_chain(cfg: Dict[str, Any], proxy: str, urls: List[str],
                  timeout: float,
-                 headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+                 headers: Optional[Dict[str, str]] = None,
+                 expect: Optional[str] = None) -> Dict[str, Any]:
     """依次试一个模块的多个探活地址，命中就停。
 
     返回命中的那条结果，并附 `attempts`（每个地址各自什么状态）方便排查；
@@ -232,6 +249,12 @@ def _probe_chain(cfg: Dict[str, Any], proxy: str, urls: List[str],
     for index, url in enumerate(urls):
         outcome = _probe_one(cfg, proxy, url, timeout, headers)
         outcome["url"] = url
+        if outcome.get("ok") and not outcome.get("blocked") \
+                and not _content_matches(outcome, expect):
+            # 状态码像通的，内容却不对（落地页 / 拦截页），按不通处理
+            outcome["ok"] = False
+            outcome["blocked"] = True
+            outcome["error"] = "响应内容不是预期格式"
         attempts.append({"url": url, "status": outcome.get("status", 0),
                          "ok": bool(outcome.get("ok")),
                          "blocked": bool(outcome.get("blocked")),
@@ -287,6 +310,7 @@ def probe(cfg: Dict[str, Any], modules: Optional[List[str]] = None,
     def _run(module: str) -> Tuple[str, Dict[str, Dict[str, Any]]]:
         urls = target_urls(module)
         headers = TARGETS[module].get("headers")
+        expect = TARGETS[module].get("expect")
         per_proxy: Dict[str, Dict[str, Any]] = {}
         # 只试到第一条能用的为止；整条链都不通才跑满
         tried = 0
@@ -297,7 +321,7 @@ def probe(cfg: Dict[str, Any], modules: Optional[List[str]] = None,
                                   for item in per_proxy.values()):
                 break
             tried += 1
-            outcome = _probe_chain(cfg, proxy, urls, limit, headers)
+            outcome = _probe_chain(cfg, proxy, urls, limit, headers, expect)
             outcome["label"] = TARGETS[module]["label"]
             per_proxy[proxy] = outcome
             if outcome.get("ok") and not outcome.get("blocked"):

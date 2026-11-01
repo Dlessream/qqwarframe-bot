@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import errno
 import gzip
 import json
 import logging
@@ -76,9 +77,33 @@ class HttpError(Exception):
         self.status = status
         self.url = url
         self.body = body
+        # 链路根本不通（网络不可达 / 代理没监听），重试没有意义
+        self.unreachable = False
 
     def is_retryable(self) -> bool:
         return self.status == 429 or 500 <= self.status < 600 or self.status == 0
+
+
+# 这些 errno 表示「这条路根本走不通」：网段不可达、主机不可达、代理端口没监听。
+# 跟超时不一样——重试多少次都不会通，只会白等好几个完整超时。
+def _unreachable_errnos() -> frozenset:
+    names = ("ENETUNREACH", "ENETDOWN", "EHOSTUNREACH", "ECONNREFUSED",
+             "EADDRNOTAVAIL", "ENONET", "EHOSTDOWN")
+    return frozenset(getattr(errno, name)
+                     for name in names if hasattr(errno, name))
+
+
+UNREACHABLE_ERRNOS = _unreachable_errnos()
+
+
+def is_unreachable(reason: Any) -> bool:
+    """判断一个网络错误是不是「链路不通」（而不是慢 / 临时抖动）。"""
+    code = getattr(reason, "errno", None)
+    if isinstance(code, int) and code in UNREACHABLE_ERRNOS:
+        return True
+    text = str(reason or "").lower()
+    return any(word in text for word in ("unreachable", "refused",
+                                         "network is down", "no route to host"))
 
 
 class HttpClient:
@@ -267,6 +292,10 @@ class HttpClient:
             except (urllib.error.URLError, socket.timeout, ssl.SSLError, OSError) as exc:
                 reason = getattr(exc, "reason", exc)
                 last_error = HttpError("网络错误：%s" % reason, status=0, url=url)
+                if is_unreachable(reason):
+                    # 链路不通：不再重试，直接换代理，省掉整轮超时等待
+                    last_error.unreachable = True
+                    raise last_error
                 if attempt < attempts - 1:
                     delay = 0.8 * (2 ** attempt)
                     self.log.warning("请求 %s 失败（%s），%.1fs 后重试", url, reason, delay)
