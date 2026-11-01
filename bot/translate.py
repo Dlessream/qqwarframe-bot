@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import logging
+import time
 import urllib.parse
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +18,10 @@ from .net import HttpClient, HttpError
 LOGGER = logging.getLogger("qqwarframe.translate")
 GOOGLE_URL = "https://translate.googleapis.com/translate_a/single"
 MYMEMORY_URL = "https://api.mymemory.translated.net/get"
+
+# Google 端点连不上时的冷却时间。它会把每条代理线路都试一遍（SSL 握手超时
+# 30s + 网络不可达 15s 很常见），一次就是几十秒；冷却期内直接走 MyMemory。
+GOOGLE_BLOCK_SECONDS = 900.0
 
 
 class TranslateError(Exception):
@@ -35,6 +40,9 @@ class Translator:
         self.timeout = int(cfg.get("timeout_seconds", 15))
         self.proxy = str(cfg.get("proxy") or "")
         self.proxy_mode = str(cfg.get("proxy_mode") or "auto").lower()
+        # google / mymemory / auto：Google 在这台机器不通时可改用 mymemory
+        self.engine = str(cfg.get("translate_engine") or "auto").strip().lower()
+        self._google_blocked_until = 0.0
         self._clients: List[HttpClient] = []
         if http is not None:
             self._clients = [http]
@@ -123,12 +131,17 @@ class Translator:
             result = None
             last_error = None
             # Google 优先；不同代理线路各试一次。
-            for client in self._clients:
-                try:
-                    result = self._google(chunk, client)
-                    break
-                except (HttpError, TranslateError, Exception) as exc:
-                    last_error = exc
+            if self.engine != "mymemory" and time.time() >= self._google_blocked_until:
+                for client in self._clients:
+                    try:
+                        result = self._google(chunk, client)
+                        break
+                    except (HttpError, TranslateError, Exception) as exc:
+                        last_error = exc
+                if not result:
+                    # 全线路都失败，冷却期内别再一条条试
+                    self._google_blocked_until = (time.time()
+                                                  + GOOGLE_BLOCK_SECONDS)
             if not result:
                 try:
                     result = self._mymemory(chunk)
