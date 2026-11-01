@@ -829,6 +829,9 @@ class FakeBoard:
     def riven_coverage(self):
         return (1, 1) if self.ready else (0, 1)
 
+    def riven_calibrated(self):
+        return (1, 1) if self.ready else (0, 1)
+
     def frame_quotes(self):
         if not self.ready:
             return []
