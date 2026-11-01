@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -139,6 +140,9 @@ BOUNTY_VIEW = {
 # 曾经当作「帮助」的别名，现在一律忽略（既不回帮助，也不当成物品去查）
 IGNORED_WORDS = {"菜单", "指令", "命令", "help", "?", "？", "helpme"}
 
+# 在线翻译接口连不上时的冷却时间：别让每条查询都把所有代理试一遍
+TRANSLATE_BLOCK_SECONDS = 900.0
+
 # 不吃参数的命令：裸词唤醒时必须「整条消息就是这个词」。
 # 以前群里聊「仲裁什么时候刷新」「回廊怎么进」都会被当成查询，机器人乱插话。
 WHOLE_WORD_COMMANDS = frozenset({
@@ -240,6 +244,8 @@ class CommandRouter:
         self.cfg = config
         self.log = logger or LOGGER
         self.translator = translator
+        # 翻译接口失败后的冷却时间戳（见 _translate_wiki）
+        self._translate_blocked_until = 0.0
         self.prefixes = list(config.get("behavior", {}).get("prefixes") or ["#"])
         self.top_orders = int(config.get("warframe_market", {}).get("top_orders", 5))
         self.price_orders = int(config.get("warframe_market", {}).get("price_orders", 8))
@@ -1139,10 +1145,15 @@ class CommandRouter:
             return ""
         if not bool(self.cfg.get("wiki", {}).get("translate", True)):
             return ""
+        # 翻译接口不通时（例如这台机器连不上 MyMemory）会一路超时到所有代理
+        # 都试完，一次要等几十秒。失败后冷却一段时间，别每条查询都白等。
+        if time.time() < self._translate_blocked_until:
+            return ""
         try:
             return self.translator.translate(page.extract)
         except Exception as exc:
             self.log.warning("Wiki 中文翻译失败：%s", exc)
+            self._translate_blocked_until = time.time() + TRANSLATE_BLOCK_SECONDS
             return ""
 
 
