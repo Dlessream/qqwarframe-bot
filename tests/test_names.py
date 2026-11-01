@@ -72,7 +72,7 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(names.frame_nickname("冰女"), "Narin")
         self.assertEqual(names.frame_nickname("墨水"), "Follie")
         self.assertEqual(names.frame_nickname("肥婆"), "Follie")
-        self.assertEqual(names.frame_nickname("双子"), "Orion & Sirius")
+        self.assertEqual(names.frame_nickname("双子"), "Sirius & Orion")
         self.assertEqual(names.frame_nickname("咖喱"), "Excalibur")
 
     def test_frame_nickname_suffix(self):
@@ -82,6 +82,22 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(names.frame_nickname("冰女头"), "Narin")
         self.assertEqual(names.frame_nickname("冰女头部神经光元"), "Narin")
         self.assertEqual(names.frame_nickname("刀哥机体"), "Kullervo")
+
+    def test_priority_frame_nickname(self):
+        # 「双子」市场里有武器 双子恶行，但玩家指的是战甲 → 返回 (俗名, 英文名)
+        self.assertEqual(names.priority_frame_nickname("双子"),
+                         ("双子", "Sirius & Orion"))
+        self.assertEqual(names.priority_frame_nickname("双子蓝图"),
+                         ("双子", "Sirius & Orion"))
+        self.assertEqual(names.priority_frame_nickname("双子头"),
+                         ("双子", "Sirius & Orion"))
+
+    def test_priority_frame_nickname_scope(self):
+        # 完整物品名不受影响，非优先俗名也不走这条路
+        self.assertIsNone(names.priority_frame_nickname("双子恶行"))
+        self.assertIsNone(names.priority_frame_nickname("双子蝰蛇"))
+        self.assertIsNone(names.priority_frame_nickname("老九"))
+        self.assertIsNone(names.priority_frame_nickname("蘑菇"))
 
     def test_frame_nickname_unknown(self):
         self.assertIsNone(names.frame_nickname("绝路"))

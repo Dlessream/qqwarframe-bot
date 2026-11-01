@@ -40,6 +40,7 @@ _lock = threading.Lock()
 _tables: Optional[Tuple[Dict[str, str], Dict[str, str]]] = None
 _aliases: Optional[Dict[str, str]] = None
 _nicknames: Optional[Dict[str, str]] = None
+_priority: Optional[set] = None
 
 
 def _normalize(text: str) -> str:
@@ -120,6 +121,54 @@ def _load_nickname() -> Dict[str, str]:
                 table[key] = value
         _nicknames = table
     return _nicknames
+
+
+def _load_priority() -> set:
+    """读取「优先按战甲解释」的俗名集合。"""
+    global _priority
+    with _lock:
+        if _priority is not None:
+            return _priority
+        names_set: set = set()
+        try:
+            with open(_NICKNAME_PATH, encoding="utf-8") as handle:
+                raw = json.load(handle)
+        except (OSError, ValueError):
+            raw = {}
+        for alias_name in (raw or {}).get("_优先列表") or ():
+            key = _normalize(str(alias_name)).replace(" ", "")
+            if key:
+                names_set.add(key)
+        _priority = names_set
+    return _priority
+
+
+def priority_frame_nickname(query: str) -> Optional[Tuple[str, str]]:
+    """俗名里「优先按战甲解释」的那部分（和市场物品重名）。
+
+    例：「双子」市场上有武器 双子恶行，但玩家指的是战甲 Sirius & Orion，
+    所以查价时先命中这里。返回 `(命中的俗名, 战甲英文名)`，不在优先名单返回 None。
+    俗名带后缀（双子蓝图 / 双子头）时返回的是剥离后缀后的「双子」。
+    """
+    priority = _load_priority()
+    if not priority:
+        return None
+    table = _load_nickname()
+    key = _normalize(query).replace(" ", "")
+    if not key:
+        return None
+    stem = key
+    for suffix in ("头部神经光元", "神经光元", "头部", "总图蓝图", "总图", "蓝图",
+                   "机体", "系统", "头", "图", "prime", "p"):
+        if stem.endswith(suffix) and len(stem) > len(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    if stem not in priority and key not in priority:
+        return None
+    english = table.get(stem) or table.get(key)
+    if not english:
+        return None
+    return (stem, english)
 
 
 def frame_nickname(query: str) -> Optional[str]:

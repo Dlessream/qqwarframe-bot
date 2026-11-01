@@ -501,6 +501,14 @@ class CommandRouter:
             return present.error_reply("用法：%s%s <名称> [平台]\n例如：%s" % (
                 ctx.prefix, "价格" if price_only else "wm", example))
 
+        # 俗名和市场物品重名时（如「双子」= 战甲 Orion & Sirius，市场里是武器 双子恶行），
+        # 以玩家习惯为准，先按战甲解释。
+        priority = names.priority_frame_nickname(argument)
+        if priority:
+            alias_name, english = priority
+            return present.untradable_frame_reply(
+                alias_name, english, names.warframe(english) or "")
+
         hits = self.market.lookup(argument, category=category, limit=5)
         if not hits:
             english = names.frame_nickname(argument)

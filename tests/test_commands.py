@@ -371,6 +371,12 @@ class HandleTest(unittest.TestCase):
         replies = texts(self.router.handle("#wm 蘑菇蓝图", self.ctx))
         self.assertIn("Nokko", replies[0])
 
+    def test_priority_frame_nickname_overrides_market(self):
+        # 「双子」在市场上是武器 双子恶行，但玩家指战甲 → 给战甲说明
+        replies = texts(self.router.handle("#wm 双子", self.ctx))
+        self.assertIn("Sirius & Orion", replies[0])
+        self.assertIn("没有 Prime", replies[0])
+
     def test_unknown_item_still_not_found(self):
         replies = texts(self.router.handle("#查 完全不存在的东西", self.ctx))
         self.assertIn("没有在 warframe.market 找到", replies[0])
