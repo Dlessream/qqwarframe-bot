@@ -909,7 +909,7 @@ class BoardCommandTest(unittest.TestCase):
         router.riven = FakeRiven()
         reply = router.handle("#紫卡", self.ctx)[0]
         self.assertIn("紫卡排行", reply.text)
-        self.assertIn("直售均价", reply.text)
+        self.assertIn("游戏中/在线", reply.text)
         self.assertIn("5000.0p", reply.text)
 
     def test_riven_rank_shows_every_row(self):
@@ -923,11 +923,11 @@ class BoardCommandTest(unittest.TestCase):
         router.riven = FakeRiven()
         reply = router.handle("#紫卡", self.ctx)[0]
         lines = [line for line in reply.text.strip().splitlines() if line]
-        # 排行只取前 30；文字列前 10 名，其余在图片里
+        # 排行只取前 20；文字列前 10 名，其余在图片里
         self.assertEqual(len([l for l in lines if l[:1].isdigit() and "." in l[:4]]), 10)
-        self.assertIn("11–30 名见下图", reply.text)
+        self.assertIn("11–20 名见下图", reply.text)
         self.assertIn("weapon 00", reply.text)
-        self.assertNotIn("weapon 30", reply.text)
+        self.assertNotIn("weapon 20", reply.text)
 
     def test_scanning_hint_when_empty(self):
         reply = self.router(FakeBoard(ready=False)).handle("#银垃圾", self.ctx)[0]
@@ -1124,7 +1124,7 @@ class RivenMarketCommandTest(unittest.TestCase):
         self.assertIn("暴击伤害", reply.text)
         self.assertTrue(reply.has_image)
         self.assertEqual(self.riven.calls[-1]["slug"], "okina")
-        self.assertEqual(self.riven.calls[-1]["limit"], 5)
+        self.assertEqual(self.riven.calls[-1]["limit"], 9)
 
     def test_filters_forwarded(self):
         self.router.handle("#wr 翁 攻击速度 范围 暴击伤害 负任意", self.ctx)

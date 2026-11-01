@@ -676,8 +676,8 @@ class CommandRouter:
         return present.riven_reply(weapon, auctions, note, platform,
                                    analysis=analysis)
 
-    # 紫卡市场一次给几张
-    RIVEN_MARKET_LIMIT = 5
+    # 紫卡市场一次给几张（3×3 刚好一张图）
+    RIVEN_MARKET_LIMIT = 9
 
     def _resolve_riven_weapon(self, text: str):
         """武器名 → RivenWeapon（先按紫卡武器表，再借市场物品索引）。"""
@@ -695,7 +695,7 @@ class CommandRouter:
         return self.riven.find(hits[0].item)
 
     def _riven_market(self, argument: str, ctx: Context) -> Reply:
-        """#wr <武器> [词条…] [负任意]：warframe.market 在线紫卡，最便宜 5 张。"""
+        """#wr <武器> [词条…] [负任意]：warframe.market 在线紫卡，最便宜 9 张。"""
         if self.riven is None:
             return present.error_reply("紫卡功能未启用。")
         argument, platform = split_platform(argument)

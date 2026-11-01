@@ -44,6 +44,12 @@ _KIND_JUNK = "junk"
 _KIND_FRAME = "frames"
 _KIND_RIVEN = "riven"
 
+# 紫卡榜口径（改了要升版本号，老缓存会被判成「待重扫」自动校准）
+RIVEN_ACTIVE_STATUSES: Tuple[str, ...] = ("ingame", "online")
+RIVEN_VALUE_FROM = 3        # 跳过最便宜的 2 张（常是钓鱼/占位）
+RIVEN_VALUE_TO = 8          # 取到第 8 张
+RIVEN_METRIC_VERSION = 2    # 1=全部在售均价（旧），2=在线卖家第 3~8 低均价
+
 
 def junk_ducats(label: str) -> Optional[int]:
     """「金垃圾」/「金」/「100」 → 杜卡特数值。"""
@@ -88,9 +94,11 @@ def _riven_row(entry: Dict[str, Any]) -> List[Any]:
 
 
 def _riven_flags(entry: Dict[str, Any]) -> int:
-    """紫卡缓存的标志位：bit0=老缓存待重扫，bit1=已按新接口完整抓过，bit2=已存均价。"""
+    """紫卡缓存的标志位：bit0=老缓存待重扫，bit1=已按新接口完整抓过，
+    bit2 起是口径版本（1=全在售均价，2=在线卖家第 3~8 低均价）。"""
+    version = _as_int(entry.get("av")) & 0x3F
     return ((1 if entry.get("v") else 0) | (2 if entry.get("f") else 0)
-            | (4 if entry.get("av") else 0))
+            | (version << 2))
 
 
 @dataclass
@@ -117,7 +125,7 @@ class RivenQuote:
     created: str = ""
     updated: float = 0.0
     rank: int = 0
-    avg: float = 0.0        # 该武器紫卡直售均价
+    avg: float = 0.0        # 该武器紫卡行情价（在线卖家第 3~8 低均价）
     count: int = 0          # 参与均价的挂单数
 
 
@@ -210,17 +218,23 @@ def parse_riven_auctions(rows: Iterable[Dict[str, Any]],
     return quotes[0] if quotes else None
 
 
-def riven_average(rows: Iterable[Dict[str, Any]],
-                  max_price: int = 50000) -> Tuple[float, int]:
-    """该武器在线紫卡直售均价（一口价优先，剔除极端离群）。
+def riven_value(rows: Iterable[Dict[str, Any]],
+                max_price: int = 50000) -> Tuple[float, int]:
+    """该武器的紫卡「行情价」：只算在线/游戏中卖家，取第 3~8 便宜的均价。
 
-    排行要的是「这把武器的紫卡值多少钱」，所以不看洗数/等级，
-    把所有在售单取平均；再用中位数 8 倍截断明显钓鱼价，
-    否则一张 50000 的占位单能把均价拉飞。
+    口径来自玩家的实际成交感受：
+    - 离线卖家的挂单点不到人，别算进来；
+    - 最便宜的一两张常是钓鱼/占位/残卡，跳过；
+    - 第 3~8 名（6 张）取平均，既剔掉虚高也不被单张极端价带跑。
+
+    样本不足 3 张时退化成「所有在线挂单的均价」。
     """
     prices: List[int] = []
     for row in rows or []:
         if not isinstance(row, dict) or row.get("closed") or row.get("private"):
+            continue
+        owner = row.get("owner") or {}
+        if str(owner.get("status") or "").lower() not in RIVEN_ACTIVE_STATUSES:
             continue
         price = _as_int(row.get("buyout_price")) or _as_int(row.get("starting_price"))
         if price <= 0 or (max_price and price > max_price):
@@ -229,9 +243,8 @@ def riven_average(rows: Iterable[Dict[str, Any]],
     if not prices:
         return 0.0, 0
     prices.sort()
-    median = prices[len(prices) // 2]
-    kept = [price for price in prices if price <= median * 8] or prices
-    return sum(kept) / len(kept), len(kept)
+    window = prices[RIVEN_VALUE_FROM - 1:RIVEN_VALUE_TO] or prices
+    return sum(window) / len(window), len(window)
 
 
 class BoardClient:
@@ -407,9 +420,10 @@ class BoardClient:
             entry = quotes.get(slug)
             if entry is None or now - entry.get("t", 0) >= ttl:
                 count += 1
-            elif kind == _KIND_RIVEN and not entry.get("av"):
-                # 升级前抓的只有候选、没有均价：不算「过期」但要算「待补」，
-                # 否则这类永远排不进队列，榜单会一直拿「最贵几张的均值」冒充均价
+            elif (kind == _KIND_RIVEN
+                  and _as_int(entry.get("av")) < RIVEN_METRIC_VERSION):
+                # 旧口径（全在售均价）或不带口径的缓存：不算「过期」但要算「待补」，
+                # 否则这类永远排不进队列，榜单会一直用旧口径
                 count += 1
         return count
 
@@ -427,10 +441,11 @@ class BoardClient:
                                      and len(entry.get("c") or []) <= 1):
                     self._cursor[kind] = (position + 1) % count
                     return slugs[position]
-            # 其次是升级前抓的（没有 av 标记）：那时只存了候选，没有均价
+            # 其次是口径不对的（旧均价 / 没有均价）：按新口径重算一遍
             for position in order:
                 entry = quotes.get(slugs[position])
-                if entry is not None and not entry.get("av"):
+                if (entry is not None
+                        and _as_int(entry.get("av")) < RIVEN_METRIC_VERSION):
                     self._cursor[kind] = (position + 1) % count
                     return slugs[position]
         for position in order:
@@ -546,7 +561,7 @@ class BoardClient:
             }
 
     def _fetch_riven(self, slug: str) -> None:
-        # 升序拿低价段：均价要贴近「现在真能买到的价格」
+        # 升序拿低价段：行情价要贴近「现在真能买到的价格」
         path = ("/v1/auctions/search?type=riven&weapon_url_name=%s&sort_by=price_asc"
                 % slug)
         data = self._get_json(path)
@@ -557,24 +572,24 @@ class BoardClient:
         rows = list(rows or [])
         quotes = riven_candidates(rows, names=self._attribute_names(),
                                   max_price=self.max_riven_price)
-        average, samples = riven_average(rows, max_price=self.max_riven_price)
+        value, samples = riven_value(rows, max_price=self.max_riven_price)
         with self._lock:
-            if not quotes and not average:
+            if not quotes and not value:
                 # 接口通了但一张合格的卡都没有：记成「已抓过、无报价」，
                 # 别继续拿老缓存里的可疑单条价格充数。
                 if slug in self._quotes[_KIND_RIVEN]:
                     self._quotes[_KIND_RIVEN][slug] = {
-                        "t": time.time(), "f": 1, "av": 1, "c": []}
+                        "t": time.time(), "f": 1, "av": RIVEN_METRIC_VERSION, "c": []}
                 return
             # 存多个候选而不是只存冠军：冠军可能是钓鱼价，查询时再往下顺延。
             # f=1 表示这条是按新接口完整抓过的（候选已补全），
-            # a/n 是该武器的紫卡直售均价与样本数（排行用），
+            # av/a/n 记口径版本与行情价、样本数（排行用），
             # 即使只抓到 1 条也说明市场就这么多，可以照价上榜。
             self._quotes[_KIND_RIVEN][slug] = {
                 "t": time.time(),
                 "f": 1,
-                "av": 1,
-                "a": round(average, 1),
+                "av": RIVEN_METRIC_VERSION,
+                "a": round(value, 1),
                 "n": samples,
                 "c": [[quote.price, quote.rank, quote.seller,
                        list(quote.attributes[:6]), quote.created,
@@ -642,10 +657,11 @@ class BoardClient:
         return self._ranked(_KIND_FRAME)
 
     def riven_quotes(self) -> List[RivenQuote]:
-        """每把武器的紫卡直售均价，按均价从高到低。
+        """每把武器的紫卡行情价，按价格从高到低。
 
-        均价来自扫描时保存的 `a`（所有在售单平均，剔除离群）；旧缓存没有
-        这个字段时，用候选挂单的均值近似，保证升级后榜首不会空掉。
+        行情价来自扫描时保存的 `a`：只算在线/游戏中卖家、取第 3~8 便宜的均价。
+        还没按新口径扫过的武器，用候选里最低的那张兜底（宁可低也不虚高），
+        保证升级/补扫期间榜单不会空掉。
         单价（price/attribute/seller）仍取一张可信的代表卡，用于详情展示。
         """
         with self._lock:
@@ -653,14 +669,15 @@ class BoardClient:
                               [list(row) for row in (entry.get("c") or [])],
                               bool(entry.get("v")),
                               _as_float(entry.get("a")),
-                              _as_int(entry.get("n")))
+                              _as_int(entry.get("n")),
+                              _as_int(entry.get("av")))
                        for slug, entry in self._quotes[_KIND_RIVEN].items()}
         if not entries:
             return []
         floor = self.bait_price_floor
         price_weapons: Counter = Counter()
         seller_weapons: Counter = Counter()
-        for _ts, rows, _legacy, _avg, _samples in entries.values():
+        for _ts, rows, _legacy, _avg, _samples, _av in entries.values():
             high = [_as_int(row[0]) for row in rows if _as_int(row[0]) >= floor]
             for price in set(high):
                 price_weapons[price] += 1
@@ -668,7 +685,10 @@ class BoardClient:
                            if _as_int(row[0]) >= floor} - {""}:
                 seller_weapons[seller] += 1
         quotes: List[RivenQuote] = []
-        for slug, (updated, rows, legacy, average, samples) in entries.items():
+        for slug, (updated, rows, legacy, average, samples, version) in entries.items():
+            if version < RIVEN_METRIC_VERSION:
+                # 旧口径的价格不能混进新榜单，等补扫（_next_stale 会优先挑它）
+                average = 0.0
             prices = [_as_int(row[0]) for row in rows]
             if legacy and len(prices) == 1 and prices[0] >= floor:
                 # 老缓存只有一条候选，判断不了是不是议价占位单；
@@ -688,8 +708,7 @@ class BoardClient:
             if not average:
                 if not prices:
                     continue
-                # 还没补扫到均价（升级前的缓存）：候选里存的是「最贵的那十几张」，
-                # 取平均会虚高一大截，用候选里最低的那张兜底更接近真实行情
+                # 还没按新口径扫过：候选里存的是「低价段」，用最低的那张兜底
                 average = min(prices)
                 samples = len(prices)
             quotes.append(RivenQuote(
@@ -708,15 +727,17 @@ class BoardClient:
         return quotes
 
     def riven_calibrated(self) -> Tuple[int, int]:
-        """已按「在售均价」口径校准的武器数 / 总数。
+        """已按「在线卖家第 3~8 低均价」口径校准的武器数 / 总数。
 
-        升级后旧缓存没有均价，榜单先用候选最低价兜底；这个数字用来告诉玩家
+        升级后旧缓存是别的口径，榜单先用候选最低价兜底；这个数字用来告诉玩家
         还有多少把在补扫（这些排序会继续变）。
         """
         with self._lock:
             entries = list(self._quotes[_KIND_RIVEN].values())
         total = len(entries)
-        done = sum(1 for entry in entries if _as_float(entry.get("a")) > 0)
+        done = sum(1 for entry in entries
+                   if _as_float(entry.get("a")) > 0
+                   and _as_int(entry.get("av")) >= RIVEN_METRIC_VERSION)
         return done, total
 
     def _looks_like_bait(self, price: int, seller: str, below: int,
@@ -888,7 +909,7 @@ class BoardClient:
                         flags = _as_int(entry[2]) if len(entry) >= 3 else 0
                         legacy = bool(flags & 1)
                         full = bool(flags & 2)
-                        has_avg = bool(flags & 4)
+                        version = flags >> 2
                         if (not flags and len(candidates) <= 1
                                 and _as_int(candidates[0][0]) >= self.bait_price_floor):
                             legacy = True
@@ -905,9 +926,9 @@ class BoardClient:
                             record["v"] = 1
                         if full:
                             record["f"] = 1
-                        if has_avg and len(entry) >= 5:
-                            # v3：[时间, 候选, 标志位, 均价, 样本数]
-                            record["av"] = 1
+                        if version and len(entry) >= 5:
+                            # v3：[时间, 候选, 标志位, 行情价, 样本数]
+                            record["av"] = version
                             record["a"] = _as_float(entry[3])
                             record["n"] = _as_int(entry[4])
                         self._quotes[_KIND_RIVEN][slug] = record

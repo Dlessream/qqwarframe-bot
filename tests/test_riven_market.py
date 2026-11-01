@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """#wr 紫卡市场：中文词条筛选、排序、完整卡面字段。"""
 
+import io
+import os
 import unittest
 
 from bot.riven import (RivenAttribute, RivenAuction, RivenClient, RivenQuery,
@@ -255,6 +257,77 @@ class WeaponTypeLabelTest(unittest.TestCase):
 
     def test_empty_is_dash(self):
         self.assertEqual(self.make("").type_label, "—")
+
+
+class PolarityIconTest(unittest.TestCase):
+    """极性槽用游戏里的极性图标（灰机 wiki 的白色 PNG），不写中文。"""
+
+    KEYS = ("madurai", "naramon", "vazarin", "zenurik", "unairu",
+            "penjaga", "umbra", "universal")
+
+    def test_assets_exist(self):
+        from bot import imagecard
+        for key in self.KEYS:
+            self.assertIn(key, imagecard.POLARITY_FILES)
+            path = os.path.join(imagecard.POLARITY_DIR,
+                                imagecard.POLARITY_FILES[key])
+            self.assertTrue(os.path.exists(path), key)
+
+    def test_unknown_polarity_returns_none(self):
+        from bot import imagecard
+        self.assertIsNone(imagecard._polarity_image("nonsense", 40))
+        self.assertIsNone(imagecard._polarity_image("", 40))
+
+    def test_icon_is_scaled_and_transparent(self):
+        from bot import imagecard
+        icon = imagecard._polarity_image("madurai", 40)
+        self.assertIsNotNone(icon)
+        self.assertEqual(icon.size, (40, 40))
+        alpha = icon.getchannel("A")
+        low, high = alpha.getextrema()
+        self.assertEqual(low, 0)        # 四周透明，只留符号本身
+        self.assertEqual(high, 255)
+
+    def test_cache_reuses_image(self):
+        from bot import imagecard
+        first = imagecard._polarity_image("naramon", 36)
+        second = imagecard._polarity_image("naramon", 36)
+        self.assertIs(first, second)
+
+
+class MarketLayoutTest(unittest.TestCase):
+    """9 张卡按 3×3 排，4 张以内退回 2 列。"""
+
+    def weapon(self):
+        from bot.riven import RivenWeapon
+        return RivenWeapon(slug="okina", name="翁", name_en="Okina",
+                           riven_type="melee", group="melee",
+                           disposition=1.2, mastery_rank=5)
+
+    def auctions(self, count):
+        return [RivenAuction(price=100 + index * 10, seller="s%d" % index,
+                             rank=8, re_rolls=index, attributes=[],
+                             name="crita-visican", polarity="madurai")
+                for index in range(count)]
+
+    def test_nine_cards_are_three_columns(self):
+        from bot import imagecard
+        if not imagecard.available():
+            self.skipTest("本机没有可用中文字体")
+        raw = imagecard.riven_market_card(self.weapon(), self.auctions(9))
+        self.assertTrue(raw.startswith(b"\x89PNG"))
+        from PIL import Image
+        image = Image.open(io.BytesIO(raw))
+        self.assertEqual(image.width, 3 * 340 + 2 * 20 + 2 * 34)
+
+    def test_few_cards_use_two_columns(self):
+        from bot import imagecard
+        if not imagecard.available():
+            self.skipTest("本机没有可用中文字体")
+        raw = imagecard.riven_market_card(self.weapon(), self.auctions(4))
+        from PIL import Image
+        image = Image.open(io.BytesIO(raw))
+        self.assertEqual(image.width, 2 * 340 + 20 + 2 * 34)
 
 
 if __name__ == "__main__":

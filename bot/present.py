@@ -204,8 +204,8 @@ def riven_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
 
 def riven_market_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
                        note: str = "", platform: str = "pc",
-                       query=None, limit: int = 5) -> Reply:
-    """#wr：紫卡市场在我这个武器上最便宜的在售紫卡（卡面图）。"""
+                       query=None, limit: int = 9) -> Reply:
+    """#wr：紫卡市场在这把武器上最便宜的在售紫卡（3×3 卡面图）。"""
     filters: List[str] = []
     if query is not None and query.has_filters:
         filters = [item.word for item in query.filters]
@@ -1675,9 +1675,12 @@ def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 
 def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
-                     limit: int = 30, icon_of=None,
+                     limit: int = 20, icon_of=None,
                      calibrated: Optional[tuple] = None) -> Reply:
-    """紫卡排行：按每把武器的紫卡直售均价取前 30（参考游戏内榜单样式）。"""
+    """紫卡排行：按武器紫卡行情价取前 20（参考游戏内榜单样式）。
+
+    行情价口径：只看在线/游戏中卖家，取该武器第 3~8 便宜的挂单算均价。
+    """
     pool = list(quotes)[:limit]
     rows = []
     for index, quote in enumerate(pool, 1):
@@ -1685,7 +1688,7 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
         rows.append((index, name_of(quote.slug), round(float(average), 1),
                      icon_of(quote.slug) if icon_of else ""))
 
-    lines = ["【紫卡排行】武器紫卡直售均价 · 前 %d" % len(pool)]
+    lines = ["【紫卡排行】武器紫卡行情价 · 前 %d" % len(pool)]
     for index, name, price, _icon in rows[:10]:
         lines.append("%d. %s  %.1fp" % (index, name, price))
     if len(rows) > 10:
@@ -1694,8 +1697,9 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
         lines.append("还没有拿到紫卡报价，稍后再试。")
     ready, total = coverage if coverage else (0, 0)
     updated = max((getattr(quote, "updated", 0.0) for quote in quotes), default=0.0)
-    note = ("均价 = 该武器当前所有在售紫卡的平均价（剔除极端离群挂单），"
-            "洗数/等级不限。已扫描 %d/%d 把武器。" % (ready, total))
+    note = ("口径 = 只算「游戏中/在线」卖家，取该武器第 3~8 便宜的挂单算均价"
+            "（跳过最容易是钓鱼价的最低价两张），洗数/等级不限。"
+            "已扫描 %d/%d 把武器。" % (ready, total))
     if calibrated and calibrated[0] < calibrated[1]:
         note += "其中 %d 把已按新口径校准，其余正在补扫（顺序还会变动）。" % calibrated[0]
     lines.append("")
@@ -1703,7 +1707,7 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
     def build_image() -> bytes:
         return imagecard.riven_rank_card(
-            rows, "价格为紫卡直售均价",
+            rows, "在线/游戏中卖家 · 第 3~8 低价均价",
             "数据 warframe.market · %s ｜ %d/%d 把" % (_fresh(updated), ready, total))
 
     return Reply(text="\n".join(lines), image=build_image)

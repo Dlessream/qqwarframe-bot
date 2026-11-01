@@ -312,46 +312,49 @@ def _chip(draw, x: int, y: int, text: str, color, font_size: int = 15) -> Tuple[
     return box[2] - box[0], box[3] - box[1]
 
 
-def _footer(draw, y: int, left: str, right: str = "QQ Warframe Bot") -> int:
-    _divider(draw, y)
+def _footer(draw, y: int, left: str, right: str = "QQ Warframe Bot",
+            width: int = WIDTH) -> int:
+    _divider(draw, y, PAD, width - PAD)
     font = _font(13)
     draw.text((PAD, y + 12), left, font=font, fill=DIM)
-    width, _ = _tsize(draw, right, font)
-    draw.text((WIDTH - PAD - width, y + 12), right, font=font, fill=DIM)
+    tw, _ = _tsize(draw, right, font)
+    draw.text((width - PAD - tw, y + 12), right, font=font, fill=DIM)
     return y + 40
 
 
-def _header(draw, title: str, subtitle: str, chip: str, accent, top: int = 28) -> int:
-    draw.rectangle([0, 0, WIDTH, 4], fill=accent)
+def _header(draw, title: str, subtitle: str, chip: str, accent, top: int = 28,
+            width: int = WIDTH) -> int:
+    draw.rectangle([0, 0, width, 4], fill=accent)
     y = top
     title_font = _font(32, bold=True)
-    max_width = WIDTH - 2 * PAD - 150
+    max_width = width - 2 * PAD - 150
     lines = _wrap(draw, title, title_font, max_width, max_lines=2)
     for line in lines:
         draw.text((PAD, y), line, font=title_font, fill=TEXT)
         y += 42
     if chip:
-        width, _ = _tsize(draw, chip, _font(15, bold=True))
-        _chip(draw, WIDTH - PAD - width - 22, top + 2, chip, accent)
+        cw, _ = _tsize(draw, chip, _font(15, bold=True))
+        _chip(draw, width - PAD - cw - 22, top + 2, chip, accent)
     if subtitle:
-        draw.text((PAD, y + 2), _fit(draw, subtitle, _font(16), WIDTH - 2 * PAD),
+        draw.text((PAD, y + 2), _fit(draw, subtitle, _font(16), width - 2 * PAD),
                   font=_font(16), fill=MUTED)
         y += 26
     return y
 
 
-def _pills(draw, y: int, items: Sequence[Tuple[str, str]], accent) -> int:
+def _pills(draw, y: int, items: Sequence[Tuple[str, str]], accent,
+           width: int = WIDTH) -> int:
     x = PAD
     for label, value in items:
         text = "%s %s" % (label, value)
         font = _font(14, bold=True)
-        width, height = _tsize(draw, text, font)
-        if x + width + 26 > WIDTH - PAD:
+        tw, _height = _tsize(draw, text, font)
+        if x + tw + 26 > width - PAD:
             y += 40
             x = PAD
-        _rrect(draw, (x, y, x + width + 24, y + 32), 16, fill=PANEL)
+        _rrect(draw, (x, y, x + tw + 24, y + 32), 16, fill=PANEL)
         draw.text((x + 12, y + 8), text, font=font, fill=accent if value else MUTED)
-        x += width + 34
+        x += tw + 34
     return y + 48
 
 
@@ -1014,16 +1017,24 @@ RIVEN_GOLD = (206, 172, 96)
 RIVEN_TEXT = (238, 232, 248)
 RIVEN_NEG = (255, 126, 126)
 
-POLARITY_LABELS = {
-    "madurai": "马杜莱",
-    "naramon": "纳拉蒙",
-    "vazarin": "瓦兹林",
-    "zenurik": "泽努里",
-    "unairu": "乌奈鲁",
-    "penjaga": "彭加加",
-    "umbra": "暗影",
-    "universal": "万能",
+# 极性图标：取自灰机 wiki「文本图标 · 极性」的官方卡面图标（白色透明底 PNG），
+# 本地随包存放（bot/assets/polarity）。卡面只画图标不画文字，和游戏里一致。
+POLARITY_FILES = {
+    "madurai": "madurai.png",
+    "naramon": "naramon.png",
+    "vazarin": "vazarin.png",
+    "zenurik": "zenurik.png",
+    "unairu": "unairu.png",
+    "penjaga": "penjaga.png",
+    "precept": "penjaga.png",
+    "umbra": "umbra.png",
+    "universal": "universal.png",
+    "any": "universal.png",
+    "koneksi": "koneksi.png",
 }
+POLARITY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "assets", "polarity")
+_POLARITY_CACHE: Dict[Tuple[str, int], object] = {}
 
 _ICON_LOADER = None
 
@@ -1057,6 +1068,28 @@ def _platinum_glyph(draw, cx: float, cy: float, r: float,
                  outline=color, width=2)
     rr = max(1.0, r * 0.26)
     draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=color)
+
+
+def _polarity_image(polarity: str, size: int,
+                    color=(228, 214, 252)):
+    """极性图标（白色透明底 PNG，按需着色 + 缩放），拿不到就返回 None。"""
+    key = str(polarity or "").strip().lower()
+    name = POLARITY_FILES.get(key)
+    if not name or Image is None:
+        return None
+    cached = _POLARITY_CACHE.get((key, size))
+    if cached is not None:
+        return cached
+    try:
+        icon = Image.open(os.path.join(POLARITY_DIR, name)).convert("RGBA")
+    except Exception:  # 资源缺失就当没有，卡片走矢量兜底
+        _POLARITY_CACHE[(key, size)] = False
+        return None
+    icon = icon.resize((size, size), Image.LANCZOS)
+    tinted = Image.new("RGBA", icon.size, tuple(color) + (0,))
+    tinted.putalpha(icon.getchannel("A"))
+    _POLARITY_CACHE[(key, size)] = tinted
+    return tinted
 
 
 def _polarity_glyph(draw, cx: float, cy: float, r: float, polarity: str,
@@ -1144,12 +1177,15 @@ def _riven_card(auction, width: int = 340, height: int = 470,
         cd.text((152, y + 4), label, font=label_font, fill=color)
         y += 35
 
-    py = 318
-    _polarity_glyph(cd, 58, py, 25, getattr(auction, "polarity", ""))
-    pol_key = str(getattr(auction, "polarity", "") or "").lower()
-    pol = POLARITY_LABELS.get(pol_key, getattr(auction, "polarity", "") or "—")
-    cd.text((96, py - 20), pol, font=_font(17, bold=True), fill=(214, 200, 240))
-    cd.text((96, py + 3), "极性", font=_font(12), fill=(146, 130, 176))
+    cd.line([(34, 296), (width - 34, 296)], fill=(104, 78, 138), width=1)
+
+    # 极性槽：只画游戏里的极性图标（马杜莱/纳拉蒙…），不再写中文名
+    py = 332
+    icon = _polarity_image(getattr(auction, "polarity", ""), 52)
+    if icon is not None:
+        card.alpha_composite(icon, (30, py - 26))
+    else:
+        _polarity_glyph(cd, 56, py, 24, getattr(auction, "polarity", ""))
 
     mr = "MR %d" % (int(getattr(auction, "mastery_level", 0) or 0))
     mf = _font(18, bold=True)
@@ -1202,7 +1238,7 @@ def _riven_card(auction, width: int = 340, height: int = 470,
 
 def riven_market_card(weapon, auctions, filters=(), note: str = "",
                       footer: str = "") -> Optional[bytes]:
-    """#wr：武器头部 + 最便宜几张紫卡（卡面网格）。"""
+    """#wr：武器头部 + 最便宜几张紫卡（3 列网格，9 张刚好 3×3）。"""
     if Image is None or not auctions:
         return None
     cards = [_riven_card(item, weapon_name=getattr(weapon, "name", ""))
@@ -1211,17 +1247,18 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
         return None
     cw, ch = cards[0].size
     count = len(cards)
-    cols = 2 if count > 2 else max(1, count)
+    cols = 3 if count > 4 else (2 if count > 1 else 1)
     rows = (count + cols - 1) // cols
-    gap_x, gap_y = 22, 18
+    gap_x, gap_y = 20, 18
     content_w = cols * cw + (cols - 1) * gap_x
-    left = (WIDTH - content_w) // 2
+    width = content_w + 2 * PAD
+    left = (width - content_w) // 2
 
     filters = [str(item) for item in (filters or ()) if str(item)]
     header_h = 168 + (44 if filters else 0) + (34 if note else 0)
     height = header_h + rows * ch + (rows - 1) * gap_y + 76
 
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    image = _gradient(width, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
 
     inclination = float(getattr(weapon, "disposition", 0) or 0)
@@ -1230,11 +1267,11 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
         getattr(weapon, "type_label", "") or "—",
         int(getattr(weapon, "mastery_rank", 0) or 0), count)
     y = _header(draw, "%s · 紫卡市场" % getattr(weapon, "name", ""), subtitle,
-                "WARFRAME MARKET", PURPLE)
+                "WARFRAME MARKET", PURPLE, width=width)
     if filters:
-        y = _pills(draw, y, [("词条", " + ".join(filters))], PURPLE)
+        y = _pills(draw, y, [("词条", " + ".join(filters))], PURPLE, width=width)
     if note:
-        draw.text((PAD, y), _fit(draw, note, _font(15), WIDTH - 2 * PAD),
+        draw.text((PAD, y), _fit(draw, note, _font(15), width - 2 * PAD),
                   font=_font(15), fill=GOLD)
         y += 34
 
@@ -1244,11 +1281,12 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
         top = header_h + row * (ch + gap_y)
         image.alpha_composite(card, (x, top))
 
-    _footer(draw, height - 62, footer or "数据 warframe.market · 实时紫卡拍卖")
+    _footer(draw, height - 62, footer or "数据 warframe.market · 实时紫卡拍卖",
+            width=width)
     return _encode(image)
 
 
-def riven_rank_card(rows, subtitle: str = "价格为紫卡直售均价",
+def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低价均价",
                     footer: str = "") -> Optional[bytes]:
     """紫卡排行：序号 + 武器图标 + 名称 + 价格（参考游戏内榜单样式）。"""
     if Image is None or not rows:
@@ -1305,7 +1343,7 @@ def riven_rank_card(rows, subtitle: str = "价格为紫卡直售均价",
 
     draw.line([(36, height - 58), (width - 36, height - 58)],
               fill=(178, 160, 214), width=1)
-    foot = footer or "数据 warframe.market · 紫卡直售均价"
+    foot = footer or "数据 warframe.market · 在线卖家第 3~8 低均价"
     draw.text((36, height - 44), foot, font=_font(12), fill=(206, 194, 224))
     return _encode(image)
 
