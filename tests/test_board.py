@@ -380,6 +380,38 @@ class RivenRankOrderTest(unittest.TestCase):
                                            board.riven_ttl, time.time()),
                          "stale_one")
 
+    def test_pending_recalibration_beats_junk_rotation(self):
+        # 口径升级后紫卡待补量和垃圾的正常过期撞在一起，
+        # 不加权重会被轮转饿死（实测 35 分钟只补了 1/3）
+        board = self.board()
+        board._targets_at = time.time()      # 别让 _ensure_targets 覆盖手工设置
+        board._targets["junk"] = ["j%d" % index for index in range(10)]
+        board._targets["frames"] = []
+        board._targets["riven"] = ["r%d" % index for index in range(10)]
+        now = time.time()
+        for slug in board._targets["junk"]:
+            board._quotes["junk"][slug] = {"p": 10, "t": now - 99999}
+        for index, slug in enumerate(board._targets["riven"]):
+            entry = {"t": now, "f": 1, "c": [[100, 8, "a", [], "", 1]]}
+            if index < 3:
+                entry["av"] = RIVEN_METRIC_VERSION
+            board._quotes["riven"][slug] = entry
+        # 垃圾 100% 过期、紫卡 70% 待补：都不加权重时垃圾赢，加了紫卡应该优先
+        self.assertEqual(board._next_target()[0], "riven")
+
+    def test_no_boost_once_calibrated(self):
+        board = self.board()
+        board._targets_at = time.time()
+        board._targets["junk"] = ["j0"]
+        board._targets["frames"] = []
+        board._targets["riven"] = ["r0"]
+        now = time.time()
+        board._quotes["junk"]["j0"] = {"p": 10, "t": now - 99999}
+        board._quotes["riven"]["r0"] = {"t": now, "f": 1,
+                                        "av": RIVEN_METRIC_VERSION,
+                                        "a": 100.0, "c": []}
+        self.assertEqual(board._next_target()[0], "junk")
+
     def test_zero_avg_entry_listed_last(self):
         board = self.board()
         self.put(board, "cheap", 0.0, [[0, 0, "", [], "", 0]])

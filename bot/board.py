@@ -390,6 +390,13 @@ class BoardClient:
             self._save()
         return True
 
+    def _riven_pending(self) -> int:
+        """还没按当前口径扫过的紫卡武器数。"""
+        with self._lock:
+            entries = list(self._quotes[_KIND_RIVEN].values())
+        return sum(1 for entry in entries
+                   if _as_int(entry.get("av")) < RIVEN_METRIC_VERSION)
+
     def _next_target(self) -> Optional[Tuple[str, str]]:
         self._ensure_targets()
         now = time.time()
@@ -399,12 +406,18 @@ class BoardClient:
             (_KIND_FRAME, self._targets[_KIND_FRAME], self.frame_ttl),
             (_KIND_RIVEN, self._targets[_KIND_RIVEN], self.riven_ttl),
         )
+        # 口径刚升级时紫卡的「待补」量和垃圾/战甲的正常过期撞在一起，
+        # 不加权重会被轮转饿死（实测 35 分钟只补了 1/3），这里给个加成先补完。
+        riven_boost = 0.5 if self._riven_pending() else 0.0
         for kind, slugs, ttl in plans:
             if not slugs:
                 continue
             stale = self._stale_count(kind, slugs, ttl, now)
             if stale:
-                candidates.append((stale / float(len(slugs)), kind, slugs, ttl))
+                ratio = stale / float(len(slugs))
+                if kind == _KIND_RIVEN:
+                    ratio += riven_boost
+                candidates.append((ratio, kind, slugs, ttl))
         if not candidates:
             return None
         # 逾期比例最高的优先，天然把垃圾/战甲/紫卡轮起来扫描
