@@ -237,7 +237,8 @@
       setText("modalTitle", "需要手动更新");
       setText("modalText", update.message || "当前环境不支持自动更新，请在部署机执行：");
       command.hidden = false;
-      command.textContent = update.manual_command || "docker compose -f docker-compose.full.yml up -d --build";
+      command.textContent = update.manual_command
+        || "git pull && ./deploy/update.sh   （裸机无 Docker 也能用，脚本会自动识别 systemd / daemon.sh / compose）";
       confirm.textContent = "知道了";
       state.modalAction = "close";
     }

@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 # 一键部署：Xray（你的 VLESS 节点）+ NapCat + 机器人
-# 用法：sudo ./deploy/oneclick.sh
+# 用法：
+#   sudo ./deploy/oneclick.sh                 # Docker 方式（napcat + xray + bot）
+#   sudo ./deploy/oneclick.sh --bare          # 裸机方式（不用 Docker，也不用 screen）
+# 装不上 Docker 时会自动降级为裸机方式。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
+# ------------------------------------------------------------ 模式选择
+BARE=0
+ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --bare|--baremetal|--no-docker) BARE=1; shift ;;
+        *) ARGS+=("$1"); shift ;;
+    esac
+done
+if [ "$BARE" -eq 1 ]; then
+    echo "已指定 --bare：改用裸机部署（无 Docker / 无 screen）。"
+    exec "$ROOT/deploy/baremetal.sh" --dir "$ROOT" "${ARGS[@]}"
+fi
+
 if [ "$(id -u)" -ne 0 ]; then
     echo "请用 root 运行：sudo ./deploy/oneclick.sh" >&2
+    echo "（不用 root 也可以跑裸机方式：./deploy/baremetal.sh）" >&2
     exit 1
 fi
 
@@ -29,8 +47,8 @@ if ! command -v docker >/dev/null 2>&1; then
     elif command -v yum >/dev/null 2>&1; then
         yum install -y docker docker-compose-plugin || yum install -y docker docker-compose || true
     else
-        echo "无法自动安装 Docker，请手动安装后重试。" >&2
-        exit 1
+        echo "无法自动安装 Docker，自动降级为裸机部署（无 Docker / 无 screen）…"
+        exec "$ROOT/deploy/baremetal.sh" --dir "$ROOT" "${ARGS[@]}"
     fi
     systemctl enable --now docker >/dev/null 2>&1 || true
 else
@@ -42,8 +60,8 @@ if ! docker info >/dev/null 2>&1; then
     systemctl start docker >/dev/null 2>&1 || true
 fi
 if ! docker info >/dev/null 2>&1; then
-    echo "Docker 不可用，请检查 systemctl status docker" >&2
-    exit 1
+    echo "Docker 守护进程不可用，自动降级为裸机部署（无 Docker / 无 screen）…"
+    exec "$ROOT/deploy/baremetal.sh" --dir "$ROOT" "${ARGS[@]}"
 fi
 
 if docker compose version >/dev/null 2>&1; then
@@ -51,8 +69,8 @@ if docker compose version >/dev/null 2>&1; then
 elif command -v docker-compose >/dev/null 2>&1; then
     COMPOSE=(docker-compose)
 else
-    echo "缺少 docker compose，请安装 docker-compose-plugin。" >&2
-    exit 1
+    echo "缺少 docker compose，自动降级为裸机部署（无 Docker / 无 screen）…"
+    exec "$ROOT/deploy/baremetal.sh" --dir "$ROOT" "${ARGS[@]}"
 fi
 
 # ------------------------------------------------------------------ 目录

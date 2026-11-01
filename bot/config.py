@@ -209,7 +209,9 @@ DEFAULTS: Dict[str, Any] = {
             "notify_group": "",
             "notify_user": "",
             "self_update": True,
-            "manual_command": "docker compose -f docker-compose.full.yml up -d --build",
+            # 控制台提示的「手动更新命令」。留空时前端按部署方式给通用提示，
+            # 裸机部署脚本会按实际常驻方式（systemd / daemon.sh）写入。
+            "manual_command": "",
         },
     },
     "cache": {
