@@ -65,6 +65,45 @@ GET /api/database/validate         完整性校验
 `/api/status` 的返回里也带有 `database` 字段；没有建库时返回
 `available: false`，不会影响机器人启动。
 
+## 独立 HTTP 服务
+
+数据库可以脱离 bot 单独运行：
+
+```bash
+python db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
+```
+
+接口：
+
+```text
+GET /health
+GET /stats
+GET /sources
+GET /search?q=女枪&limit=10
+GET /item?q=mesa_prime_set
+GET /parts?q=女枪
+GET /validate
+```
+
+设置 token 后（`--token` 或 `DB_API_TOKEN`），除 `/health` 外需带
+`X-API-Token` 或 `Authorization: Bearer`。
+
+Docker：
+
+```bash
+docker compose -f docker-compose.db.yml up -d --build
+```
+
+systemd：
+
+```bash
+sudo cp deploy/qqwarframe-db.service /etc/systemd/system/
+sudo systemctl enable --now qqwarframe-db
+```
+
+服务只依赖 `db/query.py`，不 import `bot/*`，也不启动 QQ/OneBot。
+详见 [db/README.md](../db/README.md)。
+
 ## 表结构
 
 ### 元信息

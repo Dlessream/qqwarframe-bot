@@ -1,0 +1,21 @@
+[Unit]
+Description=QQ Warframe database read-only HTTP service
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/qqwarframe-bot
+Environment=DB_API_TOKEN=
+ExecStart=/usr/bin/python3 db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/qqwarframe-bot
+ReadWritePaths=/opt/qqwarframe-bot/data
+
+[Install]
+WantedBy=multi-user.target

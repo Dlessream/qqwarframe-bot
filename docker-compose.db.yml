@@ -1,0 +1,21 @@
+services:
+  warframe-db:
+    build:
+      context: .
+      dockerfile: db/Dockerfile
+    container_name: warframe-db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ./data:/data:ro
+    environment:
+      # 可选：设置后所有 /stats /search /item /parts /validate 需要 token
+      DB_API_TOKEN: ${DB_API_TOKEN:-}
+    command:
+      - "--db"
+      - "/data/warframe.db"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8090"

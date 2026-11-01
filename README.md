@@ -1245,7 +1245,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**783 个离线测试**，不联网、不连 QQ，覆盖：
+**791 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1266,6 +1266,7 @@ python -m unittest discover -s tests -t . -v
 - 图片卡片的 PNG 尺寸与长文本换行、仲裁表两列排布高度
 - **端到端**：mock OneBot 服务端 + mock 市场/Wiki，验证收事件、发图片、@ 回复
 - **SQLite 数据库**：schema、JSON 导入、物品/别名/赏金/轮换/视图、校验、CLI、幂等构建
+- **独立数据库服务**：健康检查、鉴权、stats/search/item/parts/validate HTTP 接口
 
 ### 数据库
 
@@ -1279,7 +1280,17 @@ python db/query.py search 女枪
 python db/query.py validate
 ```
 
-Web 控制台也提供只读接口：`/api/database`、`/api/database/search?q=`、`/api/database/validate`。
+Web 控制台也提供只读接口：`/api/database`、`/api/database/search?q=`、`/api/database/parts?q=`、`/api/database/validate`。
+
+数据库还可以作为独立 HTTP 服务运行，不依赖 QQ / OneBot：
+
+```bash
+python db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
+# 或
+docker compose -f docker-compose.db.yml up -d --build
+```
+
+详见 [db/README.md](db/README.md)。
 
 详细表结构、命令和限制见 [docs/DATABASE.md](docs/DATABASE.md)。
 
@@ -1343,7 +1354,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 783 个测试 + fixtures
+├── tests/                 # 791 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 
