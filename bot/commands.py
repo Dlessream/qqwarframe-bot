@@ -892,7 +892,8 @@ class CommandRouter:
             return weapon.icon_url if weapon is not None else ""
 
         return present.riven_rank_reply(quotes, name_of, (ready, total),
-                                        icon_of=icon_of)
+                                        icon_of=icon_of,
+                                        calibrated=self.board.riven_calibrated())
 
     # ------------------------------------------------------------------ 数据更新
     def _update(self, argument: str, ctx: Context) -> Reply:

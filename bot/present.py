@@ -1675,7 +1675,8 @@ def frame_rank_reply(quotes: Sequence, name_of, coverage: tuple,
 
 
 def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
-                     limit: int = 30, icon_of=None) -> Reply:
+                     limit: int = 30, icon_of=None,
+                     calibrated: Optional[tuple] = None) -> Reply:
     """紫卡排行：按每把武器的紫卡直售均价取前 30（参考游戏内榜单样式）。"""
     pool = list(quotes)[:limit]
     rows = []
@@ -1695,6 +1696,8 @@ def riven_rank_reply(quotes: Sequence, name_of, coverage: tuple,
     updated = max((getattr(quote, "updated", 0.0) for quote in quotes), default=0.0)
     note = ("均价 = 该武器当前所有在售紫卡的平均价（剔除极端离群挂单），"
             "洗数/等级不限。已扫描 %d/%d 把武器。" % (ready, total))
+    if calibrated and calibrated[0] < calibrated[1]:
+        note += "其中 %d 把已按新口径校准，其余正在补扫（顺序还会变动）。" % calibrated[0]
     lines.append("")
     lines.append(note)
 

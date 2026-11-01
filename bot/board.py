@@ -707,6 +707,18 @@ class BoardClient:
         quotes.sort(key=lambda quote: (-quote.avg, quote.slug))
         return quotes
 
+    def riven_calibrated(self) -> Tuple[int, int]:
+        """已按「在售均价」口径校准的武器数 / 总数。
+
+        升级后旧缓存没有均价，榜单先用候选最低价兜底；这个数字用来告诉玩家
+        还有多少把在补扫（这些排序会继续变）。
+        """
+        with self._lock:
+            entries = list(self._quotes[_KIND_RIVEN].values())
+        total = len(entries)
+        done = sum(1 for entry in entries if _as_float(entry.get("a")) > 0)
+        return done, total
+
     def _looks_like_bait(self, price: int, seller: str, below: int,
                          price_weapons: Counter,
                          seller_weapons: Counter) -> bool:
