@@ -94,6 +94,24 @@ class FakeApp:
     def group_policy_snapshot(self):
         return dict(self.groups)
 
+    def command_snapshot(self):
+        return {
+            "disabled": [],
+            "aliases": {"查物品": "query"},
+            "commands": [{"command": "query", "enabled": True,
+                          "custom_aliases": ["查物品"]}],
+            "builtin_aliases": {"query": ["wm", "查"]},
+        }
+
+    def set_command_enabled(self, command, enabled):
+        return self.command_snapshot()
+
+    def add_command_alias(self, alias, command):
+        return self.command_snapshot()
+
+    def remove_command_alias(self, alias):
+        return self.command_snapshot()
+
     def alias_snapshot(self):
         return {
             "source": {"items": 3, "last_refresh_seconds": 2,
@@ -455,6 +473,25 @@ class AdminServerTest(unittest.TestCase):
             "/api/database/validate", headers=headers)
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["ok"])
+
+    def test_commands_api(self):
+        headers = {"X-Admin-Token": "secret"}
+        status, body = self.request("/api/commands", headers=headers)
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertEqual(payload["aliases"]["查物品"], "query")
+        status, body = self.request(
+            "/api/commands/toggle", method="POST", headers=headers,
+            body={"command": "help", "enabled": False})
+        self.assertEqual(status, 200)
+        status, body = self.request(
+            "/api/commands/alias", method="POST", headers=headers,
+            body={"alias": "查物品", "command": "query"})
+        self.assertEqual(status, 200)
+        status, body = self.request(
+            "/api/commands/alias/delete", method="POST", headers=headers,
+            body={"alias": "查物品"})
+        self.assertEqual(status, 200)
 
     def test_update_check(self):
         status, body = self.request(

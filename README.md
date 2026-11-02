@@ -629,6 +629,17 @@ http://127.0.0.1:8080
 - `wm` 默认实时刷新报价：每次查询绕过 60 秒订单缓存，直接取最新买卖单；可设
   `warframe_market.realtime_quotes: false` 恢复缓存模式。
 
+### 指令菜单
+
+控制台的“指令菜单”面板可以直接改运行时命令，不需要改源码或重启：
+
+- 每个命令有开关，关掉后所有内置别名和自定义别名都不再响应；
+- 可以给任意命令添加自定义别名，例如把“查物品”指向 `query`；
+- 自定义别名可以单独删除；
+- 修改写入 `data/commands.json`，保存后立即生效；
+- 聊天式短句（如“一次等30秒”“该功能暂未实现”）默认静默，不再回“没找到物品”；
+- 单条命令最多等 `behavior.response_timeout_seconds` 秒（默认 9 秒），超时先回简短提示，保证 10 秒内有反馈。
+
 战甲别名与部件后缀（中文别名和英文名都能识别，总图/蓝图通用）：
 
 ```text
@@ -892,6 +903,9 @@ environment:
 | `cooldown_seconds` | 3 | 每用户冷却 |
 | `max_replies_per_minute` | 20 | 每会话每分钟上限 |
 | `max_reply_chars` | 1200 | 文字兜底分片长度 |
+| `response_timeout_seconds` | 9 | 单条命令最长等待，超时先回简短提示，保证 10 秒内有反馈 |
+| `command_workers` | 4 | 命令处理线程数 |
+| `commands_file` | `data/commands.json` | 可编辑指令菜单（禁用/自定义别名） |
 | `preload_items` | true | 启动预热物品索引 |
 
 群策略示例：
@@ -1251,7 +1265,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**801 个离线测试**，不联网、不连 QQ，覆盖：
+**806 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1360,7 +1374,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 801 个测试 + fixtures
+├── tests/                 # 806 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

@@ -18,6 +18,7 @@ from . import names
 from . import present
 from . import zh2en
 from .alerts import AlertStore
+from .command_store import CommandStore
 from .arbi import ArbiClient, ArbiError
 from .market import (Item, MarketClient, MarketError, SearchHit, is_arcane,
                      wants_arcane)
@@ -161,6 +162,19 @@ _SENTENCE_RE = re.compile(
     r"[？?！!。，,；;~～]|怎么|怎样|什么|怎么着|为啥|为什么|如何|多少|"
     r"什么时候|啥时候|哪里|哪个|能不能|可不可以|吗|呢|呀|啊|吧")
 
+# 看起来是在聊天，而不是在查物品的短句。
+# 例：「一次等30秒」「还有多久」「该功能暂未实现」不该触发"没找到物品"。
+_CHAT_NOISE_RE = re.compile(
+    r"(?:一次|等\s*\d|秒|分钟|小时|多久|几点|什么时候|有人|请问|"
+    r"暂未|未实现|功能暂)")
+
+
+def _looks_like_noise(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    return bool(_CHAT_NOISE_RE.search(value) or _SENTENCE_RE.search(value))
+
 
 def is_ignored(text: str) -> bool:
     head = str(text or "").strip().split(None, 1)[0] if str(text or "").strip() else ""
@@ -264,10 +278,54 @@ class CommandRouter:
         self.board = board
         self.rotation = rotation
         self.subscriptions = subscriptions
+        command_config = config.get("behavior", {}) or {}
+        self.command_store = CommandStore(
+            str(command_config.get("commands_file") or "data/commands.json"),
+            sorted(set(COMMANDS.values())), logger=self.log)
+        self.command_store.set_builtin_lookup(lambda key: key in COMMANDS)
+        self.commands: Dict[str, str] = dict(COMMANDS)
+        self.command_order: List[str] = []
+        self.disabled_commands: set = set()
+        self._reload_commands()
         # 紫卡排行/卡面要武器小图标：给图片模块接一个带磁盘缓存的下载器
         self.icon_dir = str(config.get("warframe_market", {}).get(
             "icon_dir") or "data/cache/icons")
         imagecard.set_icon_loader(self._load_icon)
+
+    def _reload_commands(self) -> None:
+        aliases = self.command_store.aliases()
+        self.commands = dict(COMMANDS)
+        self.commands.update(aliases)
+        self.command_order = sorted(self.commands, key=len, reverse=True)
+        self.disabled_commands = self.command_store.disabled()
+
+    def command_snapshot(self) -> Dict:
+        self._reload_commands()
+        data = self.command_store.snapshot()
+        data["builtin_aliases"] = {
+            command: sorted(alias for alias, value in COMMANDS.items()
+                            if value == command)
+            for command in sorted(set(COMMANDS.values()))
+        }
+        return data
+
+    def set_command_enabled(self, command: str, enabled: bool) -> Dict:
+        self.command_store.set_enabled(command, enabled)
+        self._reload_commands()
+        return self.command_snapshot()
+
+    def add_command_alias(self, alias: str, command: str) -> Dict:
+        self.command_store.add_alias(alias, command)
+        self._reload_commands()
+        return self.command_snapshot()
+
+    def remove_command_alias(self, alias: str) -> Dict:
+        self.command_store.remove_alias(alias)
+        self._reload_commands()
+        return self.command_snapshot()
+
+    def _command_enabled(self, command: str) -> bool:
+        return command not in self.disabled_commands
 
     def _load_icon(self, url: str) -> Optional[bytes]:
         """武器图标下载（磁盘缓存，失败返回 None，不影响出图）。"""
@@ -325,8 +383,8 @@ class CommandRouter:
             tail = parts[1].strip() if len(parts) > 1 else ""
             if head in ("唤醒", "唤醒词") or is_ignored(text):
                 return None
-            command = COMMANDS.get(head.lower())
-            if command:
+            command = self.commands.get(head.lower())
+            if command and self._command_enabled(command):
                 if command in WHOLE_WORD_COMMANDS and tail:
                     # 「仲裁 什么时候刷新」不再当作查询
                     return None
@@ -334,9 +392,9 @@ class CommandRouter:
                     # 「紫卡分析」已下线，不再当作紫卡查询
                     return None
                 return (command, tail)
-            for alias in COMMAND_ORDER:
-                command = COMMANDS[alias]
-                if command in WHOLE_WORD_COMMANDS:
+            for alias in self.command_order:
+                command = self.commands[alias]
+                if command in WHOLE_WORD_COMMANDS or not self._command_enabled(command):
                     continue  # 这个词必须单独出现，连写的一律不算
                 if (len(alias) >= 2 or not alias.isascii()) \
                         and text.startswith(alias) and len(text) > len(alias):
@@ -359,24 +417,30 @@ class CommandRouter:
             return None
         if is_ignored(text):
             return None
-        if head.lower() in COMMANDS:
-            command = COMMANDS[head.lower()]
+        if head.lower() in self.commands:
+            command = self.commands[head.lower()]
+            if not self._command_enabled(command):
+                return None
             if command in RETIRED_PREFIXES and tail.startswith(RETIRED_PREFIXES[command]):
                 # 「紫卡分析」已下线，不再当作紫卡查询
                 return None
             return (command, tail)
 
         # 兼容中文不加空格：#查绝路 / #战甲Mesa（单字母英文别名不参与，避免误判）
-        for alias in COMMAND_ORDER:
+        for alias in self.command_order:
             if (len(alias) >= 2 or not alias.isascii()) \
                     and text.startswith(alias) and len(text) > len(alias):
-                command = COMMANDS[alias]
+                command = self.commands[alias]
+                if not self._command_enabled(command):
+                    continue
                 rest = text[len(alias):].strip()
                 if command in RETIRED_PREFIXES and rest.startswith(RETIRED_PREFIXES[command]):
                     continue  # 「紫卡分析…」已下线
                 return (command, rest)
 
         if is_retired(text):
+            return None
+        if _looks_like_noise(text):
             return None
         return ("query", text)
 
@@ -386,6 +450,8 @@ class CommandRouter:
         if parsed is None:
             return []
         command, argument = parsed
+        if command in ("query", "price") and _looks_like_noise(argument):
+            return []
         ctx.prefix = self._prefix_of(text)
 
         try:

@@ -233,6 +233,26 @@
       </details>
     </section>
 
+    <section class="panel commands-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">指令菜单</span>
+          <span class="panel-sub">启用 / 禁用指令，或添加自定义别名；保存到 data/commands.json</span>
+        </div>
+        <button id="commandRefresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+      </div>
+      <div id="commandInfo" class="source-strip">正在读取指令菜单…</div>
+      <div id="commandList" class="command-list"></div>
+      <details class="alias-new">
+        <summary>添加指令别名</summary>
+        <div class="alias-target-row">
+          <input id="commandAlias" class="input" type="text" maxlength="40" placeholder="新别名，例如 查物品">
+          <select id="commandSelect" class="input"></select>
+          <button id="commandAdd" class="btn btn-primary btn-sm" type="button">添加别名</button>
+        </div>
+      </details>
+    </section>
+
     <section class="panel arbi-panel">
       <div class="panel-head">
         <div>

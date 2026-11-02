@@ -29,6 +29,8 @@
     missionEntries: [],
     missionColors: {},
     subs: null,
+    commandsLoaded: false,
+    commands: null,
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -1332,8 +1334,111 @@
     }
   }
 
+  async function loadCommands() {
+    try {
+      const data = await api("/api/commands");
+      state.commands = data;
+      state.commandsLoaded = true;
+      renderCommands(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("commandInfo", "读取指令菜单失败：" + exc.message);
+      }
+    }
+  }
+
+  function renderCommands(data) {
+    const commands = data.commands || [];
+    const builtin = data.builtin_aliases || {};
+    const enabled = commands.filter((item) => item.enabled).length;
+    setText("commandInfo",
+      "共 " + commands.length + " 个指令，启用 " + enabled +
+      " 个；自定义别名 " + Object.keys(data.aliases || {}).length + " 个");
+    const select = $("commandSelect");
+    if (select) {
+      select.innerHTML = commands.map((item) =>
+        '<option value="' + escapeHtml(item.command) + '">' +
+        escapeHtml(item.command) + '</option>').join("");
+    }
+    const list = $("commandList");
+    if (!list) return;
+    list.innerHTML = commands.map((item) => {
+      const aliases = (builtin[item.command] || []).join(" / ");
+      const custom = (item.custom_aliases || []).map((alias) =>
+        '<button type="button" data-remove-alias="' + escapeHtml(alias) +
+        '" title="删除这个别名">' + escapeHtml(alias) + ' ×</button>').join("");
+      return '<div class="command-row' + (item.enabled ? "" : " off") + '">' +
+        '<div class="command-head"><span class="command-name">' +
+        escapeHtml(item.command) + '</span>' +
+        '<input class="command-toggle" type="checkbox" data-command="' +
+        escapeHtml(item.command) + '"' + (item.enabled ? " checked" : "") +
+        ' title="启用/禁用"></div>' +
+        '<div class="command-aliases">内置：' + escapeHtml(aliases || "—") + '</div>' +
+        '<div class="command-custom">' + custom + '</div></div>';
+    }).join("");
+    list.querySelectorAll("input[data-command]").forEach((input) => {
+      input.addEventListener("change", () => {
+        toggleCommand(input.getAttribute("data-command"), input.checked);
+      });
+    });
+    list.querySelectorAll("button[data-remove-alias]").forEach((button) => {
+      button.addEventListener("click", () => {
+        removeCommandAlias(button.getAttribute("data-remove-alias"));
+      });
+    });
+  }
+
+  async function toggleCommand(command, enabled) {
+    try {
+      const data = await api("/api/commands/toggle", {
+        method: "POST", body: { command: command, enabled: enabled },
+      });
+      state.commands = data;
+      renderCommands(data);
+      toast((enabled ? "已启用 " : "已禁用 ") + command);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("修改失败：" + exc.message);
+      loadCommands();
+    }
+  }
+
+  async function addCommandAlias() {
+    const alias = $("commandAlias").value.trim();
+    const command = $("commandSelect").value;
+    if (!alias) {
+      toast("请输入别名");
+      return;
+    }
+    try {
+      const data = await api("/api/commands/alias", {
+        method: "POST", body: { alias: alias, command: command },
+      });
+      state.commands = data;
+      $("commandAlias").value = "";
+      renderCommands(data);
+      toast("已添加别名 " + alias);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("添加失败：" + exc.message);
+    }
+  }
+
+  async function removeCommandAlias(alias) {
+    try {
+      const data = await api("/api/commands/alias/delete", {
+        method: "POST", body: { alias: alias },
+      });
+      state.commands = data;
+      renderCommands(data);
+      toast("已删除别名 " + alias);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("删除失败：" + exc.message);
+    }
+  }
+
   function bind() {
     $("refreshBtn").addEventListener("click", refresh);
+    $("commandRefresh").addEventListener("click", loadCommands);
+    $("commandAdd").addEventListener("click", addCommandAlias);
     $("checkBtn").addEventListener("click", checkUpdate);
     $("restartBtn").addEventListener("click", () => openModal("restart"));
     $("logRefresh").addEventListener("click", refreshLogs);
@@ -1467,6 +1572,7 @@
       hideLogin();
       refresh();
       loadSubs();
+      loadCommands();
     });
     $("tokenInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter") $("tokenSave").click();
@@ -1480,6 +1586,7 @@
   refresh();
   refreshLogs();
   loadSubs();
+  loadCommands();
   state.timer = setInterval(refresh, 10000);
   state.logTimer = setInterval(refreshLogs, 5000);
 })();

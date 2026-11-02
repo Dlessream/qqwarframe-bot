@@ -40,6 +40,9 @@ DEFAULTS: Dict[str, Any] = {
         "cooldown_seconds": 3,
         "max_replies_per_minute": 20,
         "max_reply_chars": 1200,
+        "response_timeout_seconds": 9,
+        "command_workers": 4,
+        "commands_file": "data/commands.json",
         "preload_items": True,
     },
     "warframe_market": {

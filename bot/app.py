@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import collections
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 import json
 import logging
 import os
@@ -77,6 +78,11 @@ class BotApp:
         self.prefixes: List[str] = list(self.behavior.get("prefixes") or ["#"])
         self.self_id = ""
         self._stop = threading.Event()
+        self.reply_timeout = max(3.0, min(15.0, float(
+            self.behavior.get("response_timeout_seconds", 9) or 9)))
+        self._command_pool = ThreadPoolExecutor(
+            max_workers=max(2, int(self.behavior.get("command_workers", 4))),
+            thread_name_prefix="cmd")
 
         image_cfg = config.get("image", {})
         self.image_enabled = bool(image_cfg.get("enabled", True))
@@ -248,6 +254,7 @@ class BotApp:
         if self.rotation is not None:
             self.rotation.stop()
         self.onebot.close()
+        self._command_pool.shutdown(wait=False)
         self.log.info("机器人已停止")
 
     def _prewarm(self) -> None:
@@ -453,7 +460,14 @@ class BotApp:
         )
 
         try:
-            replies = self.router.handle(text, context)
+            # 单条命令最多等 9 秒；超时先给明确反馈，避免群里几十秒没动静。
+            future = self._command_pool.submit(self.router.handle, text, context)
+            try:
+                replies = future.result(timeout=self.reply_timeout)
+            except FuturesTimeout:
+                self.log.warning("命令处理超时（%.1fs）：%s", self.reply_timeout, text[:80])
+                replies = [present.error_reply(
+                    "查询超过 %d 秒，请稍后再试。" % int(self.reply_timeout))]
         except Exception as exc:  # pragma: no cover - 防御
             self.log.exception("处理命令失败：%s", exc)
             replies = [present.error_reply(
@@ -890,6 +904,18 @@ class BotApp:
 
     def reset_mission_colors(self) -> Dict[str, Any]:
         return missioncolors.reset()
+
+    def command_snapshot(self) -> Dict[str, Any]:
+        return self.router.command_snapshot()
+
+    def set_command_enabled(self, command: str, enabled: bool) -> Dict[str, Any]:
+        return self.router.set_command_enabled(command, enabled)
+
+    def add_command_alias(self, alias: str, command: str) -> Dict[str, Any]:
+        return self.router.add_command_alias(alias, command)
+
+    def remove_command_alias(self, alias: str) -> Dict[str, Any]:
+        return self.router.remove_command_alias(alias)
 
     def alias_snapshot(self) -> Dict[str, Any]:
         index = None

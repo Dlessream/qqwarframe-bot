@@ -258,6 +258,12 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_groups()})
                     return
+                if path == "/api/commands":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.command_snapshot()})
+                    return
                 if path == "/api/subscriptions":
                     if not self._authorized():
                         self._unauthorized()
@@ -472,6 +478,41 @@ class AdminServer:
                                    HTTPStatus.BAD_GATEWAY)
                         return
                     self._json(result)
+                    return
+
+                if parsed.path == "/api/commands/toggle":
+                    try:
+                        result = server.app.set_command_enabled(
+                            str(data.get("command") or ""),
+                            bool(data.get("enabled")))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json({"ok": True, **result})
+                    return
+
+                if parsed.path == "/api/commands/alias":
+                    try:
+                        result = server.app.add_command_alias(
+                            str(data.get("alias") or ""),
+                            str(data.get("command") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json({"ok": True, **result})
+                    return
+
+                if parsed.path == "/api/commands/alias/delete":
+                    try:
+                        result = server.app.remove_command_alias(
+                            str(data.get("alias") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json({"ok": True, **result})
                     return
 
                 if parsed.path == "/api/subscriptions":

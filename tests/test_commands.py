@@ -95,7 +95,7 @@ class FakeWiki:
 
 def make_router(fail_market=False, alerts=None, riven=None, updater=None,
                 arbi=None, worldstate=None, subscriptions=None, index=None,
-                database=None):
+                database=None, commands_file=None):
     market = FakeMarket(index if index is not None else build_index())
     market.fail = fail_market
     wiki = FakeWiki()
@@ -103,6 +103,8 @@ def make_router(fail_market=False, alerts=None, riven=None, updater=None,
         "behavior": {"prefixes": ["#", "＃"]},
         "warframe_market": {"top_orders": 3, "price_orders": 5, "platform": "pc"},
     }
+    if commands_file:
+        config["behavior"]["commands_file"] = commands_file
     return CommandRouter(market, wiki, config, alerts=alerts, riven=riven,
                          updater=updater, arbi=arbi,
                          worldstate=worldstate,
@@ -235,6 +237,13 @@ class ParseTest(unittest.TestCase):
 
     def test_unknown_command_is_query(self):
         self.assertEqual(self.router.parse("#绝路"), ("query", "绝路"))
+
+    def test_chat_noise_is_silent(self):
+        ctx = Context(user_id="1", group_id="", is_group=False)
+        self.assertIsNone(self.router.parse("#一次等30秒"))
+        self.assertEqual(self.router.handle("#一次等30秒", ctx), [])
+        self.assertIsNone(self.router.parse("#该功能暂未实现"))
+        self.assertEqual(self.router.handle("#该功能暂未实现", ctx), [])
 
     def test_not_a_command(self):
         self.assertIsNone(self.router.parse("查 绝路"))
@@ -665,6 +674,41 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         router, _, _ = make_router(riven=None)
         replies = router.handle("#紫卡 绝路", self.ctx)
         self.assertIn("未启用", replies[0].text)
+
+
+class CommandMenuTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "commands.json")
+        self.router, _, _ = make_router(commands_file=self.path)
+
+    def tearDown(self):
+        for name in os.listdir(self.dir):
+            try:
+                os.remove(os.path.join(self.dir, name))
+            except OSError:
+                pass
+        os.rmdir(self.dir)
+
+    def test_disable_and_enable_command(self):
+        self.assertEqual(self.router.parse("#帮助"), ("help", ""))
+        data = self.router.set_command_enabled("help", False)
+        self.assertFalse([row for row in data["commands"]
+                          if row["command"] == "help"][0]["enabled"])
+        self.assertIsNone(self.router.parse("#帮助"))
+        self.router.set_command_enabled("help", True)
+        self.assertEqual(self.router.parse("#帮助"), ("help", ""))
+
+    def test_add_and_remove_alias(self):
+        data = self.router.add_command_alias("查物品", "query")
+        self.assertEqual(data["aliases"]["查物品"], "query")
+        self.assertEqual(self.router.parse("#查物品 绝路"), ("query", "绝路"))
+        data = self.router.remove_command_alias("查物品")
+        self.assertNotIn("查物品", data["aliases"])
+
+    def test_alias_conflict_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.router.add_command_alias("wm", "query")
 
 
 class UpdateCommandTest(unittest.TestCase):
