@@ -336,8 +336,12 @@ class WorldStateClient:
             return "official"
         return "warframestat"
 
-    def _get(self, path: str) -> Any:
+    def _get(self, path: str, force: bool = False) -> Any:
         key = ("ws", path)
+        if force:
+            value = self._get_uncached(path)
+            self.cache.set(key, value, self.cache_seconds)
+            return value
         return self.cache.get_or_set(
             key, lambda: self._get_uncached(path), self.cache_seconds)
 
@@ -368,9 +372,9 @@ class WorldStateClient:
             return "无法连接世界状态接口，官方兜底源也不可用。"
         return "世界状态接口异常（HTTP %d），官方兜底源也不可用。" % exc.status
 
-    def fetch(self, path: str) -> Any:
-        """读取任意 warframestat 子路径（带短缓存）。"""
-        return self._get(path)
+    def fetch(self, path: str, force: bool = False) -> Any:
+        """读取任意 warframestat 子路径（带短缓存）；force=True 跳过缓存。"""
+        return self._get(path, force=force)
 
     def _load_nodes(self) -> Dict[str, Dict[str, str]]:
         if self._nodes is not None:

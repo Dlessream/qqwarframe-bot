@@ -156,6 +156,8 @@ class BotApp:
                 store, self.worldstate, self.rotation, self.arbi,
                 logger=self.log)
         self.subscription_interval = max(60, int(subs_cfg.get("check_seconds", 120)))
+        self.alert_subscription_interval = max(
+            15, int(subs_cfg.get("alert_seconds", 30)))
 
         self.router = CommandRouter(
             self.market, self.wiki, config, logger=self.log,
@@ -1307,20 +1309,28 @@ class BotApp:
 
     # ------------------------------------------------------------------ 订阅
     def _subscription_loop(self) -> None:
-        if self._stop.wait(min(45, self.subscription_interval)):
+        # 首轮完整检查用于建立基线（不补推当前已有内容）。
+        if self._stop.wait(min(15, self.alert_subscription_interval)):
             return
+        last_full = 0.0
         while not self._stop.is_set():
             try:
-                self._check_subscriptions()
+                now = time.time()
+                if last_full and now - last_full < self.subscription_interval:
+                    # 警报需要更高频：世界状态缓存也会被强制刷新。
+                    pushes = self.subscriptions.poll(kinds={"alert"}) \
+                        if self.subscriptions is not None else []
+                else:
+                    pushes = self.subscriptions.poll() \
+                        if self.subscriptions is not None else []
+                    last_full = now
+                self._deliver_subscription_pushes(pushes)
             except Exception as exc:  # pragma: no cover - 防御
                 self.log.exception("检查订阅时出错：%s", exc)
-            if self._stop.wait(self.subscription_interval):
+            if self._stop.wait(self.alert_subscription_interval):
                 return
 
-    def _check_subscriptions(self) -> None:
-        if self.subscriptions is None:
-            return
-        pushes = self.subscriptions.poll()
+    def _deliver_subscription_pushes(self, pushes) -> None:
         if not pushes:
             return
         self.log.info("订阅推送：%d 条", len(pushes))
@@ -1336,6 +1346,11 @@ class BotApp:
             except Exception as exc:  # pragma: no cover - 防御
                 self.log.warning("订阅推送失败（%s）：%s", chat_id, exc)
             time.sleep(0.4)
+
+    def _check_subscriptions(self) -> None:
+        if self.subscriptions is None:
+            return
+        self._deliver_subscription_pushes(self.subscriptions.poll())
 
     # ------------------------------------------------------------------ 提醒
     def _alert_loop(self) -> None:

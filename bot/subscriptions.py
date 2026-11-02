@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from . import present
 from . import terms
@@ -362,13 +362,16 @@ class SubscriptionService:
             self._cache["storms"] = rows
         return self._cache["storms"]
 
-    def _field(self, path: str):
+    def _field(self, path: str, force: bool = False):
         key = "field:%s" % path
         if key not in self._cache:
             value: Any = None
             try:
                 if self.worldstate is not None:
-                    value = self.worldstate.fetch(path)
+                    if force:
+                        value = self.worldstate.fetch(path, force=True)
+                    else:
+                        value = self.worldstate.fetch(path)
             except Exception as exc:  # noqa: BLE001
                 self.log.warning("订阅取 %s 失败：%s", path, exc)
             self._cache[key] = value
@@ -413,7 +416,8 @@ class SubscriptionService:
 
         if kind in ("alert", "invasion", "deal"):
             rows = self._field({"alert": "alerts", "invasion": "invasions",
-                                "deal": "dailyDeals"}[kind])
+                                "deal": "dailyDeals"}[kind],
+                               force=(kind == "alert"))
             events = []
             for row in rows or []:
                 if not isinstance(row, dict):
@@ -540,13 +544,15 @@ class SubscriptionService:
             return
         self.store.mark_seen(sub, [event["key"] for event in events])
 
-    def poll(self) -> List[Tuple[str, Reply, str]]:
+    def poll(self, kinds: Optional[Set[str]] = None) -> List[Tuple[str, Reply, str]]:
         """检查一轮；返回 [(群号, 待推送 Reply, 订阅人 QQ), ...]。
 
         订阅人用来在推送时 @ 一下（普通回复不 @，只有订阅推送 @）。
+        `kinds` 限定本轮只检查某些类型，用于警报这种需要更高频轮询的事件。
         """
         self._cache.clear()
-        subs = self.store.active()
+        subs = [sub for sub in self.store.active()
+                if kinds is None or sub.kind in kinds]
         if not subs:
             return []
         seed_only = not self._primed

@@ -21,11 +21,24 @@ def fissure(node="Mantle", mission="Survival", tier="Lith", hard=False,
     }
 
 
+def alert(ident="a1", node="Mantle", mission="Survival", reward="Orokin Catalyst",
+          minutes=30):
+    return {
+        "id": ident,
+        "activation": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+        "expiry": time.strftime("%Y-%m-%dT%H:%M:%S.000Z",
+                                time.gmtime(time.time() + minutes * 60)),
+        "mission": {"node": node, "type": mission, "faction": "Grineer",
+                    "reward": {"items": [reward], "credits": 10000}},
+    }
+
+
 class FakeWorld:
     def __init__(self):
         self.fissure_rows = []
         self.storm_rows = []
         self.fields = {}
+        self.fetch_calls = []
 
     def fissures(self):
         return list(self.fissure_rows)
@@ -33,7 +46,8 @@ class FakeWorld:
     def void_storms(self):
         return list(self.storm_rows)
 
-    def fetch(self, path):
+    def fetch(self, path, force=False):
+        self.fetch_calls.append((path, force))
         return self.fields.get(path)
 
 
@@ -192,6 +206,20 @@ class ServiceTest(unittest.TestCase):
         self.assertIn("E Prime", reply.text)
         self.assertNotIn("Mantle", reply.text)         # 只推新增的那条
         self.assertEqual(self.service.poll(), [])      # 不重复推
+
+    def test_alert_pushes_and_bypasses_worldstate_cache(self):
+        self.world.fields["alerts"] = [alert(ident="a1")]
+        sub, _ = self.store.add("group", "1", "9", "alert")
+        self.service.seed(sub)
+        self.assertEqual(self.service.poll(), [])      # 基线
+        self.world.fields["alerts"].append(
+            alert(ident="a2", node="E Prime", reward="Forma Blueprint"))
+        pushes = self.service.poll()
+        self.assertEqual(len(pushes), 1)
+        self.assertIn("E Prime", pushes[0][1].text)
+        self.assertIn("警报", pushes[0][1].text)
+        self.assertTrue(any(path == "alerts" and force
+                            for path, force in self.world.fetch_calls))
 
     def test_first_poll_after_restart_only_seeds(self):
         self.world.fissure_rows = [fissure(ident="a")]

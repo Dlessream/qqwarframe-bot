@@ -103,6 +103,7 @@
     "enabled": true,
     "file": "data/subscriptions.json",
     "check_seconds": 120,
+    "alert_seconds": 30,
     "max_per_chat": 20,
     "seen_limit": 400
   },
