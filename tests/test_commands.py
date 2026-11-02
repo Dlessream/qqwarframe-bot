@@ -499,7 +499,7 @@ class FakeSubWorld:
     def void_storms(self):
         return []
 
-    def fetch(self, path):
+    def fetch(self, path, force=False):
         return None
 
 
@@ -1068,7 +1068,7 @@ class RotationCommandTest(unittest.TestCase):
 class FakeBountyWorld:
     """世界状态只回三处「Jobs 为空」的赏金。"""
 
-    def fetch(self, path):
+    def fetch(self, path, force=False):
         return [
             {"syndicate": "Cavia", "jobs": [],
              "expiry": "2030-01-01T00:00:00.000Z"},

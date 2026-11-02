@@ -455,9 +455,9 @@ class CommandRouter:
             if command == "world_summary":
                 return [self._world_summary(ctx)]
             if command == "world_alerts":
-                return [present.alerts_reply(self._ws("alerts"))]
+                return [present.alerts_reply(self._ws("alerts", force=True))]
             if command == "world_invasions":
-                return [present.invasions_reply(self._ws("invasions"))]
+                return [present.invasions_reply(self._ws("invasions", force=True))]
             if command == "steel_path":
                 return [present.steel_path_reply(self._ws("steelPath"))]
             if command == "nightwave":
@@ -940,9 +940,11 @@ class CommandRouter:
             return present.error_reply("世界状态功能未启用。")
         return present.sortie_reply(self.worldstate.sortie())
 
-    def _ws(self, path: str):
+    def _ws(self, path: str, force: bool = False):
         if self.worldstate is None:
             raise CommandError("世界状态功能未启用。")
+        if force:
+            return self.worldstate.fetch(path, force=True)
         return self.worldstate.fetch(path)
 
     def _world_summary(self, ctx: Context) -> Reply:
