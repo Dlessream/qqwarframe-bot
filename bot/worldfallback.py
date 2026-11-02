@@ -619,6 +619,14 @@ class OfficialWorldState:
                 continue
             info = row.get("MissionInfo") or {}
             reward = info.get("missionReward") or {}
+            try:
+                min_level = int(float(info.get("minEnemyLevel") or 0))
+            except (TypeError, ValueError):
+                min_level = 0
+            try:
+                max_level = int(float(info.get("maxEnemyLevel") or 0))
+            except (TypeError, ValueError):
+                max_level = 0
             result.append({
                 "id": str((row.get("_id") or {}).get("$oid") or ""),
                 "activation": _iso(_ms(row.get("Activation")) / 1000.0),
@@ -628,6 +636,8 @@ class OfficialWorldState:
                     "node": _node_name(nodes, str(info.get("location") or "")),
                     "type": _mission(info.get("missionType")),
                     "faction": _faction(info.get("faction")),
+                    "minEnemyLevel": min_level,
+                    "maxEnemyLevel": max_level,
                     "reward": _reward(reward),
                 },
             })

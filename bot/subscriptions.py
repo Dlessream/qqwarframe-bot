@@ -417,7 +417,7 @@ class SubscriptionService:
         if kind in ("alert", "invasion", "deal"):
             rows = self._field({"alert": "alerts", "invasion": "invasions",
                                 "deal": "dailyDeals"}[kind],
-                               force=(kind == "alert"))
+                               force=(kind in ("alert", "invasion")))
             events = []
             for row in rows or []:
                 if not isinstance(row, dict):

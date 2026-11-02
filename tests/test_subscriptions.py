@@ -221,6 +221,26 @@ class ServiceTest(unittest.TestCase):
         self.assertTrue(any(path == "alerts" and force
                             for path, force in self.world.fetch_calls))
 
+    def test_invasion_pushes_and_bypasses_worldstate_cache(self):
+        def row(ident, node):
+            return {
+                "id": ident, "node": node, "completion": 12.5,
+                "attacker": {"faction": "Grineer",
+                             "reward": {"credits": 10000}},
+                "defender": {"faction": "Corpus",
+                             "reward": {"credits": 10000}},
+            }
+        self.world.fields["invasions"] = [row("i1", "Calypso (Saturn)")]
+        sub, _ = self.store.add("group", "1", "9", "invasion")
+        self.service.seed(sub)
+        self.assertEqual(self.service.poll(), [])
+        self.world.fields["invasions"].append(row("i2", "Laomedeia (Neptune)"))
+        pushes = self.service.poll()
+        self.assertEqual(len(pushes), 1)
+        self.assertIn("Laomedeia", pushes[0][1].text)
+        self.assertTrue(any(path == "invasions" and force
+                            for path, force in self.world.fetch_calls))
+
     def test_first_poll_after_restart_only_seeds(self):
         self.world.fissure_rows = [fissure(ident="a")]
         self.store.add("group", "1", "9", "fissure")

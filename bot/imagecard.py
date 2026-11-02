@@ -1764,6 +1764,143 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
     return _encode(image.crop((0, 0, WIDTH, min(estimate, y + 10))))
 
 
+# ---------------------------------------------------------------------- 警报 / 入侵
+PURPLE_TOP = (39, 25, 61)
+PURPLE_BOTTOM = (117, 75, 161)
+PURPLE_CARD = (78, 52, 108)
+PURPLE_BORDER = (157, 124, 196)
+PURPLE_TEXT = (244, 238, 252)
+PURPLE_MUTED = (203, 184, 224)
+PURPLE_GOLD = (244, 202, 117)
+
+
+def _purple_pill(draw, x: int, y: int, text: str, bg, fg,
+                 font_size: int = 14) -> Tuple[int, int]:
+    font = _font(font_size, bold=True)
+    width, height = _tsize(draw, text, font)
+    box = (x, y, x + width + 18, y + height + 10)
+    _rrect(draw, box, (height + 10) // 2, fill=bg, outline=None)
+    draw.text((x + 9, y + 5), text, font=font, fill=fg)
+    return box[2] - box[0], box[3] - box[1]
+
+
+def _purple_right(draw, text: str, right: int, y: int, font, fill) -> None:
+    width, _ = _tsize(draw, text, font)
+    draw.text((right - width, y), text, font=font, fill=fill)
+
+
+def _purple_percent(value: float) -> str:
+    text = "%.1f" % float(value or 0)
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text + "%"
+
+
+def alerts_card(items: Sequence[Dict],
+                footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
+    """警报卡片：任务、等级、派系、节点、奖励、剩余时间。"""
+    count = max(1, len(items))
+    row_h = 112
+    height = 126 + count * row_h + 68
+    image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
+    draw = ImageDraw.Draw(image)
+    draw.text((PAD, 28), "警报信息", font=_font(38, bold=True),
+              fill=PURPLE_TEXT)
+    draw.text((PAD, 80), "世界状态实时警报", font=_font(16), fill=PURPLE_MUTED)
+    y = 118
+    if not items:
+        draw.text((PAD, y + 28), "当前没有活跃警报", font=_font(22),
+                  fill=PURPLE_MUTED)
+    for item in items:
+        box = (24, y, WIDTH - 24, y + row_h - 10)
+        _rrect(draw, box, 14, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
+        mission = str(item.get("mission") or "未知任务")
+        draw.text((46, y + 14), mission, font=_font(24, bold=True),
+                  fill=PURPLE_GOLD)
+        mission_w, _ = _tsize(draw, mission, _font(24, bold=True))
+        chip_x = 46 + mission_w + 12
+        level = str(item.get("level") or "")
+        if level:
+            w, _ = _purple_pill(draw, chip_x, y + 18, level,
+                                (104, 83, 133), PURPLE_TEXT)
+            chip_x += w + 8
+        faction = str(item.get("faction") or "")
+        if faction:
+            _purple_pill(draw, chip_x, y + 18, faction,
+                         (112, 82, 119), PURPLE_TEXT)
+        node = _fit(draw, str(item.get("node") or "—"), _font(18), 330)
+        _purple_right(draw, node, WIDTH - 46, y + 20, _font(18), PURPLE_TEXT)
+        reward = _fit(draw, str(item.get("reward") or "—"),
+                      _font(16), WIDTH - 92)
+        draw.text((46, y + 54), reward, font=_font(16), fill=PURPLE_MUTED)
+        draw.text((46, y + 80), "剩余时间：" + str(item.get("remaining") or "—"),
+                  font=_font(15), fill=PURPLE_GOLD)
+        y += row_h
+    y = _footer(draw, height - 48, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
+def invasions_card(items: Sequence[Dict],
+                   footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
+    """入侵卡片：星球/节点、进度条、攻防双方奖励。"""
+    count = max(1, len(items))
+    row_h = 130
+    height = 132 + count * row_h + 68
+    image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
+    draw = ImageDraw.Draw(image)
+    draw.text((PAD, 26), "入侵任务", font=_font(38, bold=True),
+              fill=PURPLE_TEXT)
+    draw.text((PAD, 78), "使用命令 #订阅 可蹲守物品 · 部分信息会先于游戏出现",
+              font=_font(15), fill=PURPLE_MUTED)
+    y = 122
+    if not items:
+        draw.text((PAD, y + 28), "当前没有入侵", font=_font(22),
+                  fill=PURPLE_MUTED)
+    for item in items:
+        box = (24, y, WIDTH - 24, y + row_h - 10)
+        _rrect(draw, box, 14, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
+        label = _fit(draw, str(item.get("label") or "—"),
+                     _font(22, bold=True), 540)
+        draw.text((46, y + 12), label, font=_font(22, bold=True),
+                  fill=PURPLE_TEXT)
+        completion = float(item.get("completion") or 0)
+        _purple_right(draw, _purple_percent(completion), WIDTH - 46, y + 14,
+                      _font(21, bold=True), PURPLE_GOLD)
+        bar_x, bar_y, bar_w, bar_h = 46, y + 46, WIDTH - 92, 7
+        _rrect(draw, (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h), 4,
+               fill=(62, 43, 87))
+        filled = max(0, min(bar_w, int(bar_w * completion / 100.0)))
+        if filled:
+            _rrect(draw, (bar_x, bar_y, bar_x + filled, bar_y + bar_h), 4,
+                   fill=PURPLE_GOLD)
+        left_faction = str(item.get("left_faction") or "")
+        right_faction = str(item.get("right_faction") or "")
+        left_x = 46
+        if left_faction:
+            w, _ = _purple_pill(draw, left_x, y + 66, left_faction,
+                                (104, 83, 133), PURPLE_TEXT)
+            left_x += w + 10
+        left_reward = _fit(draw, str(item.get("left_reward") or "—"),
+                           _font(15), 300)
+        draw.text((left_x, y + 70), left_reward, font=_font(15),
+                  fill=PURPLE_MUTED)
+        right_x = WIDTH - 46
+        if right_faction:
+            fw, _ = _tsize(draw, right_faction, _font(14, bold=True))
+            right_x -= fw + 18
+            _purple_pill(draw, right_x, y + 66, right_faction,
+                         (112, 82, 119), PURPLE_TEXT)
+            right_x -= 10
+        right_reward = _fit(draw, str(item.get("right_reward") or "—"),
+                            _font(15), max(120, right_x - 360))
+        rw, _ = _tsize(draw, right_reward, _font(15))
+        draw.text((right_x - rw, y + 70), right_reward, font=_font(15),
+                  fill=PURPLE_MUTED)
+        y += row_h
+    y = _footer(draw, height - 48, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
 if __name__ == "__main__":  # 本地预览：python -m bot.imagecard
     import json
     import sys

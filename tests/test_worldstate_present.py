@@ -1,4 +1,7 @@
+import io
 import unittest
+
+from PIL import Image
 
 from bot import present
 
@@ -18,6 +21,27 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("世界警报", reply.text)
         self.assertIn("Nimus", reply.text)
         self.assertIn("3 个 电磁力场装置", reply.text)
+        png = reply.image()
+        self.assertTrue(png.startswith(b"\x89PNG"))
+        self.assertEqual(Image.open(io.BytesIO(png)).size[0], 860)
+
+    def test_invasions_card(self):
+        raw = [{
+            "node": "Calypso (Saturn)", "completion": 6.7,
+            "attacker": {"faction": "Grineer",
+                         "reward": {"countedItems": [{"type": "Detonite Injector",
+                                                      "count": 3}]}},
+            "defender": {"faction": "Corpus",
+                         "reward": {"countedItems": [{"type": "Fieldron",
+                                                      "count": 3}]}},
+        }]
+        reply = present.invasions_reply(raw)
+        self.assertIn("入侵", reply.text)
+        png = reply.image()
+        self.assertTrue(png.startswith(b"\x89PNG"))
+        image = Image.open(io.BytesIO(png))
+        self.assertEqual(image.size[0], 860)
+        self.assertGreater(image.size[1], 300)
 
     def test_cycles(self):
         reply = present.cycles_reply(

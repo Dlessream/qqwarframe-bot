@@ -583,43 +583,105 @@ def _world_reply(title: str, subtitle: str, headers, rows,
 
 def alerts_reply(raw) -> Reply:
     rows = []
+    items = []
     for alert in _as_list(raw)[:12]:
         mission = alert.get("mission") or {}
+        min_level = _safe_int(mission.get("minEnemyLevel"))
+        max_level = _safe_int(mission.get("maxEnemyLevel"))
+        level = ("%d-%d" % (min_level, max_level)
+                 if min_level and max_level else "")
+        node = terms.localize_node(str(mission.get("node") or "—"))
+        remaining = countdown(parse_timestamp(alert.get("expiry")))
         rows.append([
-            terms.localize_node(str(mission.get("node") or "—")),
+            node,
             terms.localize_mission(str(mission.get("type") or "—")),
             terms.localize_faction(str(mission.get("faction") or "—")),
             _reward_text(mission.get("reward")),
-            countdown(parse_timestamp(alert.get("expiry"))),
+            remaining,
         ])
+        items.append({
+            "mission": terms.localize_mission(
+                str(mission.get("type") or "未知任务")),
+            "level": level,
+            "faction": _faction_short(mission.get("faction")),
+            "node": node,
+            "reward": _card_reward(mission.get("reward")),
+            "remaining": remaining,
+        })
     if not rows:
-        return _world_reply("世界警报", "当前没有活跃警报", [], [], "数据 世界状态聚合源", "ALERT")
-    return _world_reply(
-        "世界警报", "共 %d 条" % len(rows),
-        ["节点", "任务", "敌人", "奖励", "剩余"], rows,
-        "数据 世界状态聚合源", "警报",
-        ratios=[1.8, 1.0, 0.9, 1.8, 0.9])
+        return Reply(
+            text="【世界警报】\n当前没有活跃警报",
+            image=lambda: imagecard.alerts_card([]))
+    text = "【世界警报】\n共 %d 条\n" % len(rows)
+    text += "\n".join(" / ".join(str(cell) for cell in row) for row in rows)
+    return Reply(text=text, image=lambda: imagecard.alerts_card(items))
 
 
 def invasions_reply(raw) -> Reply:
     rows = []
+    items = []
     for row in _as_list(raw)[:12]:
         attacker = row.get("attacker") or {}
         defender = row.get("defender") or {}
+        node = terms.localize_node(str(row.get("node") or "—"))
+        completion = float(row.get("completion") or 0)
         rows.append([
-            terms.localize_node(str(row.get("node") or "—")),
+            node,
             terms.localize_faction(str(attacker.get("faction") or "—")),
             terms.localize_faction(str(defender.get("faction") or "—")),
-            "%d%%" % round(float(row.get("completion") or 0)),
+            "%d%%" % round(completion),
             _reward_text(attacker.get("reward")),
         ])
+        items.append({
+            "label": _planet_label(node),
+            "completion": completion,
+            "left_faction": _faction_short(attacker.get("faction")),
+            "left_reward": _card_reward(attacker.get("reward")),
+            "right_faction": _faction_short(defender.get("faction")),
+            "right_reward": _card_reward(defender.get("reward")),
+        })
     if not rows:
-        return _world_reply("入侵", "当前没有入侵", [], [], "数据 世界状态聚合源", "入侵")
-    return _world_reply(
-        "入侵", "共 %d 条" % len(rows),
-        ["节点", "进攻", "防守", "进度", "奖励"], rows,
-        "数据 世界状态聚合源", "入侵",
-        ratios=[2.0, 0.9, 0.9, 0.8, 1.6])
+        return Reply(
+            text="【入侵】\n当前没有入侵",
+            image=lambda: imagecard.invasions_card([]))
+    text = "【入侵】\n共 %d 条\n" % len(rows)
+    text += "\n".join(" / ".join(str(cell) for cell in row) for row in rows)
+    return Reply(text=text, image=lambda: imagecard.invasions_card(items))
+
+
+def _safe_int(value) -> int:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _faction_short(value) -> str:
+    raw = str(value or "").strip()
+    mapping = {
+        "Grineer": "G系", "克隆尼": "G系",
+        "Corpus": "C系", "科普斯": "C系", "科波斯": "C系",
+        "Infested": "I系", "Infestation": "I系", "感染者": "I系",
+        "Orokin": "O系", "奥罗金": "O系",
+        "Corrupted": "O系", "堕落者": "O系",
+    }
+    return mapping.get(raw, raw)
+
+
+def _card_reward(reward) -> str:
+    text = _reward_text(reward).replace(" 个 ", "x ").replace("星币", "现金")
+    return text or "—"
+
+
+def _planet_label(node: str) -> str:
+    """`Calypso（土星）` → `土星 Calypso`；没有星球就原样返回。"""
+    if "（" in node and node.endswith("）"):
+        index = node.rfind("（")
+        planet = node[index + 1:-1].strip()
+        name = node[:index].strip()
+        if planet and name:
+            return "%s %s" % (planet, name)
+    return node
 
 
 def steel_path_reply(raw) -> Reply:
