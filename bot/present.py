@@ -625,28 +625,44 @@ def invasions_reply(raw) -> Reply:
         defender = row.get("defender") or {}
         node = terms.localize_node(str(row.get("node") or "—"))
         completion = float(row.get("completion") or 0)
+        attack_reward = _invasion_reward(attacker, row)
+        defend_reward = _invasion_reward(defender, row)
         rows.append([
             node,
             terms.localize_faction(str(attacker.get("faction") or "—")),
             terms.localize_faction(str(defender.get("faction") or "—")),
-            "%d%%" % round(completion),
-            _reward_text(attacker.get("reward")),
+            "%s%%" % _percent_text(completion),
+            "进攻：%s / 防守：%s" % (attack_reward, defend_reward),
         ])
         items.append({
             "label": _planet_label(node),
             "completion": completion,
             "left_faction": _faction_short(attacker.get("faction")),
-            "left_reward": _card_reward(attacker.get("reward")),
+            "left_reward": "进攻：" + attack_reward,
             "right_faction": _faction_short(defender.get("faction")),
-            "right_reward": _card_reward(defender.get("reward")),
+            "right_reward": "防守：" + defend_reward,
         })
     if not rows:
         return Reply(
-            text="【入侵】\n当前没有入侵",
+            text="【入侵】\n当前没有入侵\n完成 3 场入侵可获得所选阵营奖励。",
             image=lambda: imagecard.invasions_card([]))
     text = "【入侵】\n共 %d 条\n" % len(rows)
     text += "\n".join(" / ".join(str(cell) for cell in row) for row in rows)
-    return Reply(text=text, image=lambda: imagecard.invasions_card(items))
+    text += "\n完成 3 场入侵可获得所选阵营奖励。"
+    return Reply(
+        text=text,
+        image=lambda: imagecard.invasions_card(
+            items, footer="完成 3 场获得所选阵营奖励 · 数据 Warframe 世界状态"))
+
+
+def _invasion_reward(side, row) -> str:
+    """优先取 Battle Pay 明细；只有 rewardTypes 时退回类型名。"""
+    text = _card_reward((side or {}).get("reward"))
+    if text and text != "—":
+        return text
+    types = row.get("rewardTypes") or []
+    names = [terms.localize_reward(str(item)) for item in types if item]
+    return "、".join(names) or "—"
 
 
 def _safe_int(value) -> int:
@@ -654,6 +670,11 @@ def _safe_int(value) -> int:
         return int(float(value))
     except (TypeError, ValueError):
         return 0
+
+
+def _percent_text(value: float) -> str:
+    text = "%.1f" % float(value or 0)
+    return text[:-2] if text.endswith(".0") else text
 
 
 def _faction_short(value) -> str:

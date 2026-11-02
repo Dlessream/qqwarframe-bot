@@ -37,6 +37,11 @@ class WorldPresentTest(unittest.TestCase):
         }]
         reply = present.invasions_reply(raw)
         self.assertIn("入侵", reply.text)
+        self.assertIn("6.7%", reply.text)
+        self.assertIn("进攻：", reply.text)
+        self.assertIn("防守：", reply.text)
+        self.assertIn("爆燃喷射器", reply.text)
+        self.assertIn("电磁力场装置", reply.text)
         png = reply.image()
         self.assertTrue(png.startswith(b"\x89PNG"))
         image = Image.open(io.BytesIO(png))
