@@ -209,6 +209,22 @@ class RivenAliasTest(unittest.TestCase):
         query = parse_riven_filters(["双爆多", "负任意"])
         self.assertTrue(query.need_negative)
         self.assertFalse(query.forbid_negative)
+        slam = parse_riven_filters(["双爆震"])
+        self.assertEqual(len(slam.filters), 3)
+        self.assertIn("slamattackdamage",
+                      {key for item in slam.filters for key in item.values})
+
+    def test_slam_combo_matches_auction(self):
+        from bot.riven import RivenAuction, RivenAttribute
+        query = parse_riven_filters(["双爆震", "负任意"])
+        auction = RivenAuction(
+            price=1, seller="s", rank=8, re_rolls=0, attributes=[], detail=[
+                RivenAttribute("critical_chance", "暴击几率", 90, True),
+                RivenAttribute("critical_damage", "暴击伤害", 80, True),
+                RivenAttribute("slam_attack_damage", "震地攻击", 70, True),
+                RivenAttribute("zoom", "变焦", 30, False),
+            ])
+        self.assertTrue(query.match(auction.detail))
 
     def test_custom_alias_is_used_by_filters(self):
         client = RivenClient(FakeMarket(), aliases_file=self.path)
