@@ -23,6 +23,7 @@ from .arbi import ArbiClient, ArbiError
 from .market import (Item, MarketClient, MarketError, SearchHit, is_arcane,
                      wants_arcane)
 from .replies import Reply
+from .relics import RelicClient
 from .riven import (CATEGORY_LABELS, GROUP_CATEGORY_ORDER, GROUP_LABELS,
                     RivenClient, parse_group_detail, parse_riven_filters)
 from .rivencalc import RivenAnalyzer
@@ -65,6 +66,7 @@ COMMANDS: Dict[str, str] = {
     "wr": "riven_market", "wriven": "riven_market", "紫卡市场": "riven_market",
     "紫卡拍卖": "riven_market", "紫卡行情": "riven_market", "收紫卡": "riven_market",
     "zkmarket": "riven_market", "wm紫卡": "riven_market",
+    "遗物": "relic", "圣遗物": "relic", "relic": "relic",
     "紫卡分析": "riven_group", "紫卡分组": "riven_group",
     "紫卡类别": "riven_group", "紫卡类型": "riven_group",
     "紫卡数值": "riven_group", "zkfx": "riven_group",
@@ -254,7 +256,8 @@ class CommandRouter:
                  board=None,
                  rotation=None,
                  subscriptions: Optional[SubscriptionService] = None,
-                 database=None):
+                 database=None,
+                 relics: Optional[RelicClient] = None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
@@ -278,6 +281,7 @@ class CommandRouter:
         self.board = board
         self.rotation = rotation
         self.subscriptions = subscriptions
+        self.relics = relics
         command_config = config.get("behavior", {}) or {}
         self.command_store = CommandStore(
             str(command_config.get("commands_file") or "data/commands.json"),
@@ -476,6 +480,8 @@ class CommandRouter:
                 return [self._set(argument, ctx)]
             if command == "riven":
                 return [self._riven(argument, ctx)]
+            if command == "relic":
+                return [self._relic(argument, ctx)]
             if command == "riven_market":
                 return [self._riven_market(argument, ctx)]
             if command == "riven_group":
@@ -761,6 +767,32 @@ class CommandRouter:
         if not hits:
             return None
         return self.riven.find(hits[0].item)
+
+    def _relic(self, argument: str, ctx: Context) -> Reply:
+        """#遗物 后纪s18：遗物内容、杜卡德、出入库与 WM 行情。"""
+        if self.relics is None:
+            return present.error_reply("遗物功能未启用。")
+        argument, platform = split_platform(argument)
+        platform = platform or self.default_platform
+        text = str(argument or "").strip()
+        if not text:
+            return present.error_reply(
+                "用法：%s遗物 <遗物编号>\n"
+                "例如：%s遗物 后纪s18　%s遗物 后s18　%s遗物 Axi S18"
+                % (ctx.prefix, ctx.prefix, ctx.prefix, ctx.prefix))
+        matches = self.relics.search(text)
+        if not matches:
+            return present.error_reply(
+                "没有找到遗物「%s」。\n"
+                "可写：后纪s18 / 后s18 / Axi S18；"
+                "后=后纪，前=前纪，中=中纪，古=古纪。" % text)
+        if len(matches) > 1:
+            codes = "、".join("%s %s" % (item.tier_label, item.code)
+                              for item in matches[:12])
+            return present.error_reply(
+                "找到多个遗物：%s。\n请补完整编号，例如 后纪s18。" % codes)
+        relic = self.relics.enrich(matches[0], platform=platform)
+        return present.relic_reply(relic, platform)
 
     def _riven_market(self, argument: str, ctx: Context) -> Reply:
         """#wr <武器> [词条…] [负任意]：warframe.market 在线紫卡，最便宜 9 张。"""

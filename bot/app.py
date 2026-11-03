@@ -30,6 +30,7 @@ from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
 from .render import chunk_text
 from .riven import RivenClient
+from .relics import RelicClient
 from .subscriptions import SubscriptionService, SubscriptionStore
 from .translate import Translator
 from .update import UpdateChecker
@@ -173,7 +174,12 @@ class BotApp:
             arbi=self.arbi, updater=self.updater,
             translator=self.translator, board=self.board,
             rotation=self.rotation, subscriptions=self.subscriptions,
-            database=self.database)
+            database=self.database,
+            relics=RelicClient(
+                self.worldstate, self.market,
+                cache_file=config.get("relics", {}).get(
+                    "cache_file", "data/relics_zh.json"),
+                logger=self.log))
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
                                      logger=self.log)

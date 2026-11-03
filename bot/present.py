@@ -673,6 +673,28 @@ def _invasion_reward(side, row) -> str:
     return "、".join(names) or "—"
 
 
+def relic_reply(relic, platform: str = "pc") -> Reply:
+    """遗物内容 + 杜卡德 + 出入库 + WM 均价。"""
+    rewards = list(getattr(relic, "rewards", ()) or ())
+    title = getattr(relic, "title", "遗物")
+    vault = getattr(relic, "vault_label", "")
+    lines = ["【%s】%s" % (title, vault),
+             "价格为 WM 加权均价（48h / 90d），D=杜卡德"]
+    for reward in rewards:
+        name = getattr(reward, "market_name", "") or getattr(reward, "name", "—")
+        lines.append("%s [%s] · %d D · 48h %.2fp · 90d %.2fp" % (
+            name, getattr(reward, "rarity_label", "—"),
+            int(getattr(reward, "ducats", 0) or 0),
+            float(getattr(reward, "price48", 0) or 0),
+            float(getattr(reward, "price90", 0) or 0)))
+    if not rewards:
+        lines.append("没有读取到这个遗物的奖励数据。")
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.relic_card(
+            relic, "数据 warframestat · warframe.market · %s" % platform_label(platform)))
+
+
 def _safe_int(value) -> int:
     try:
         return int(float(value))

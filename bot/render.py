@@ -244,6 +244,7 @@ def render_help(prefix: str = "#", disabled=()) -> str:
         "%s战甲                Prime 战甲价格（全表，高 → 低）" % prefix,
         "%s紫卡 <武器>        倾向 + 词条范围表（2 / 2+1 / 3 / 3+1 与负面）" % prefix,
         "%swr <武器> [词条…]  在线/游戏中卖家；不写「负任意」= 只看无负面" % prefix,
+        "%s遗物 <编号>        遗物内容 / 杜卡德 / 出入库 / WM 均价" % prefix,
         "%s紫卡                每把武器最贵的零洗卡（高 → 低）" % prefix,
         "%s紫卡分析 <组>      主武器 / 副武器 / 近战 / 空战 / 同伴 的数值范围" % prefix,
         "%s轮换               言录使 / 格拉斯 / 埃莉诺 轮换商店" % prefix,
@@ -285,6 +286,9 @@ def render_help(prefix: str = "#", disabled=()) -> str:
     if "riven_market" in disabled:
         lines = [line for line in lines
                  if not line.startswith(prefix + "wr")]
+    if "relic" in disabled:
+        lines = [line for line in lines
+                 if not line.startswith(prefix + "遗物")]
     if "help" in disabled:
         lines = [line for line in lines
                  if not line.startswith(prefix + "帮助")]

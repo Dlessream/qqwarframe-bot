@@ -95,7 +95,7 @@ class FakeWiki:
 
 def make_router(fail_market=False, alerts=None, riven=None, updater=None,
                 arbi=None, worldstate=None, subscriptions=None, index=None,
-                database=None, commands_file=None):
+                database=None, commands_file=None, relics=None):
     market = FakeMarket(index if index is not None else build_index())
     market.fail = fail_market
     wiki = FakeWiki()
@@ -109,7 +109,7 @@ def make_router(fail_market=False, alerts=None, riven=None, updater=None,
                          updater=updater, arbi=arbi,
                          worldstate=worldstate,
                          subscriptions=subscriptions,
-                         database=database), market, wiki
+                         database=database, relics=relics), market, wiki
 
 
 class FakeUpdater:
@@ -716,7 +716,7 @@ class CommandMenuTest(unittest.TestCase):
         self.assertEqual(rows["riven_market"]["label"], "紫卡市场")
         self.assertEqual(rows["world_invasions"]["label"], "入侵任务")
         self.assertTrue(rows["riven_market"]["description"])
-        self.assertEqual(len(rows), 61)
+        self.assertEqual(len(rows), 62)
 
     def test_alias_conflict_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -1172,6 +1172,31 @@ class BountyCommandTest(unittest.TestCase):
         self.assertIn("125–130", reply.text)   # 霍瓦尼亚 T7
         self.assertNotIn("暂无可接赏金", reply.text)
 
+
+
+class RelicCommandTest(unittest.TestCase):
+    def setUp(self):
+        from bot.relics import Relic, RelicReward
+        self.relic = Relic(name="Axi S18 Relic", tier="Axi", code="S18",
+                           vaulted=True,
+                           rewards=[RelicReward(name="Paris Prime Upper Limb",
+                                                slug="paris_prime_upper_limb",
+                                                ducats=15, price48=3.8,
+                                                price90=3.94)])
+        class FakeRelics:
+            def search(inner, text):
+                return [self.relic] if "s18" in text.lower() else []
+            def enrich(inner, relic, platform=None):
+                return relic
+        self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
+        self.router, _, _ = make_router(relics=FakeRelics())
+
+    def test_parse_and_reply(self):
+        self.assertEqual(self.router.parse("#遗物 后s18"), ("relic", "后s18"))
+        reply = self.router.handle("#遗物 后s18", self.ctx)[0]
+        self.assertIn("后纪 S18", reply.text)
+        self.assertIn("已入库", reply.text)
+        self.assertTrue(reply.has_image)
 
 
 class RivenMarketCommandTest(unittest.TestCase):

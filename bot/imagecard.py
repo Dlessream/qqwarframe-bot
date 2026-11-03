@@ -1482,6 +1482,7 @@ def help_card(prefix: str = "#", disabled=()) -> bytes:
         ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
         ["%swr <武器> [词条…]" % prefix,
          "在线/游戏中卖家；不写「负任意」= 只看无负面"],
+        ["%s遗物 <编号>" % prefix, "遗物内容 / 杜卡德 / 出入库 / WM 均价"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
         ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
@@ -1520,6 +1521,9 @@ def help_card(prefix: str = "#", disabled=()) -> bytes:
     if "riven_market" in disabled:
         rows = [row for row in rows
                 if not row[0].startswith(prefix + "wr")]
+    if "relic" in disabled:
+        rows = [row for row in rows
+                if not row[0].startswith(prefix + "遗物")]
     if "help" in disabled:
         rows = [row for row in rows
                 if not row[0].startswith(prefix + "帮助")]
@@ -1914,6 +1918,56 @@ def invasions_card(items: Sequence[Dict],
         draw.text((right_x - rw, y + 70), right_reward, font=_font(15),
                   fill=PURPLE_MUTED)
         y += row_h
+    y = _footer(draw, height - 48, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
+def relic_card(relic, footer: str = "数据 warframestat · warframe.market") -> bytes:
+    """遗物：名称 + 出入库 + 奖励物品 / 杜卡德 / WM 48h·90d 均价。"""
+    rewards = list(getattr(relic, "rewards", ()) or ())
+    count = max(1, len(rewards))
+    row_h = 92
+    height = 150 + count * row_h + 66
+    image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
+    draw = ImageDraw.Draw(image)
+    title = getattr(relic, "title", "遗物")
+    draw.text((PAD, 26), title, font=_font(40, bold=True), fill=PURPLE_TEXT)
+    badge = str(getattr(relic, "vault_label", ""))
+    if badge:
+        bw, _ = _tsize(draw, badge, _font(15, bold=True))
+        _purple_pill(draw, WIDTH - PAD - bw - 18, 36, badge,
+                     (112, 82, 119), PURPLE_GOLD)
+    draw.text((PAD, 84), "价格为 WM 加权均价 · 48h / 90d",
+              font=_font(15), fill=PURPLE_MUTED)
+    y = 124
+    for reward in rewards:
+        name = str(getattr(reward, "market_name", "")
+                   or getattr(reward, "name", "") or "—")
+        name = _fit(draw, name, _font(19, bold=True), 500)
+        draw.text((46, y + 10), name, font=_font(19, bold=True),
+                  fill=PURPLE_TEXT)
+        rarity = str(getattr(reward, "rarity_label", "") or "")
+        if rarity:
+            _purple_pill(draw, 46, y + 38, rarity, (104, 83, 133),
+                         PURPLE_TEXT, font_size=12)
+        ducats = int(getattr(reward, "ducats", 0) or 0)
+        draw.text((WIDTH - 330, y + 10), "%d D" % ducats,
+                  font=_font(18, bold=True), fill=PURPLE_GOLD)
+        price48 = float(getattr(reward, "price48", 0) or 0)
+        price90 = float(getattr(reward, "price90", 0) or 0)
+        draw.text((WIDTH - 250, y + 10), "48h %.2fp" % price48,
+                  font=_font(15), fill=PURPLE_MUTED)
+        draw.text((WIDTH - 250, y + 34), "90d %.2fp" % price90,
+                  font=_font(15), fill=PURPLE_MUTED)
+        vol48 = int(getattr(reward, "volume48", 0) or 0)
+        vol90 = int(getattr(reward, "volume90", 0) or 0)
+        draw.text((WIDTH - 250, y + 58), "量 %d / %d" % (vol48, vol90),
+                  font=_font(13), fill=PURPLE_MUTED)
+        _divider(draw, y + row_h - 12, 34, WIDTH - 34)
+        y += row_h
+    if not rewards:
+        draw.text((PAD, y + 18), "这个遗物没有可读取的奖励数据。",
+                  font=_font(18), fill=PURPLE_MUTED)
     y = _footer(draw, height - 48, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 

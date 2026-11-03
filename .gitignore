@@ -13,6 +13,8 @@ data/commands.json
 data/commands.json.tmp
 data/riven_aliases.json
 data/riven_aliases.json.tmp
+data/relics_zh.json
+data/relics_zh.json.tmp
 # db/build.py 生成的 SQLite 副本（可随时重建）
 data/warframe.db
 data/warframe.db-*

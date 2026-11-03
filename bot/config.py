@@ -113,6 +113,9 @@ DEFAULTS: Dict[str, Any] = {
         "disposition_override": 1.2,
         "aliases_file": "data/riven_aliases.json",
     },
+    "relics": {
+        "cache_file": "data/relics_zh.json",
+    },
     "arbi": {
         "enabled": True,
         "base_url": "https://arbi.wf.wiki",
