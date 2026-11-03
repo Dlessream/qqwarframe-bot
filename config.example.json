@@ -157,7 +157,8 @@
     "path": "data/warframe.db"
   },
   "riven": {
-    "disposition_override": 1.2
+    "disposition_override": 1.2,
+    "aliases_file": "data/riven_aliases.json"
   },
   "arbi": {
     "enabled": true,

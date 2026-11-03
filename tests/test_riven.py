@@ -1,8 +1,11 @@
+import os
+import tempfile
 import unittest
 
 from bot.market import Item
 from bot.net import HttpError
-from bot.riven import ATTRIBUTE_NAMES, RivenClient, format_auction
+from bot.riven import (ATTRIBUTE_NAMES, RivenClient, format_auction,
+                       parse_riven_filters)
 
 WEAPONS = {"data": [
     {"id": "1", "slug": "rubico", "group": "primary", "rivenType": "rifle",
@@ -19,7 +22,7 @@ WEAPONS = {"data": [
 AUCTIONS = {"payload": {"auctions": [
     {"buyout_price": 120, "starting_price": 100, "closed": False,
      "rank": 8, "re_rolls": 3,
-     "owner": {"ingame_name": "SellerA"},
+     "owner": {"ingame_name": "SellerA", "status": "online"},
      "attributes": [
          {"url_name": "critical_chance", "value": 89.2, "positive": True},
          {"url_name": "damage", "value": 120.4, "positive": True},
@@ -27,7 +30,7 @@ AUCTIONS = {"payload": {"auctions": [
      ]},
     {"buyout_price": 80, "starting_price": 70, "closed": False,
      "rank": 0, "re_rolls": 0,
-     "owner": {"ingame_name": "SellerB"},
+     "owner": {"ingame_name": "SellerB", "status": "ingame"},
      "attributes": []},
     {"buyout_price": 50, "closed": True, "owner": {"ingame_name": "Closed"}},
 ]}}
@@ -132,7 +135,7 @@ class AuctionTest(unittest.TestCase):
     def test_nested_item_shape(self):
         payload = {"payload": {"auctions": [
             {"buyout_price": 55, "closed": False,
-             "owner": {"ingame_name": "NestedSeller"},
+             "owner": {"ingame_name": "NestedSeller", "status": "ingame"},
              "item": {"mod_rank": 8, "re_rolls": 2,
                       "attributes": [
                           {"url_name": "critical_chance", "value": 90.2,
@@ -146,6 +149,20 @@ class AuctionTest(unittest.TestCase):
         self.assertEqual(auctions[0].rank, 8)
         self.assertEqual(auctions[0].re_rolls, 2)
         self.assertIn("暴击几率", auctions[0].attributes[0])
+
+    def test_offline_sellers_are_hidden(self):
+        payload = {"payload": {"auctions": [
+            {"buyout_price": 10, "closed": False,
+             "owner": {"ingame_name": "Offline", "status": "offline"},
+             "attributes": []},
+            {"buyout_price": 90, "closed": False,
+             "owner": {"ingame_name": "Online", "status": "online"},
+             "attributes": []},
+        ]}}
+        client = RivenClient(FakeMarket(auctions=payload))
+        auctions, note = client.auctions("rubico", limit=9)
+        self.assertEqual([auction.seller for auction in auctions], ["Online"])
+        self.assertEqual(note, "")
 
     def test_limit(self):
         client = RivenClient(FakeMarket())
@@ -168,6 +185,47 @@ class AuctionTest(unittest.TestCase):
     def test_attribute_map(self):
         self.assertEqual(ATTRIBUTE_NAMES["multishot"], "多重射击")
         self.assertIn("critical_damage", ATTRIBUTE_NAMES)
+
+
+class RivenAliasTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "riven_aliases.json")
+
+    def tearDown(self):
+        for name in os.listdir(self.dir):
+            try:
+                os.remove(os.path.join(self.dir, name))
+            except OSError:
+                pass
+        os.rmdir(self.dir)
+
+    def test_combo_alias_expands(self):
+        query = parse_riven_filters(["双爆多"])
+        self.assertEqual(len(query.filters), 3)
+        self.assertEqual([item.word for item in query.filters],
+                         ["双爆多", "双爆多", "双爆多"])
+        self.assertTrue(query.forbid_negative)
+        query = parse_riven_filters(["双爆多", "负任意"])
+        self.assertTrue(query.need_negative)
+        self.assertFalse(query.forbid_negative)
+
+    def test_custom_alias_is_used_by_filters(self):
+        client = RivenClient(FakeMarket(), aliases_file=self.path)
+        self.assertIsNone(client.resolve_attribute("爆测"))
+        client.add_stat_alias("爆测", "多重射击")
+        self.assertIsNotNone(client.resolve_attribute("爆测"))
+        query = parse_riven_filters(["爆测"], client.resolve_attribute)
+        self.assertEqual([item.word for item in query.filters], ["爆测"])
+        self.assertTrue(query.forbid_negative)
+
+    def test_alias_persists_and_removes(self):
+        client = RivenClient(FakeMarket(), aliases_file=self.path)
+        client.add_stat_alias("爆测", "多重射击")
+        again = RivenClient(FakeMarket(), aliases_file=self.path)
+        self.assertIsNotNone(again.resolve_attribute("爆测"))
+        again.remove_stat_alias("爆测")
+        self.assertIsNone(again.resolve_attribute("爆测"))
 
 
 if __name__ == "__main__":

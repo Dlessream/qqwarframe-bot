@@ -231,7 +231,7 @@ def render_wiki(query: str, page: Optional[WikiPage],
     return "\n".join(lines)
 
 
-def render_help(prefix: str = "#") -> str:
+def render_help(prefix: str = "#", disabled=()) -> str:
     lines = [
         "Warframe 查询机器人",
         DIVIDER,
@@ -243,6 +243,7 @@ def render_help(prefix: str = "#") -> str:
         "%s垃圾               金/银/铜垃圾行情总览" % prefix,
         "%s战甲                Prime 战甲价格（全表，高 → 低）" % prefix,
         "%s紫卡 <武器>        倾向 + 词条范围表（2 / 2+1 / 3 / 3+1 与负面）" % prefix,
+        "%swr <武器> [词条…]  在线/游戏中卖家；不写「负任意」= 只看无负面" % prefix,
         "%s紫卡                每把武器最贵的零洗卡（高 → 低）" % prefix,
         "%s紫卡分析 <组>      主武器 / 副武器 / 近战 / 空战 / 同伴 的数值范围" % prefix,
         "%s轮换               言录使 / 格拉斯 / 埃莉诺 轮换商店" % prefix,
@@ -250,6 +251,7 @@ def render_help(prefix: str = "#") -> str:
         "%s奸商 / %s突击 / %s仲裁  世界状态" % (prefix, prefix, prefix),
         "%s世界状态           全量世界状态总览" % prefix,
         "%s警报 / %s入侵 / %s裂缝" % (prefix, prefix, prefix),
+        "　入侵显示攻防双方 Battle Pay 奖励",
         "%s钢铁侵袭 / %s电波 / %s平原" % (prefix, prefix, prefix),
         "%s特惠 / %s新闻 / %s活动" % (prefix, prefix, prefix),
         "%s回廊 / %s执刑官 / %s赏金" % (prefix, prefix, prefix),
@@ -276,6 +278,16 @@ def render_help(prefix: str = "#") -> str:
         "例：wm 绝路 ｜ 拆件 Mesa ｜ 紫卡 绝路 ｜ 提醒 牛甲 50",
         "名称支持中文、英文和常用外号；结果以图片卡片发送。",
     ]
+    disabled = set(disabled or ())
+    if "wiki" in disabled:
+        lines = [line for line in lines
+                 if not line.startswith(prefix + "wiki")]
+    if "riven_market" in disabled:
+        lines = [line for line in lines
+                 if not line.startswith(prefix + "wr")]
+    if "help" in disabled:
+        lines = [line for line in lines
+                 if not line.startswith(prefix + "帮助")]
     return "\n".join(lines)
 
 

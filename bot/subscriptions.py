@@ -558,6 +558,9 @@ class SubscriptionService:
         seed_only = not self._primed
         pushes: List[Tuple[str, Reply, str]] = []
         for sub in subs:
+            if not sub.active:
+                # 轮询开始时拿到的快照，期间可能被控制台/群命令取消。
+                continue
             try:
                 events = self.events(sub.kind)
             except Exception as exc:  # noqa: BLE001

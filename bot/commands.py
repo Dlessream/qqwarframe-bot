@@ -456,7 +456,7 @@ class CommandRouter:
 
         try:
             if command == "help":
-                return [present.help_reply(ctx.prefix)]
+                return [present.help_reply(ctx.prefix, self.disabled_commands)]
             if command == "wiki":
                 return [self._wiki(argument, ctx)]
             if command == "translate":
@@ -789,7 +789,7 @@ class CommandRouter:
                 "「%s」没有对应的紫卡（可能是战甲、守护或未开放紫卡的武器）。"
                 % text)
 
-        query = parse_riven_filters(rest)
+        query = parse_riven_filters(rest, self.riven.resolve_attribute)
         auctions, note = self.riven.auctions(
             weapon.slug, limit=self.RIVEN_MARKET_LIMIT, query=query)
         for auction in auctions:

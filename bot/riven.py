@@ -7,7 +7,9 @@ warframe.market 的 v2 只公开紫卡武器（倾向、类型），拍卖数据
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
 import threading
 import time
@@ -147,6 +149,15 @@ ATTRIBUTE_GROUPS: Tuple[Tuple[Tuple[str, ...], Tuple[str, ...]], ...] = (
 NEGATIVE_WORDS = ("负任意", "负面任意", "任意负面", "负词条", "带负面", "有负面")
 POSITIVE_ONLY_WORDS = ("无负", "不要负面", "纯正面", "正面向")
 
+# 玩家常用的组合叫法：一个词展开成多个词条。
+COMBO_ALIASES = {
+    "双爆多": ("暴击几率", "暴击伤害", "多重射击"),
+    "双爆": ("暴击几率", "暴击伤害"),
+    "爆多": ("暴击伤害", "多重射击"),
+    "双爆伤": ("暴击几率", "暴击伤害"),
+    "双爆率": ("暴击几率", "暴击伤害"),
+}
+
 _SPLIT_RE = re.compile(r"[\s_/\-]+")
 
 
@@ -260,8 +271,10 @@ class RivenQuery:
         return True
 
 
-def parse_riven_filters(words: Sequence[str]) -> RivenQuery:
-    """解析词条部分（不含武器名）。"""
+def parse_riven_filters(words: Sequence[str],
+                        resolver=None) -> RivenQuery:
+    """解析词条部分（不含武器名）；resolver 可接入自定义词条别名。"""
+    resolve = resolver or resolve_attribute
     query = RivenQuery()
     for word in words:
         key = normalize_attribute(word)
@@ -273,11 +286,22 @@ def parse_riven_filters(words: Sequence[str]) -> RivenQuery:
         if key in {normalize_attribute(item) for item in POSITIVE_ONLY_WORDS}:
             query.forbid_negative = True
             continue
-        group = resolve_attribute(word)
+        combo = COMBO_ALIASES.get(word.strip())
+        if combo:
+            for target in combo:
+                group = resolve(target)
+                if group:
+                    query.filters.append(RivenFilter(word=word, values=group))
+            continue
+        group = resolve(word)
         if group:
             query.filters.append(RivenFilter(word=word, values=group))
         else:
             query.unknown.append(word)
+    # 写了正面词条但没写「负任意」，按“不要负面”处理；
+    # 只写武器名时不额外限制，仍然展示全部在线紫卡。
+    if query.filters and not query.need_negative:
+        query.forbid_negative = True
     return query
 
 
@@ -472,9 +496,13 @@ class RivenAuction:
 class RivenClient:
     def __init__(self, market: MarketClient, logger: Optional[logging.Logger] = None,
                  cache_config: Optional[Dict[str, Any]] = None,
-                 disposition_override: Optional[float] = None):
+                 disposition_override: Optional[float] = None,
+                 aliases_file: str = ""):
         self.market = market
         self.log = logger or LOGGER
+        self.aliases_file = str(aliases_file or "data/riven_aliases.json")
+        self._custom_aliases: Dict[str, str] = {}
+        self._load_stat_aliases()
         cache_cfg = cache_config or {}
         self.cache = TTLCache(cache_cfg, prefix="riven")
         self.auction_cache_seconds = int(cache_cfg.get("riven_seconds", 300))
@@ -490,6 +518,80 @@ class RivenClient:
         self._weapons_at = 0.0
         self._attributes: Optional[Dict[str, str]] = None
         self._attributes_at = 0.0
+
+    # ------------------------------------------------------------ 词条自定义别名
+    def _load_stat_aliases(self) -> None:
+        try:
+            with open(self.aliases_file, encoding="utf-8") as handle:
+                raw = json.load(handle)
+        except (OSError, ValueError):
+            return
+        if not isinstance(raw, dict):
+            return
+        for alias, target in raw.items():
+            key = normalize_attribute(str(alias))
+            target = str(target or "").strip()
+            if key and target and resolve_attribute(target):
+                self._custom_aliases[key] = target
+
+    def _save_stat_aliases(self) -> None:
+        directory = os.path.dirname(os.path.abspath(self.aliases_file))
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        temp = self.aliases_file + ".tmp"
+        with open(temp, "w", encoding="utf-8") as handle:
+            json.dump(dict(sorted(self._custom_aliases.items())), handle,
+                      ensure_ascii=False, indent=2)
+        os.replace(temp, self.aliases_file)
+
+    def resolve_attribute(self, word: str) -> Optional[frozenset]:
+        key = normalize_attribute(word)
+        if not key:
+            return None
+        target = self._custom_aliases.get(key)
+        if target:
+            group = resolve_attribute(target)
+            if group:
+                return group
+        return resolve_attribute(word)
+
+    def stat_alias_snapshot(self) -> Dict[str, Any]:
+        targets = []
+        for aliases, slugs in ATTRIBUTE_GROUPS:
+            targets.append({
+                "target": aliases[0],
+                "aliases": list(aliases),
+                "slugs": list(slugs),
+            })
+        return {
+            "path": self.aliases_file,
+            "aliases": dict(sorted(self._custom_aliases.items())),
+            "targets": targets,
+        }
+
+    def add_stat_alias(self, alias: str, target: str) -> Dict[str, Any]:
+        alias = str(alias or "").strip()
+        target = str(target or "").strip()
+        key = normalize_attribute(alias)
+        if not alias or len(alias) > 40:
+            raise ValueError("别名长度需在 1~40 个字符之间")
+        if any(ch.isspace() for ch in alias):
+            raise ValueError("别名不能包含空格")
+        if not resolve_attribute(target):
+            raise ValueError("未知词条：%s" % target)
+        if resolve_attribute(alias) and key not in self._custom_aliases:
+            raise ValueError("别名「%s」已是内置词条" % alias)
+        self._custom_aliases[key] = target
+        self._save_stat_aliases()
+        return self.stat_alias_snapshot()
+
+    def remove_stat_alias(self, alias: str) -> Dict[str, Any]:
+        key = normalize_attribute(alias)
+        if key not in self._custom_aliases:
+            raise ValueError("没有这个自定义词条别名：%s" % alias)
+        self._custom_aliases.pop(key, None)
+        self._save_stat_aliases()
+        return self.stat_alias_snapshot()
 
     # ------------------------------------------------------------------ 武器表
     def weapons(self, ttl: int = 43200) -> Dict[str, RivenWeapon]:
@@ -753,14 +855,22 @@ class RivenClient:
                 platform=str(row.get("platform") or "pc"),
             ))
         parsed.sort(key=lambda auction: auction.price)
+        # 只保留在线 / 游戏中卖家，离线挂单不再进入 #wr 结果。
+        parsed = [auction for auction in parsed
+                  if auction.status in ("online", "ingame")]
+        if not parsed:
+            return [], "当前没有在线或游戏中的卖家（离线挂单已隐藏）。"
 
         note = ""
         if query is not None and query.has_filters:
             matched = [auction for auction in parsed if query.match(auction.detail)]
             if matched:
                 parsed = matched
+            elif query.forbid_negative or query.need_negative:
+                # 负面条件不能靠“退回全部”绕过，否则「没写负=没负」会失效。
+                return [], "没有符合这些词条的在售紫卡（已按负面条件筛选）。"
             elif parsed:
-                # 词条太严没有命中：退回最便宜的几张，并说明原因
+                # 纯正面词条没命中：退回最便宜的几张，并说明原因
                 note = ("没有符合这些词条的紫卡，下面是该武器最便宜的 %d 张（未按词条筛）。"
                         % len(parsed[:limit]))
         return parsed[:limit], note

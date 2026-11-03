@@ -123,13 +123,14 @@ class AttributeQueryTest(unittest.TestCase):
         self.assertFalse(query.filters)
 
     def test_positive_only_default(self):
-        # 没写负任意时，有负面也照样匹配（不强制）
+        # 没写负任意时，默认只匹配无负面；有负面不算
         query = parse_riven_filters(["暴击伤害"])
         auction = RivenAuction(price=1, seller="s", rank=8, re_rolls=0,
                                attributes=[], detail=[
                                    RivenAttribute("critical_damage", "暴击伤害", 90, True),
                                    RivenAttribute("zoom", "变焦", 30, False)])
-        self.assertTrue(query.match(auction.detail))
+        self.assertFalse(query.match(auction.detail))
+        self.assertTrue(query.forbid_negative)
 
     def test_match_requires_listed_attributes_positive(self):
         query = parse_riven_filters(["攻击速度"])
@@ -183,14 +184,14 @@ class AuctionFilterTest(unittest.TestCase):
     def test_filter_without_match_keeps_note(self):
         query = parse_riven_filters(["多重射击"])
         auctions, note = self.client.auctions("okina", limit=2, query=query)
-        # 没有一张有多重射击：退回最便宜的两张，并给出说明
-        self.assertEqual([item.price for item in auctions], [120, 150])
-        self.assertIn("没有符合这些词条", note)
+        # 没有一张有多重射击；无负面条件不能靠“退回全部”绕过
+        self.assertEqual(auctions, [])
+        self.assertIn("按负面条件", note)
 
     def test_cache_key_varies_by_filter(self):
         auctions, _ = self.client.auctions("okina", limit=5)
         filtered, _ = self.client.auctions(
-            "okina", limit=5, query=parse_riven_filters(["范围"]))
+            "okina", limit=5, query=parse_riven_filters(["范围", "负任意"]))
         self.assertEqual(len(auctions), 4)
         # 120 也有正面「范围」，所以三个都在
         self.assertEqual([item.price for item in filtered], [120, 200, 300])

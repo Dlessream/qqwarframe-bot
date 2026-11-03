@@ -180,6 +180,10 @@ class FakeRivenMarket:
     def find(self, item):
         return self.weapon if getattr(item, "slug", "") == "okina" else None
 
+    def resolve_attribute(self, word):
+        from bot.riven import resolve_attribute
+        return resolve_attribute(word)
+
     def auctions(self, slug, limit=5, query=None, names=None):
         from bot.riven import RivenAttribute, RivenAuction
         self.calls.append({"slug": slug, "limit": limit, "query": query})
@@ -1181,6 +1185,7 @@ class RivenMarketCommandTest(unittest.TestCase):
         self.assertIn("紫卡市场", reply.text)
         self.assertIn("300p", reply.text)
         self.assertIn("暴击伤害", reply.text)
+        self.assertIn("在线 0 · 游戏中 1", reply.text)
         self.assertTrue(reply.has_image)
         self.assertEqual(self.riven.calls[-1]["slug"], "okina")
         self.assertEqual(self.riven.calls[-1]["limit"], 9)
@@ -1194,6 +1199,13 @@ class RivenMarketCommandTest(unittest.TestCase):
         self.assertIn("词条 攻击速度 + 范围 + 暴击伤害 + 负任意",
                       self.router.handle("#wr 翁 攻击速度 范围 暴击伤害 负任意",
                                          self.ctx)[0].text)
+
+    def test_no_negative_when_not_requested(self):
+        reply = self.router.handle("#wr 翁 攻击速度 暴击伤害", self.ctx)[0]
+        query = self.riven.calls[-1]["query"]
+        self.assertFalse(query.need_negative)
+        self.assertTrue(query.forbid_negative)
+        self.assertIn("无负面", reply.text)
 
     def test_unknown_filter_hint(self):
         reply = self.router.handle("#wr 翁 电磁炮", self.ctx)[0]

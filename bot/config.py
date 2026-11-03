@@ -111,6 +111,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     "riven": {
         "disposition_override": 1.2,
+        "aliases_file": "data/riven_aliases.json",
     },
     "arbi": {
         "enabled": True,

@@ -253,6 +253,26 @@
       </details>
     </section>
 
+    <section class="panel commands-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">紫卡词条别名</span>
+          <span class="panel-sub">把玩家叫法绑定到官方词条；写入 data/riven_aliases.json</span>
+        </div>
+        <button id="rivenAliasRefresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+      </div>
+      <div id="rivenAliasInfo" class="source-strip">正在读取紫卡词条别名…</div>
+      <div id="rivenAliasList" class="command-list"></div>
+      <details class="alias-new">
+        <summary>添加词条别名</summary>
+        <div class="alias-target-row">
+          <input id="rivenAliasName" class="input" type="text" maxlength="40" placeholder="别名，例如 爆多">
+          <select id="rivenAliasTarget" class="input"></select>
+          <button id="rivenAliasAdd" class="btn btn-primary btn-sm" type="button">添加别名</button>
+        </div>
+      </details>
+    </section>
+
     <section class="panel arbi-panel">
       <div class="panel-head">
         <div>

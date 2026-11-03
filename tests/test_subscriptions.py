@@ -241,6 +241,16 @@ class ServiceTest(unittest.TestCase):
         self.assertTrue(any(path == "invasions" and force
                             for path, force in self.world.fetch_calls))
 
+    def test_removed_subscription_stops_pushing(self):
+        self.world.fissure_rows = [fissure(ident="a")]
+        sub, _ = self.store.add("group", "1", "9", "fissure")
+        self.service.seed(sub)
+        self.assertEqual(self.service.poll(), [])
+        self.store.remove("group", "1", sub.id)
+        self.world.fissure_rows = [fissure(ident="a"),
+                                   fissure(ident="b", node="E Prime")]
+        self.assertEqual(self.service.poll(), [])
+
     def test_first_poll_after_restart_only_seeds(self):
         self.world.fissure_rows = [fissure(ident="a")]
         self.store.add("group", "1", "9", "fissure")

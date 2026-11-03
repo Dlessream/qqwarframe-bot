@@ -112,6 +112,19 @@ class FakeApp:
     def remove_command_alias(self, alias):
         return self.command_snapshot()
 
+    def riven_alias_snapshot(self):
+        return {
+            "aliases": {"爆多": "多重射击"},
+            "targets": [{"target": "多重射击", "aliases": ["多重射击"],
+                         "slugs": ["multishot"]}],
+        }
+
+    def add_riven_alias(self, alias, target):
+        return self.riven_alias_snapshot()
+
+    def remove_riven_alias(self, alias):
+        return self.riven_alias_snapshot()
+
     def alias_snapshot(self):
         return {
             "source": {"items": 3, "last_refresh_seconds": 2,
@@ -491,6 +504,20 @@ class AdminServerTest(unittest.TestCase):
         status, body = self.request(
             "/api/commands/alias/delete", method="POST", headers=headers,
             body={"alias": "查物品"})
+        self.assertEqual(status, 200)
+
+    def test_riven_aliases_api(self):
+        headers = {"X-Admin-Token": "secret"}
+        status, body = self.request("/api/riven-aliases", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["aliases"]["爆多"], "多重射击")
+        status, body = self.request(
+            "/api/riven-aliases", method="POST", headers=headers,
+            body={"alias": "爆多", "target": "多重射击"})
+        self.assertEqual(status, 200)
+        status, body = self.request(
+            "/api/riven-aliases/delete", method="POST", headers=headers,
+            body={"alias": "爆多"})
         self.assertEqual(status, 200)
 
     def test_update_check(self):

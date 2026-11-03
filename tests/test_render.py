@@ -142,8 +142,14 @@ class RenderMiscTest(unittest.TestCase):
 
     def test_help(self):
         text = render_help("#")
-        for keyword in ("#wm", "#价格", "#战甲", "#武器", "#mod", "#wiki", "#帮助"):
+        for keyword in ("#wm", "#价格", "#战甲", "#武器", "#mod", "#wiki",
+                        "#wr", "#帮助"):
             self.assertIn(keyword, text)
+
+    def test_help_hides_disabled_commands(self):
+        text = render_help("#", disabled={"wiki"})
+        self.assertNotIn("#wiki", text)
+        self.assertIn("#wr", text)
 
     def test_help_custom_prefix(self):
         self.assertIn("！wm", render_help("！"))

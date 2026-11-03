@@ -1242,7 +1242,7 @@ def _riven_card(auction, width: int = 340, height: int = 470,
 
 
 def riven_market_card(weapon, auctions, filters=(), note: str = "",
-                      footer: str = "") -> Optional[bytes]:
+                      footer: str = "", status_counts=None) -> Optional[bytes]:
     """#wr：武器头部 + 最便宜几张紫卡（3 列网格，9 张刚好 3×3）。"""
     if Image is None or not auctions:
         return None
@@ -1267,10 +1267,15 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
     draw = ImageDraw.Draw(image)
 
     inclination = float(getattr(weapon, "disposition", 0) or 0)
-    subtitle = "倾向 %.2f（%s）｜ %s ｜ MR %d ｜ 最便宜 %d 张" % (
+    if status_counts is None:
+        online = sum(1 for item in auctions if getattr(item, "status", "") == "online")
+        ingame = sum(1 for item in auctions if getattr(item, "status", "") == "ingame")
+    else:
+        online, ingame = status_counts
+    subtitle = "倾向 %.2f（%s）｜ %s ｜ MR %d ｜ 在线 %d · 游戏中 %d ｜ 最便宜 %d 张" % (
         inclination, getattr(weapon, "disposition_label", ""),
         getattr(weapon, "type_label", "") or "—",
-        int(getattr(weapon, "mastery_rank", 0) or 0), count)
+        int(getattr(weapon, "mastery_rank", 0) or 0), online, ingame, count)
     y = _header(draw, "%s · 紫卡市场" % getattr(weapon, "name", ""), subtitle,
                 "WARFRAME MARKET", PURPLE, width=width)
     if filters:
@@ -1465,7 +1470,7 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
     return _encode(image.crop((0, 0, WIDTH, min(height, _footer(draw, y, footer) + 10))))
 
 
-def help_card(prefix: str = "#") -> bytes:
+def help_card(prefix: str = "#", disabled=()) -> bytes:
     rows = [
         ["%swm <名称> [平台]" % prefix, "物品详情 + 实时报价 + 15 天走势"],
         ["%s价格 <名称> [平台]" % prefix, "只看价格、买卖单与行情"],
@@ -1475,6 +1480,8 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s垃圾" % prefix, "金/银/铜垃圾行情总览"],
         ["%s战甲榜" % prefix, "Prime 战甲价格排行"],
         ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
+        ["%swr <武器> [词条…]" % prefix,
+         "在线/游戏中卖家；不写「负任意」= 只看无负面"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
         ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
@@ -1482,7 +1489,7 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s轮换 格拉斯 / 埃莉诺" % prefix, "信条近战 / 终幕武器加成"],
         ["%s奸商 / %s突击 / %s仲裁" % (prefix, prefix, prefix), "奸商、突击、当前仲裁"],
         ["%s世界状态" % prefix, "完整世界状态总览"],
-        ["%s警报 / %s入侵" % (prefix, prefix), "当前警报、入侵进度"],
+        ["%s警报 / %s入侵" % (prefix, prefix), "当前警报、入侵进度与双方奖励"],
         ["%s钢铁侵袭 / %s电波" % (prefix, prefix), "钢铁侵袭、午夜电波"],
         ["%s平原 / %s特惠" % (prefix, prefix), "平原时间、每日特惠"],
         ["%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"],
@@ -1506,6 +1513,16 @@ def help_card(prefix: str = "#") -> bytes:
         ["%s翻译 <物品名>" % prefix, "中英双语对照"],
         ["%s帮助" % prefix, "显示本菜单"],
     ]
+    disabled = set(disabled or ())
+    if "wiki" in disabled:
+        rows = [row for row in rows
+                if not row[0].startswith(prefix + "wiki")]
+    if "riven_market" in disabled:
+        rows = [row for row in rows
+                if not row[0].startswith(prefix + "wr")]
+    if "help" in disabled:
+        rows = [row for row in rows
+                if not row[0].startswith(prefix + "帮助")]
     return build_table(
         "Warframe 查询机器人", "命令可直接发送，不需要 # 前缀或 @ 机器人",
         ["命令", "说明"], rows,

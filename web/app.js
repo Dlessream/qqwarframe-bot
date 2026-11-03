@@ -31,6 +31,8 @@
     subs: null,
     commandsLoaded: false,
     commands: null,
+    rivenAliasesLoaded: false,
+    rivenAliases: null,
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -1435,10 +1437,85 @@
     }
   }
 
+  async function loadRivenAliases() {
+    try {
+      const data = await api("/api/riven-aliases");
+      state.rivenAliases = data;
+      state.rivenAliasesLoaded = true;
+      renderRivenAliases(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("rivenAliasInfo", "读取词条别名失败：" + exc.message);
+      }
+    }
+  }
+
+  function renderRivenAliases(data) {
+    const aliases = data.aliases || {};
+    const targets = data.targets || [];
+    setText("rivenAliasInfo", "自定义词条别名 " + Object.keys(aliases).length +
+      " 个；可选官方词条 " + targets.length + " 个");
+    const select = $("rivenAliasTarget");
+    if (select) {
+      select.innerHTML = targets.map((item) =>
+        '<option value="' + escapeHtml(item.target) + '">' +
+        escapeHtml(item.target) + '</option>').join("");
+    }
+    const list = $("rivenAliasList");
+    if (!list) return;
+    const rows = Object.keys(aliases).sort().map((alias) =>
+      '<div class="command-row"><div class="command-head">' +
+      '<span class="command-name">' + escapeHtml(alias) + '</span>' +
+      '<button class="btn btn-ghost btn-sm" type="button" data-remove-riven-alias="' +
+      escapeHtml(alias) + '">删除</button></div>' +
+      '<div class="command-aliases">→ ' + escapeHtml(aliases[alias]) + '</div></div>');
+    list.innerHTML = rows.join("") || '<div class="command-aliases">还没有自定义词条别名。</div>';
+    list.querySelectorAll("button[data-remove-riven-alias]").forEach((button) => {
+      button.addEventListener("click", () => {
+        removeRivenAlias(button.getAttribute("data-remove-riven-alias"));
+      });
+    });
+  }
+
+  async function addRivenAlias() {
+    const alias = $("rivenAliasName").value.trim();
+    const target = $("rivenAliasTarget").value;
+    if (!alias) {
+      toast("请输入词条别名");
+      return;
+    }
+    try {
+      const data = await api("/api/riven-aliases", {
+        method: "POST", body: { alias: alias, target: target },
+      });
+      state.rivenAliases = data;
+      $("rivenAliasName").value = "";
+      renderRivenAliases(data);
+      toast("已添加词条别名 " + alias);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("添加失败：" + exc.message);
+    }
+  }
+
+  async function removeRivenAlias(alias) {
+    try {
+      const data = await api("/api/riven-aliases/delete", {
+        method: "POST", body: { alias: alias },
+      });
+      state.rivenAliases = data;
+      renderRivenAliases(data);
+      toast("已删除词条别名 " + alias);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("删除失败：" + exc.message);
+    }
+  }
+
   function bind() {
     $("refreshBtn").addEventListener("click", refresh);
     $("commandRefresh").addEventListener("click", loadCommands);
     $("commandAdd").addEventListener("click", addCommandAlias);
+    $("rivenAliasRefresh").addEventListener("click", loadRivenAliases);
+    $("rivenAliasAdd").addEventListener("click", addRivenAlias);
     $("checkBtn").addEventListener("click", checkUpdate);
     $("restartBtn").addEventListener("click", () => openModal("restart"));
     $("logRefresh").addEventListener("click", refreshLogs);
@@ -1573,6 +1650,7 @@
       refresh();
       loadSubs();
       loadCommands();
+      loadRivenAliases();
     });
     $("tokenInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter") $("tokenSave").click();
@@ -1587,6 +1665,7 @@
   refreshLogs();
   loadSubs();
   loadCommands();
+  loadRivenAliases();
   state.timer = setInterval(refresh, 10000);
   state.logTimer = setInterval(refreshLogs, 5000);
 })();

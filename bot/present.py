@@ -208,16 +208,23 @@ def riven_market_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
     """#wr：紫卡市场在这把武器上最便宜的在售紫卡（3×3 卡面图）。"""
     filters: List[str] = []
     if query is not None and query.has_filters:
-        filters = [item.word for item in query.filters]
+        filters = []
+        for item in query.filters:
+            if item.word not in filters:
+                filters.append(item.word)
         if query.need_negative:
             filters.append("负任意")
         if query.forbid_negative:
             filters.append("无负面")
 
     lines = ["【%s】紫卡市场 · 最便宜 %d 张" % (weapon.name, len(auctions))]
-    meta = "倾向 %.2f（%s）｜ %s ｜ MR %d" % (
+    online = len({auction.seller for auction in auctions
+                  if auction.status == "online"})
+    ingame = len({auction.seller for auction in auctions
+                  if auction.status == "ingame"})
+    meta = "倾向 %.2f（%s）｜ %s ｜ MR %d ｜ 在线 %d · 游戏中 %d" % (
         weapon.disposition, weapon.disposition_label,
-        weapon.type_label, weapon.mastery_rank)
+        weapon.type_label, weapon.mastery_rank, online, ingame)
     if filters:
         meta += "｜ 词条 " + " + ".join(filters)
     lines.append(meta)
@@ -238,7 +245,8 @@ def riven_market_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
         return Reply(text="\n".join(lines), image=lambda: imagecard.riven_market_card(
             weapon, auctions, filters, note,
             "数据 warframe.market · %s · %s" % (platform_label(platform),
-                                                _fresh(time.time()))))
+                                                _fresh(time.time())),
+            status_counts=(online, ingame)))
     # 一张卡都没拿到时不出图，避免回复带一张空卡片
     return Reply(text="\n".join(lines))
 
@@ -2064,9 +2072,9 @@ def eleanor_reply(view: dict) -> Reply:
             aligns=["left", "left", "right"]))
 
 
-def help_reply(prefix: str) -> Reply:
-    return Reply(text=render.render_help(prefix),
-                 image=lambda: imagecard.help_card(prefix))
+def help_reply(prefix: str, disabled=()) -> Reply:
+    return Reply(text=render.render_help(prefix, disabled),
+                 image=lambda: imagecard.help_card(prefix, disabled))
 
 def error_reply(message: str) -> Reply:
     return Reply(text=message)

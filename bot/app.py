@@ -112,7 +112,9 @@ class BotApp:
         self.riven = RivenClient(
             self.market, self.log,
             cache_config=config.get("cache", {}),
-            disposition_override=config.get("riven", {}).get("disposition_override"))
+            disposition_override=config.get("riven", {}).get("disposition_override"),
+            aliases_file=config.get("riven", {}).get(
+                "aliases_file", "data/riven_aliases.json"))
 
         arbi_cfg = config.get("arbi", {})
         self.arbi = (ArbiClient(arbi_cfg, logger=self.log)
@@ -916,6 +918,21 @@ class BotApp:
 
     def remove_command_alias(self, alias: str) -> Dict[str, Any]:
         return self.router.remove_command_alias(alias)
+
+    def riven_alias_snapshot(self) -> Dict[str, Any]:
+        if self.riven is None:
+            raise ValueError("紫卡功能未启用")
+        return self.riven.stat_alias_snapshot()
+
+    def add_riven_alias(self, alias: str, target: str) -> Dict[str, Any]:
+        if self.riven is None:
+            raise ValueError("紫卡功能未启用")
+        return self.riven.add_stat_alias(alias, target)
+
+    def remove_riven_alias(self, alias: str) -> Dict[str, Any]:
+        if self.riven is None:
+            raise ValueError("紫卡功能未启用")
+        return self.riven.remove_stat_alias(alias)
 
     def alias_snapshot(self) -> Dict[str, Any]:
         index = None

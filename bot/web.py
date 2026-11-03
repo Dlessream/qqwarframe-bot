@@ -264,6 +264,12 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.command_snapshot()})
                     return
+                if path == "/api/riven-aliases":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, **server.app.riven_alias_snapshot()})
+                    return
                 if path == "/api/subscriptions":
                     if not self._authorized():
                         self._unauthorized()
@@ -507,6 +513,29 @@ class AdminServer:
                 if parsed.path == "/api/commands/alias/delete":
                     try:
                         result = server.app.remove_command_alias(
+                            str(data.get("alias") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json({"ok": True, **result})
+                    return
+
+                if parsed.path == "/api/riven-aliases":
+                    try:
+                        result = server.app.add_riven_alias(
+                            str(data.get("alias") or ""),
+                            str(data.get("target") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json({"ok": True, **result})
+                    return
+
+                if parsed.path == "/api/riven-aliases/delete":
+                    try:
+                        result = server.app.remove_riven_alias(
                             str(data.get("alias") or ""))
                     except ValueError as exc:
                         self._json({"ok": False, "message": str(exc)},
