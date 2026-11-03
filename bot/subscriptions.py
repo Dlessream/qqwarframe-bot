@@ -574,7 +574,7 @@ class SubscriptionService:
             unseen = [key for key in keys if key not in seen]
             fresh = [event for event in events
                      if event["key"] not in seen and _match(sub.keyword, event["text"])]
-            if fresh:
+            if fresh and sub.active:
                 try:
                     replies = self.render(sub.kind, fresh[:self.push_limit])
                 except Exception as exc:  # noqa: BLE001
