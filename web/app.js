@@ -1371,10 +1371,12 @@
         '" title="删除这个别名">' + escapeHtml(alias) + ' ×</button>').join("");
       return '<div class="command-row' + (item.enabled ? "" : " off") + '">' +
         '<div class="command-head"><span class="command-name">' +
-        escapeHtml(item.command) + '</span>' +
+        escapeHtml(item.label || item.command) + '</span>' +
         '<input class="command-toggle" type="checkbox" data-command="' +
         escapeHtml(item.command) + '"' + (item.enabled ? " checked" : "") +
         ' title="启用/禁用"></div>' +
+        '<div class="command-canonical">' + escapeHtml(item.command) + '</div>' +
+        '<div class="command-desc">' + escapeHtml(item.description || "") + '</div>' +
         '<div class="command-aliases">内置：' + escapeHtml(aliases || "—") + '</div>' +
         '<div class="command-custom">' + custom + '</div></div>';
     }).join("");

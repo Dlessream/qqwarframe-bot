@@ -710,6 +710,14 @@ class CommandMenuTest(unittest.TestCase):
         data = self.router.remove_command_alias("查物品")
         self.assertNotIn("查物品", data["aliases"])
 
+    def test_command_labels_are_chinese(self):
+        data = self.router.command_snapshot()
+        rows = {row["command"]: row for row in data["commands"]}
+        self.assertEqual(rows["riven_market"]["label"], "紫卡市场")
+        self.assertEqual(rows["world_invasions"]["label"], "入侵任务")
+        self.assertTrue(rows["riven_market"]["description"])
+        self.assertEqual(len(rows), 61)
+
     def test_alias_conflict_is_rejected(self):
         with self.assertRaises(ValueError):
             self.router.add_command_alias("wm", "query")

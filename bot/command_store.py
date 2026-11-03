@@ -11,6 +11,8 @@ import os
 import threading
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from .command_meta import COMMAND_META
+
 
 class CommandStore:
     def __init__(self, path: str, valid_commands: Sequence[str],
@@ -117,8 +119,11 @@ class CommandStore:
             by_command.setdefault(command, []).append(alias)
         commands = []
         for command in sorted(self.valid_commands):
+            label, description = COMMAND_META.get(command, (command, ""))
             commands.append({
                 "command": command,
+                "label": label,
+                "description": description,
                 "enabled": command not in disabled,
                 "custom_aliases": sorted(by_command.get(command, [])),
             })
