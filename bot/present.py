@@ -40,7 +40,8 @@ def item_reply(item: Item, sell: Sequence[Order], buy: Sequence[Order],
                price_only: bool = False) -> Reply:
     label = platform_label(platform)
     text = (render.render_price(item, sell, buy, stats, order_limit=8)
-            if price_only else render.render_item(item, sell, buy, stats, order_limit=5))
+            if price_only else render.render_item(item, sell, buy, stats,
+                                                  order_limit=7))
     return Reply(text=text, image=lambda: imagecard.item_card(
         item, sell, buy, stats, label, price_only=price_only))
 

@@ -666,7 +666,8 @@ class CommandRouter:
         item = self._detail(best.item)
         try:
             sell, buy = self.market.top_orders(
-                item.slug, limit=self.price_orders if price_only else self.top_orders,
+                item.slug,
+                limit=self.price_orders if price_only else 7,
                 platform=platform, force=self.wm_realtime)
         except MarketError as exc:
             self.log.warning("订单查询失败 %s：%s", item.slug, exc)

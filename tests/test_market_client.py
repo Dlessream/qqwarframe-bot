@@ -122,6 +122,32 @@ class MarketClientTest(unittest.TestCase):
         self.assertEqual(len(sell), 1)
         self.assertEqual(len(buy), 1)
 
+    def test_top_orders_online_seven(self):
+        payload = {"data": {"sell": [], "buy": []}}
+        for index in range(9):
+            status = "offline" if index == 0 else ("ingame" if index % 2 else "online")
+            payload["data"]["sell"].append({
+                "type": "sell", "platinum": 100 - index,
+                "quantity": 1, "user": {"ingameName": "S%d" % index,
+                                        "status": status},
+            })
+        for index in range(9):
+            payload["data"]["buy"].append({
+                "type": "buy", "platinum": 50 + index,
+                "quantity": 1, "user": {"ingameName": "B%d" % index,
+                                        "status": "ingame"},
+            })
+        self.server.add_json("/v2/orders/item/mesa_prime_set/top", payload)
+        sell, buy = self.client.top_orders("mesa_prime_set", limit=7,
+                                           force=True)
+        self.assertEqual(len(sell), 7)
+        self.assertEqual(len(buy), 7)
+        self.assertEqual([order.platinum for order in sell],
+                         sorted(order.platinum for order in sell))
+        self.assertTrue(all(order.status in ("online", "ingame")
+                            for order in sell))
+        self.assertNotIn("S0", [order.user for order in sell])
+
     # ------------------------------------------------------------------ 行情
     def test_statistics_aggregation(self):
         stats = self.client.statistics("mesa_prime_set")

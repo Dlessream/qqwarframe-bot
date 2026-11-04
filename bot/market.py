@@ -948,10 +948,23 @@ class MarketClient:
 
         sell = [Order.from_api(row, "sell") for row in (payload.get("sell") or [])]
         buy = [Order.from_api(row, "buy") for row in (payload.get("buy") or [])]
-        sell = [order for order in sell if order.platinum > 0]
-        buy = [order for order in buy if order.platinum > 0]
+        sell = [order for order in sell if order.platinum > 0
+                and (order.status or "").lower() in ("online", "ingame")]
+        buy = [order for order in buy if order.platinum > 0
+               and (order.status or "").lower() in ("online", "ingame")]
         sell.sort(key=lambda order: order.platinum)
         buy.sort(key=lambda order: -order.platinum)
+        if len(sell) < limit or len(buy) < limit:
+            # /top 可能只给少量订单；不足 7 位时用完整订单端点补齐。
+            try:
+                fallback_sell, fallback_buy = self._orders_fallback(
+                    slug, limit, platform)
+                if len(fallback_sell) > len(sell):
+                    sell = fallback_sell
+                if len(fallback_buy) > len(buy):
+                    buy = fallback_buy
+            except Exception:  # noqa: BLE001
+                pass
         return sell[:limit], buy[:limit]
 
     def _orders_fallback(self, slug: str, limit: int,
@@ -970,7 +983,7 @@ class MarketClient:
             order = Order.from_api(row)
             if order.side not in ("sell", "buy") or order.platinum <= 0:
                 continue
-            if (order.status or "").lower() == "offline":
+            if (order.status or "").lower() not in ("online", "ingame"):
                 continue
             (sell if order.side == "sell" else buy).append(order)
         sell.sort(key=lambda order: order.platinum)
