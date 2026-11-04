@@ -1473,6 +1473,7 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
 def help_card(prefix: str = "#", disabled=()) -> bytes:
     rows = [
         ["%swm <名称> [平台]" % prefix, "物品详情 + 实时报价 + 15 天走势"],
+        ["%swm mod <名称>" % prefix, "只查 MOD（等价于 %smod <名称>）" % prefix],
         ["%s价格 <名称> [平台]" % prefix, "只看价格、买卖单与行情"],
         ["%s战甲 / %s武器 / %smod" % (prefix, prefix, prefix), "按分类搜索"],
         ["%s拆件 <套装>" % prefix, "套装 vs 部件比价"],

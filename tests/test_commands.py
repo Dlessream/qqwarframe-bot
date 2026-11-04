@@ -242,6 +242,13 @@ class ParseTest(unittest.TestCase):
     def test_unknown_command_is_query(self):
         self.assertEqual(self.router.parse("#绝路"), ("query", "绝路"))
 
+    def test_wm_mod_category_prefix(self):
+        ctx = Context(user_id="1", group_id="", is_group=False)
+        with mock.patch.object(self.router, "_item",
+                               return_value=mock.Mock()) as item:
+            self.router.handle("#wm mod 分裂膛室", ctx)
+            item.assert_called_once_with("分裂膛室", ctx, category="mod")
+
     def test_chat_noise_is_silent(self):
         ctx = Context(user_id="1", group_id="", is_group=False)
         self.assertIsNone(self.router.parse("#一次等30秒"))

@@ -592,6 +592,13 @@ class CommandRouter:
                 return [self._subscriptions_list(ctx)]
             if command == "unsubscribe":
                 return [self._unsubscribe(argument, ctx)]
+            if command == "query":
+                # 兼容 wm mod <名称> / wm 模组 <名称>
+                mod_match = re.match(r"^(?:mod|模组)[\s:：/]+(.+)$",
+                                     str(argument or "").strip(), re.I)
+                if mod_match:
+                    return [self._item(mod_match.group(1), ctx,
+                                       category="mod")]
             return [self._item(argument, ctx, category=None)]
         except CommandError as exc:
             return [present.error_reply(str(exc))]

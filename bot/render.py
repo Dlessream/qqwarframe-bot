@@ -236,6 +236,7 @@ def render_help(prefix: str = "#", disabled=()) -> str:
         "Warframe 查询机器人",
         DIVIDER,
         "%swm <名称> [平台]   物品详情 + 实时报价" % prefix,
+        "%swm mod <名称>     只查 MOD（等价于 %smod <名称>）" % (prefix, prefix),
         "%s价格 <名称> [平台] 只看价格与行情" % prefix,
         "%s战甲 <名称> / %s武器 / %smod  分类搜索" % (prefix, prefix, prefix),
         "%s拆件 <套装>        套装拆件比价" % prefix,
