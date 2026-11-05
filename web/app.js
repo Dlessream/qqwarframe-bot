@@ -373,16 +373,36 @@
     const rows = ((state.subs || {}).kinds || []);
     const row = rows.find((item) => item.kind === kind) || {};
     const options = Array.isArray(row.filter_options) ? row.filter_options : [];
+    const groups = Array.isArray(row.filter_groups) ? row.filter_groups : [];
     const list = $("subsKeywordOptions");
     if (list) {
-      list.innerHTML = options.map((value) =>
-        '<option value="' + escapeHtml(value) + '"></option>').join("");
+      const rendered = [];
+      const grouped = new Set();
+      groups.forEach((group) => {
+        const label = group.label || "";
+        (group.options || []).forEach((value, index) => {
+          grouped.add(value);
+          rendered.push(
+            '<option value="' + escapeHtml(value) + '" label="' +
+            escapeHtml(index === 0 ? label + "（整把）"
+              : label + " · " + String(value).replace(label, "").trim()) +
+            '"></option>');
+        });
+      });
+      options.filter((value) => !grouped.has(value)).forEach((value) => {
+        rendered.push('<option value="' + escapeHtml(value) + '"></option>');
+      });
+      list.innerHTML = rendered.join("");
     }
     const input = $("subsKeyword");
     if (input) {
       input.placeholder = options.length
-        ? "可选：" + options.join(" / ")
+        ? "按武器/部件筛选，如：" + options[0]
         : "留空=全部；示例：" + (row.sample || row.label || "生存");
+      input.title = groups.length
+        ? groups.map((group) => group.label + "：" +
+          (group.options || []).join(" / ")).join("\n")
+        : "";
     }
   }
 

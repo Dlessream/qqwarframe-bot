@@ -28,6 +28,22 @@ KIND_ORDER: Tuple[str, ...] = (
 )
 
 # 每类推什么、能按什么筛、订阅命令的示例
+# 入侵活动武器：按武器分组，组内是武器本体 + 部件，控制台下拉按这个顺序显示。
+INVASION_FILTER_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("卡拉克·亡魂", ("枪管", "枪机", "枪托")),
+    ("拉特昂·亡魂", ("枪管", "枪机", "枪托")),
+    ("斯特朗·亡魂", ("枪管", "枪机", "枪托")),
+    ("双子蝰蛇·亡魂", ("枪管", "枪机", "连接器")),
+    ("希芙", ("刀刃", "散热片", "握柄")),
+    ("德拉·破坏者", ("枪管", "枪机", "枪托")),
+    ("狙击特昂·破坏者", ("枪管", "枪机", "枪托")),
+)
+INVASION_FILTER_OPTIONS: Tuple[str, ...] = tuple(
+    item
+    for label, parts in INVASION_FILTER_GROUPS
+    for item in [label] + ["%s %s" % (label, part) for part in parts]
+) + ("部件蓝图", "武器蓝图")
+
 DETAILS: Dict[str, Dict[str, Any]] = {
     "fissure": {
         "desc": "新裂缝：任务 / 星球 / 等级 / 剩余时间",
@@ -75,10 +91,15 @@ DETAILS: Dict[str, Dict[str, Any]] = {
         "sample": "夜灵竞速",
     },
     "invasion": {
-        "desc": "新入侵 + 阵营进度 + 武器蓝图 / 部件蓝图",
-        "filters": "武器蓝图、部件蓝图",
-        "filter_options": ["武器蓝图", "部件蓝图"],
-        "sample": "入侵 部件蓝图",
+        "desc": "新入侵 + 阵营进度 + 武器 / 部件蓝图",
+        "filters": "武器、部件",
+        "filter_options": list(INVASION_FILTER_OPTIONS),
+        "filter_groups": [
+            {"label": label, "options": [label] + ["%s %s" % (label, part)
+                                                   for part in parts]}
+            for label, parts in INVASION_FILTER_GROUPS
+        ],
+        "sample": "入侵 斯特朗·亡魂",
     },
     "deal": {
         "desc": "每日特惠折扣",
@@ -118,6 +139,7 @@ def catalog() -> List[Dict[str, Any]]:
             "desc": info.get("desc", ""),
             "filters": info.get("filters", "不限"),
             "filter_options": list(info.get("filter_options") or []),
+            "filter_groups": list(info.get("filter_groups") or []),
             "sample": info.get("sample", label),
             "push": PUSH_FORM,
             "filterable": info.get("filters", "不限") != "不限",

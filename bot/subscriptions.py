@@ -66,6 +66,21 @@ INVASION_WEAPONS = (
     "karak wraith", "latron wraith", "strun wraith", "twin vipers wraith",
     "sheev", "dera vandal", "snipetron vandal",
 )
+INVASION_WEAPON_ALIASES = (
+    ("karak wraith", ("卡拉克·亡魂", "红莲卡拉什")),
+    ("latron wraith", ("拉特昂·亡魂", "红莲拉特昂")),
+    ("strun wraith", ("斯特朗·亡魂", "红莲斯特朗")),
+    ("twin vipers wraith", ("双子蝰蛇·亡魂", "双子蝰蛇亡魂")),
+    ("sheev", ("希芙",)),
+    ("dera vandal", ("德拉·破坏者", "德拉破坏者")),
+    ("snipetron vandal", ("狙击特昂·破坏者", "狙击特昂破坏者")),
+)
+INVASION_PART_ALIASES = (
+    ("barrels", "枪管"), ("barrel", "枪管"),
+    ("receivers", "枪机"), ("receiver", "枪机"),
+    ("stock", "枪托"), ("link", "连接器"),
+    ("blade", "刀刃"), ("hilt", "握柄"), ("heatsink", "散热片"),
+)
 INVASION_PART_WORDS = (
     "barrel", "receiver", "stock", "blade", "handle", "hilt", "link",
     "upper limb", "lower limb", "枪管", "枪机", "枪托",
@@ -103,6 +118,26 @@ def _invasion_tags(names: Sequence[str]) -> List[str]:
         elif "blueprint" in low or "蓝图" in low:
             tags.append("武器蓝图")
     return list(dict.fromkeys(tags))
+
+
+def _invasion_alias_text(names: Sequence[str]) -> List[str]:
+    result: List[str] = []
+    for name in names:
+        low = str(name).lower()
+        for latin, aliases in INVASION_WEAPON_ALIASES:
+            if latin not in low:
+                continue
+            for alias in aliases:
+                if alias not in result:
+                    result.append(alias)
+            for part_en, part_cn in INVASION_PART_ALIASES:
+                if part_en in low:
+                    text = "%s %s" % (aliases[0], part_cn)
+                    if text not in result:
+                        result.append(text)
+                    break
+            break
+    return result
 
 
 def _match(keyword: str, text: str) -> bool:
@@ -518,10 +553,11 @@ class SubscriptionService:
                     key = str(row.get("id") or "%s|%s" % (row.get("node"), row.get("expiry")))
                     names = _invasion_reward_names(row)
                     tags = _invasion_tags(names)
+                    aliases = _invasion_alias_text(names)
                     attacker = (row.get("attacker") or {}).get("faction") or ""
                     defender = (row.get("defender") or {}).get("faction") or ""
                     text = " ".join(str(part or "") for part in (
-                        row.get("node"), attacker, defender, *names, *tags))
+                        row.get("node"), attacker, defender, *names, *aliases, *tags))
                 else:
                     key = "%s|%s" % (row.get("item") or row.get("type") or "?",
                                      row.get("expiry") or "")

@@ -83,7 +83,12 @@ class ParseTest(unittest.TestCase):
             self.assertEqual(row["push"], "图片")
             self.assertTrue(row["aliases"])
         invasion = next(row for row in rows if row["kind"] == "invasion")
-        self.assertEqual(invasion["filter_options"], ["武器蓝图", "部件蓝图"])
+        self.assertIn("卡拉克·亡魂", invasion["filter_options"])
+        self.assertIn("斯特朗·亡魂 枪管", invasion["filter_options"])
+        self.assertIn("双子蝰蛇·亡魂 连接器", invasion["filter_options"])
+        self.assertEqual(invasion["filter_options"][-2:], ["部件蓝图", "武器蓝图"])
+        index = invasion["filter_options"].index("卡拉克·亡魂")
+        self.assertEqual(invasion["filter_options"][index + 1], "卡拉克·亡魂 枪管")
         self.assertEqual(subkind.resolve_kind("裂缝"), "fissure")
         self.assertEqual(subkind.resolve_kind("九重天"), "storm")
         self.assertEqual(subkind.resolve_kind("夜灵竞速"), "eidolon_speed")
@@ -244,6 +249,8 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertIn("部件蓝图", events[0]["text"])
         self.assertNotIn("武器蓝图", events[0]["text"])
+        self.assertIn("卡拉克·亡魂 枪管", events[0]["text"])
+        self.assertIn("德拉·破坏者 枪托", events[0]["text"])
         self.assertTrue(subscriptions._match("部件蓝图", events[0]["text"]))
 
     def test_alert_pushes_and_bypasses_worldstate_cache(self):
