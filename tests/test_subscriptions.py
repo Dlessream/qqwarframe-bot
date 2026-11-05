@@ -58,6 +58,10 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(parse_kind("仲裁"), ("arbitration", ""))
         self.assertEqual(parse_kind("九重天 冥王"), ("storm", "冥王"))
         self.assertEqual(parse_kind("回廊"), ("circuit", ""))
+        self.assertEqual(parse_kind("夜灵"), ("eidolon", ""))
+        self.assertEqual(parse_kind("夜灵竞速"), ("eidolon_speed", ""))
+        self.assertEqual(parse_kind("夜灵 竞速"), ("eidolon_speed", ""))
+        self.assertEqual(parse_kind("夜灵 普通"), ("eidolon", ""))
         self.assertEqual(parse_kind("特惠"), ("deal", ""))
         self.assertEqual(parse_kind("绝路"), (None, "绝路"))
         self.assertEqual(parse_kind(""), (None, ""))
@@ -68,18 +72,21 @@ class ParseTest(unittest.TestCase):
             self.assertIn(label, text)
 
     def test_kind_catalog_is_complete(self):
-        """后端和群里的图共用这份目录：9 类、都有说明和推送形式。"""
+        """后端和群里的图共用这份目录：11 类、都有说明和推送形式。"""
         from bot import subkind
         rows = subkind.catalog()
-        self.assertEqual(len(rows), 9)
+        self.assertEqual(len(rows), 11)
         self.assertEqual([row["kind"] for row in rows], list(subkind.KIND_ORDER))
         for row in rows:
             self.assertTrue(row["label"])
             self.assertTrue(row["desc"])
             self.assertEqual(row["push"], "图片")
             self.assertTrue(row["aliases"])
+        invasion = next(row for row in rows if row["kind"] == "invasion")
+        self.assertEqual(invasion["filter_options"], ["武器蓝图", "部件蓝图"])
         self.assertEqual(subkind.resolve_kind("裂缝"), "fissure")
         self.assertEqual(subkind.resolve_kind("九重天"), "storm")
+        self.assertEqual(subkind.resolve_kind("夜灵竞速"), "eidolon_speed")
         self.assertEqual(subkind.resolve_kind("fissure"), "fissure")
         self.assertEqual(subkind.resolve_kind("绝路"), "")
 
@@ -206,6 +213,38 @@ class ServiceTest(unittest.TestCase):
         self.assertIn("E Prime", reply.text)
         self.assertNotIn("Mantle", reply.text)         # 只推新增的那条
         self.assertEqual(self.service.poll(), [])      # 不重复推
+
+    def test_eidolon_night_and_speed_events(self):
+        now = time.time()
+        self.world.fields[""] = {"cetusCycle": {
+            "isDay": False, "expiry": time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(now + 600))}}
+        night = self.service.events("eidolon")
+        self.assertEqual(len(night), 1)
+        self.assertIn("夜灵", night[0]["text"])
+        self.assertEqual(self.service.events("eidolon_speed"), [])
+        self.world.fields[""] = {"cetusCycle": {
+            "isDay": True, "expiry": time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(now + 600))}}
+        self.service._cache.clear()
+        speed = self.service.events("eidolon_speed")
+        self.assertEqual(len(speed), 1)
+        self.assertTrue(speed[0]["speed"])
+        self.assertGreater(speed[0]["night_start"], now)
+
+    def test_invasion_reward_blueprint_filter(self):
+        self.world.fields["invasions"] = [{
+            "id": "i1", "node": "Calypso (Saturn)",
+            "attacker": {"faction": "Grineer",
+                         "reward": {"items": [{"type": "Karak Wraith Barrel"}]}},
+            "defender": {"faction": "Corpus",
+                         "reward": {"items": [{"type": "Dera Vandal Stock"}]}},
+        }]
+        events = self.service.events("invasion")
+        self.assertEqual(len(events), 1)
+        self.assertIn("部件蓝图", events[0]["text"])
+        self.assertNotIn("武器蓝图", events[0]["text"])
+        self.assertTrue(subscriptions._match("部件蓝图", events[0]["text"]))
 
     def test_alert_pushes_and_bypasses_worldstate_cache(self):
         self.world.fields["alerts"] = [alert(ident="a1")]

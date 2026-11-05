@@ -369,6 +369,23 @@
   }
 
   // ---------------------------------------------------------------- 订阅
+  function updateSubFilterOptions(kind) {
+    const rows = ((state.subs || {}).kinds || []);
+    const row = rows.find((item) => item.kind === kind) || {};
+    const options = Array.isArray(row.filter_options) ? row.filter_options : [];
+    const list = $("subsKeywordOptions");
+    if (list) {
+      list.innerHTML = options.map((value) =>
+        '<option value="' + escapeHtml(value) + '"></option>').join("");
+    }
+    const input = $("subsKeyword");
+    if (input) {
+      input.placeholder = options.length
+        ? "可选：" + options.join(" / ")
+        : "留空=全部；示例：" + (row.sample || row.label || "生存");
+    }
+  }
+
   function renderSubs(data) {
     state.subs = data;
     const kinds = Array.isArray(data.kinds) ? data.kinds : [];
@@ -406,6 +423,7 @@
           escapeHtml(row.label) + '</option>'
       )).join("");
     }
+    if (select) updateSubFilterOptions(select.value);
 
     const options = $("subsChatOptions");
     if (options) {
@@ -1527,15 +1545,15 @@
     $("subsKeyword").addEventListener("keydown", (event) => {
       if (event.key === "Enter") addSub();
     });
+    $("subsKind").addEventListener("change", (event) => {
+      updateSubFilterOptions(event.target.value || "");
+    });
     $("subsKinds").addEventListener("click", (event) => {
       const chip = event.target.closest(".subs-kind");
       if (!chip) return;
       const kind = chip.getAttribute("data-kind") || "";
       if ($("subsKind")) $("subsKind").value = kind;
-      const row = ((state.subs || {}).kinds || []).find((item) => item.kind === kind);
-      if (row && $("subsKeyword") && !$("subsKeyword").value) {
-        $("subsKeyword").placeholder = "留空=全部；示例：" + (row.sample || row.label);
-      }
+      updateSubFilterOptions(kind);
       $("subsChatId").focus();
     });
     $("subsList").addEventListener("click", (event) => {

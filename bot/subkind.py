@@ -15,6 +15,8 @@ KINDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     "sortie": ("突击", ("突击",)),
     "circuit": ("回廊", ("回廊", "灵化", "无尽回廊")),
     "rotation": ("轮换", ("轮换", "商店", "言录使", "格拉斯", "埃莉诺")),
+    "eidolon": ("夜灵", ("夜灵", "希图斯黑夜", "三傻", "eidolon")),
+    "eidolon_speed": ("夜灵竞速", ("夜灵竞速", "竞速夜灵", "夜灵提前", "eidolon speed")),
     "alert": ("警报", ("警报",)),
     "invasion": ("入侵", ("入侵",)),
     "deal": ("特惠", ("特惠", "折扣", "每日特惠")),
@@ -22,11 +24,11 @@ KINDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
 
 KIND_ORDER: Tuple[str, ...] = (
     "fissure", "storm", "arbitration", "sortie", "circuit",
-    "rotation", "alert", "invasion", "deal",
+    "rotation", "eidolon", "eidolon_speed", "alert", "invasion", "deal",
 )
 
 # 每类推什么、能按什么筛、订阅命令的示例
-DETAILS: Dict[str, Dict[str, str]] = {
+DETAILS: Dict[str, Dict[str, Any]] = {
     "fissure": {
         "desc": "新裂缝：任务 / 星球 / 等级 / 剩余时间",
         "filters": "任务、节点、遗物、敌人",
@@ -62,10 +64,21 @@ DETAILS: Dict[str, Dict[str, str]] = {
         "filters": "奖励、节点",
         "sample": "警报 土豆",
     },
+    "eidolon": {
+        "desc": "希图斯进入黑夜（夜灵出现）时推送",
+        "filters": "不限",
+        "sample": "夜灵",
+    },
+    "eidolon_speed": {
+        "desc": "竞速：希图斯黑夜开始前 15 分钟推送",
+        "filters": "不限",
+        "sample": "夜灵竞速",
+    },
     "invasion": {
-        "desc": "新入侵 + 阵营进度",
-        "filters": "阵营",
-        "sample": "入侵",
+        "desc": "新入侵 + 阵营进度 + 武器蓝图 / 部件蓝图",
+        "filters": "武器蓝图、部件蓝图",
+        "filter_options": ["武器蓝图", "部件蓝图"],
+        "sample": "入侵 部件蓝图",
     },
     "deal": {
         "desc": "每日特惠折扣",
@@ -104,6 +117,7 @@ def catalog() -> List[Dict[str, Any]]:
             "command": label,
             "desc": info.get("desc", ""),
             "filters": info.get("filters", "不限"),
+            "filter_options": list(info.get("filter_options") or []),
             "sample": info.get("sample", label),
             "push": PUSH_FORM,
             "filterable": info.get("filters", "不限") != "不限",

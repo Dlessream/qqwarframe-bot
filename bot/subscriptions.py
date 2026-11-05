@@ -30,6 +30,10 @@ from .worldstate import Arbitration, parse_timestamp
 
 LOGGER = logging.getLogger("qqwarframe.subscriptions")
 
+# 希图斯昼夜：白天约 100 分钟，黑夜约 50 分钟；用于提前 15 分钟竞速提醒。
+CETUS_DAY_SECONDS = 6000
+CETUS_NIGHT_SECONDS = 3000
+
 
 def parse_kind(text: str) -> Tuple[Optional[str], str]:
     """`裂缝 生存` → ("fissure", "生存")；认不出返回 (None, 原文)。"""
@@ -42,6 +46,10 @@ def parse_kind(text: str) -> Tuple[Optional[str], str]:
     low = head.lower()
     for kind, (_label, aliases) in KINDS.items():
         if low == kind or low in aliases:
+            if kind == "eidolon" and keyword in ("竞速", "提前", "提前15", "15"):
+                return "eidolon_speed", ""
+            if kind == "eidolon" and keyword in ("普通", "正常"):
+                return "eidolon", ""
             return kind, keyword
     # 允许「裂缝生存」这种连写
     for kind, (_label, aliases) in KINDS.items():
@@ -52,6 +60,49 @@ def parse_kind(text: str) -> Tuple[Optional[str], str]:
                     tail = "%s %s" % (tail, keyword)
                 return kind, tail.strip()
     return None, raw
+
+
+INVASION_WEAPONS = (
+    "karak wraith", "latron wraith", "strun wraith", "twin vipers wraith",
+    "sheev", "dera vandal", "snipetron vandal",
+)
+INVASION_PART_WORDS = (
+    "barrel", "receiver", "stock", "blade", "handle", "hilt", "link",
+    "upper limb", "lower limb", "枪管", "枪机", "枪托",
+    "刀刃", "握柄", "弓弦", "弓臂",
+)
+
+
+def _invasion_reward_names(row: Dict[str, Any]) -> List[str]:
+    names: List[str] = []
+    for side in ("attacker", "defender"):
+        reward = (row.get(side) or {}).get("reward") or {}
+        for key in ("items", "countedItems"):
+            for item in reward.get(key) or []:
+                if isinstance(item, str):
+                    name = item.strip()
+                elif isinstance(item, dict):
+                    name = str(item.get("type") or item.get("item")
+                               or item.get("name") or "").strip()
+                else:
+                    continue
+                if name and name not in names:
+                    names.append(name)
+    return names
+
+
+def _invasion_tags(names: Sequence[str]) -> List[str]:
+    tags: List[str] = []
+    for name in names:
+        low = str(name).lower()
+        weapon = any(word in low for word in INVASION_WEAPONS)
+        if not weapon:
+            continue
+        if any(word in low for word in INVASION_PART_WORDS):
+            tags.append("部件蓝图")
+        elif "blueprint" in low or "蓝图" in low:
+            tags.append("武器蓝图")
+    return list(dict.fromkeys(tags))
 
 
 def _match(keyword: str, text: str) -> bool:
@@ -414,6 +465,41 @@ class SubscriptionService:
         if kind == "rotation":
             return self._rotation_events()
 
+        if kind in ("eidolon", "eidolon_speed"):
+            cycle = self._cetus_cycle()
+            if not isinstance(cycle, dict):
+                return []
+            expiry = parse_timestamp(cycle.get("expiry"))
+            if expiry <= 0:
+                return []
+            is_day = cycle.get("isDay")
+            if is_day is None:
+                is_day = str(cycle.get("state") or "").lower() == "day"
+            is_day = bool(is_day)
+            if kind == "eidolon":
+                if is_day or expiry <= now:
+                    return []
+                start = expiry - CETUS_NIGHT_SECONDS
+                event = {
+                    "key": "eidolon:%d" % start,
+                    "raw": cycle, "hard": False,
+                    "text": "夜灵 希图斯 黑夜 三傻",
+                }
+                event["night_start"] = start
+                event["speed"] = False
+                return [event]
+            # 竞速：白天时下一黑夜是 expiry；黑夜时下一黑夜是 expiry + 白天。
+            target = expiry if is_day else expiry + CETUS_DAY_SECONDS
+            if target - 900 <= now < target:
+                return [{
+                    "key": "eidolon:%d" % target,
+                    "raw": cycle, "hard": False,
+                    "text": "夜灵 希图斯 黑夜 三傻 竞速",
+                    "night_start": target,
+                    "speed": True,
+                }]
+            return []
+
         if kind in ("alert", "invasion", "deal"):
             rows = self._field({"alert": "alerts", "invasion": "invasions",
                                 "deal": "dailyDeals"}[kind],
@@ -430,7 +516,12 @@ class SubscriptionService:
                         mission.get("faction")))
                 elif kind == "invasion":
                     key = str(row.get("id") or "%s|%s" % (row.get("node"), row.get("expiry")))
-                    text = str(row.get("node") or "")
+                    names = _invasion_reward_names(row)
+                    tags = _invasion_tags(names)
+                    attacker = (row.get("attacker") or {}).get("faction") or ""
+                    defender = (row.get("defender") or {}).get("faction") or ""
+                    text = " ".join(str(part or "") for part in (
+                        row.get("node"), attacker, defender, *names, *tags))
                 else:
                     key = "%s|%s" % (row.get("item") or row.get("type") or "?",
                                      row.get("expiry") or "")
@@ -486,6 +577,15 @@ class SubscriptionService:
             }]
 
         return []
+
+    def _cetus_cycle(self) -> Any:
+        state = self._field("")
+        if isinstance(state, dict) and isinstance(state.get("cetusCycle"), dict):
+            return state.get("cetusCycle")
+        cycle = self._field("cetusCycle")
+        if isinstance(cycle, dict) and isinstance(cycle.get("cetusCycle"), dict):
+            return cycle.get("cetusCycle")
+        return cycle
 
     def _arbi_now(self) -> Optional[Dict[str, Any]]:
         """官方兜底不给仲裁时，按本地 arbi 轮换表算当前/下一场。"""
@@ -604,6 +704,10 @@ class SubscriptionService:
             return [present.alerts_reply(raws)]
         if kind == "invasion":
             return [present.invasions_reply(raws)]
+        if kind == "eidolon":
+            return [present.eidolon_reply(raws[0], speed=False)]
+        if kind == "eidolon_speed":
+            return [present.eidolon_reply(raws[0], speed=True)]
         if kind == "deal":
             return [present.deals_reply(raws)]
         if kind == "circuit":

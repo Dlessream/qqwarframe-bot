@@ -706,6 +706,47 @@ def relic_reply(relic, platform: str = "pc") -> Reply:
             % platform_label(platform)))
 
 
+def eidolon_reply(cycle, speed: bool = False) -> Reply:
+    """希图斯黑夜 / 夜灵竞速提醒。"""
+    cycle = cycle if isinstance(cycle, dict) else {}
+    expiry = parse_timestamp(cycle.get("expiry"))
+    is_day = cycle.get("isDay")
+    if is_day is None:
+        is_day = str(cycle.get("state") or "").lower() == "day"
+    is_day = bool(is_day)
+    if speed:
+        target = expiry if is_day else expiry + 6000
+        title = "夜灵竞速"
+        subtitle = "提前 15 分钟 · 希图斯黑夜即将开始"
+        start_text = time.strftime("%m-%d %H:%M", time.localtime(target))
+        remain = countdown(target)
+        rows = [
+            ["当前", "白天" if is_day else "黑夜", countdown(expiry)],
+            ["黑夜开始", start_text, remain],
+            ["提醒", "提前 15 分钟", "竞速"],
+        ]
+    else:
+        start = expiry - 3000
+        title = "夜灵"
+        subtitle = "希图斯黑夜 · 夜灵出现"
+        rows = [
+            ["当前", "白天" if is_day else "黑夜", countdown(expiry)],
+            ["黑夜开始", time.strftime("%m-%d %H:%M",
+                                        time.localtime(start)), "已开始"],
+            ["剩余", countdown(expiry), ""],
+        ]
+    text = "【%s】\n%s\n%s" % (
+        title, subtitle,
+        "\n".join(" / ".join(str(cell) for cell in row if cell) for row in rows))
+    return Reply(
+        text=text,
+        image=lambda: imagecard.build_table(
+            title, subtitle, ["项目", "时间", "剩余"], rows,
+            "数据 Warframe 世界状态 · 希图斯", accent=imagecard.PURPLE,
+            chip="夜灵", ratios=[0.8, 1.2, 1.0],
+            aligns=["left", "left", "right"]))
+
+
 def _safe_int(value) -> int:
     try:
         return int(float(value))
@@ -1855,7 +1896,7 @@ def _stamp(ts: float) -> str:
 
 def subscribe_panel_reply(prefix: str, subs: Sequence[dict],
                           text: str = "", note: str = "") -> Reply:
-    """订阅说明 + 本群订阅，出图（9 类事件一次列全）。"""
+    """订阅说明 + 本群订阅，出图（所有可订阅类型一次列全）。"""
     kind_rows = [[
         imagecard.Cell(kind, color=imagecard.CYAN, bold=True),
         desc,
@@ -1891,7 +1932,7 @@ def subscribe_panel_reply(prefix: str, subs: Sequence[dict],
         image=lambda: imagecard.sections_table(
             "订阅推送", "新内容一出现就推图到本群 ｜ %d 类事件" % len(kind_rows),
             sections,
-            "数据 warframe worldstate ｜ 每 2 分钟检查一次",
+            "数据 warframe worldstate ｜ 常规每 2 分钟，夜灵竞速每 30 秒",
             accent=imagecard.CYAN, chip="订阅",
             note=note or ("%s订阅 <类型> [筛选词] 添加，%s取消订阅 <内容> 取消"
                           "（例：%s取消订阅 防御裂缝）；每个事件只推一次，重启不补推。"

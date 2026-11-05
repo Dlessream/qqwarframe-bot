@@ -556,9 +556,9 @@ class SubscribeCommandTest(unittest.TestCase):
         reply = self.router.handle("#订阅", self.ctx)[0]
         # 九类订阅要一次列全，并且每种都说明推什么
         for name in ("裂缝", "虚空风暴", "仲裁", "突击", "回廊",
-                     "轮换", "警报", "入侵", "特惠"):
+                     "轮换", "夜灵", "夜灵竞速", "警报", "入侵", "特惠"):
             self.assertIn(name, reply.text)
-        self.assertIn("类型：裂缝 / 虚空风暴 / 仲裁 / 突击 / 回廊 / 轮换 / 警报 / 入侵 / 特惠",
+        self.assertIn("类型：裂缝 / 虚空风暴 / 仲裁 / 突击 / 回廊 / 轮换 / 夜灵 / 夜灵竞速 / 警报 / 入侵 / 特惠",
                       reply.text)
         self.assertIn("裂缝＝新裂缝出现", reply.text)
         self.assertIn("回廊＝无尽回廊每周灵化刷新", reply.text)

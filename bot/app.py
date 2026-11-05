@@ -1366,8 +1366,9 @@ class BotApp:
             try:
                 now = time.time()
                 if last_full and now - last_full < self.subscription_interval:
-                    # 警报/入侵需要更高频：世界状态缓存也会被强制刷新。
-                    pushes = self.subscriptions.poll(kinds={"alert", "invasion"}) \
+                    # 警报/入侵/夜灵竞速需要更高频：世界状态缓存也会被强制刷新。
+                    pushes = self.subscriptions.poll(
+                        kinds={"alert", "invasion", "eidolon", "eidolon_speed"}) \
                         if self.subscriptions is not None else []
                 else:
                     pushes = self.subscriptions.poll() \

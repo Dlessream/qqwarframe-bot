@@ -1261,11 +1261,15 @@ class CommandRouter:
             "　突击＝每日突击刷新\n"
             "　回廊＝无尽回廊每周灵化刷新\n"
             "　轮换＝商店 / 言录使 / 格拉斯轮换\n"
-            "　警报＝新警报出现　入侵＝新入侵出现　特惠＝每日特惠上架\n"
+            "　夜灵＝希图斯进入黑夜时推送\n"
+            "　夜灵竞速＝黑夜开始前 15 分钟推送\n"
+            "　警报＝新警报出现　入侵＝新入侵（可筛 武器蓝图 / 部件蓝图）\n"
+            "　特惠＝每日特惠上架\n"
             "例如：%s订阅 裂缝 生存\n"
-            "　　　%s订阅 仲裁\n"
+            "　　　%s订阅 夜灵竞速\n"
+            "　　　%s订阅 入侵 部件蓝图\n"
             "%s订阅列表 查看　%s取消订阅 <内容>（例如 防御裂缝）取消" % (
-                ctx.prefix, kind_names(), ctx.prefix, ctx.prefix,
+                ctx.prefix, kind_names(), ctx.prefix, ctx.prefix, ctx.prefix,
                 ctx.prefix, ctx.prefix))
 
     def _subscribe_lines(self, ctx: Context) -> str:
