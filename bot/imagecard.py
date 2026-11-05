@@ -1483,7 +1483,7 @@ def help_card(prefix: str = "#", disabled=()) -> bytes:
         ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
         ["%swr <武器> [词条…]" % prefix,
          "在线/游戏中卖家；不写「负任意」= 只看无负面"],
-        ["%s遗物 <编号>" % prefix, "遗物内容 / 杜卡德 / 出入库 / WM 均价"],
+        ["%s遗物 <编号>" % prefix, "完整奖励 / 精炼掉率 / 杜卡德 / 出入库 / WM 均价"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
         ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
@@ -1925,11 +1925,12 @@ def invasions_card(items: Sequence[Dict],
 
 
 def relic_card(relic, footer: str = "数据 warframestat · warframe.market") -> bytes:
-    """遗物：名称 + 出入库 + 奖励物品 / 杜卡德 / WM 48h·90d 均价。"""
+    """遗物：名称 + 出入库 + 精炼 / 奖励 / 概率 / 杜卡德 / WM 均价。"""
     rewards = list(getattr(relic, "rewards", ()) or ())
     count = max(1, len(rewards))
     row_h = 92
-    height = 150 + count * row_h + 66
+    locations = list(getattr(relic, "locations", ()) or ())
+    height = 150 + count * row_h + 66 + (24 if locations else 0)
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
     title = getattr(relic, "title", "遗物")
@@ -1939,9 +1940,15 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
         bw, _ = _tsize(draw, badge, _font(15, bold=True))
         _purple_pill(draw, WIDTH - PAD - bw - 18, 36, badge,
                      (112, 82, 119), PURPLE_GOLD)
-    draw.text((PAD, 84), "价格为 WM 加权均价 · 48h / 90d",
-              font=_font(15), fill=PURPLE_MUTED)
-    y = 124
+    refinement = str(getattr(relic, "refinement_label", "完整"))
+    code = str(getattr(relic, "refinement", "Intact"))
+    draw.text((PAD, 84), "精炼：%s（%s） · 价格为 WM 加权均价 · 48h / 90d" % (
+        refinement, code), font=_font(15), fill=PURPLE_MUTED)
+    if locations:
+        draw.text((PAD, 106), "获取：%s" % _fit(
+            draw, "、".join(locations[:8]), _font(12), WIDTH - 2 * PAD),
+            font=_font(12), fill=PURPLE_MUTED)
+    y = 128 if locations else 124
     for reward in rewards:
         name = str(getattr(reward, "market_name", "")
                    or getattr(reward, "name", "") or "—")
@@ -1949,9 +1956,16 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
         draw.text((46, y + 10), name, font=_font(19, bold=True),
                   fill=PURPLE_TEXT)
         rarity = str(getattr(reward, "rarity_label", "") or "")
+        chance = float(getattr(reward, "chance", 0) or 0)
+        chip_x = 46
         if rarity:
-            _purple_pill(draw, 46, y + 38, rarity, (104, 83, 133),
-                         PURPLE_TEXT, font_size=12)
+            chip_w, _ = _purple_pill(draw, chip_x, y + 38, rarity,
+                                     (104, 83, 133), PURPLE_TEXT,
+                                     font_size=12)
+            chip_x += chip_w + 10
+        if chance:
+            draw.text((chip_x, y + 41), "概率 %.2f%%" % chance,
+                      font=_font(12), fill=PURPLE_MUTED)
         ducats = int(getattr(reward, "ducats", 0) or 0)
         draw.text((WIDTH - 330, y + 10), "%d D" % ducats,
                   font=_font(18, bold=True), fill=PURPLE_GOLD)

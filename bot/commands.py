@@ -785,9 +785,13 @@ class CommandRouter:
         text = str(argument or "").strip()
         if not text:
             return present.error_reply(
-                "用法：%s遗物 <遗物编号>\n"
-                "例如：%s遗物 后纪s18　%s遗物 后s18　%s遗物 Axi S18"
+                "用法：%s遗物 <遗物编号> [完整|优良|无瑕|光辉]\n"
+                "例如：%s遗物 后纪s18　%s遗物 后s18　%s遗物 Axi S18 光辉"
                 % (ctx.prefix, ctx.prefix, ctx.prefix, ctx.prefix))
+        text, refinement = self.relics.extract_refinement(text)
+        if not text:
+            return present.error_reply(
+                "请补遗物编号，例如 %s遗物 后纪s18 光辉" % ctx.prefix)
         matches = self.relics.search(text)
         if not matches:
             if not self.relics.available():
@@ -805,7 +809,8 @@ class CommandRouter:
                               for item in matches[:12])
             return present.error_reply(
                 "找到多个遗物：%s。\n请补完整编号，例如 后纪s18。" % codes)
-        relic = self.relics.enrich(matches[0], platform=platform)
+        relic = self.relics.enrich(matches[0], platform=platform,
+                                   refinement=refinement)
         return present.relic_reply(relic, platform)
 
     def _riven_market(self, argument: str, ctx: Context) -> Reply:

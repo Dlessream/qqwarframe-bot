@@ -1193,7 +1193,9 @@ class RelicCommandTest(unittest.TestCase):
         class FakeRelics:
             def search(inner, text):
                 return [self.relic] if "s18" in text.lower() else []
-            def enrich(inner, relic, platform=None):
+            def extract_refinement(inner, text):
+                return text, "Intact"
+            def enrich(inner, relic, platform=None, refinement="Intact"):
                 return relic
         self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
         self.router, _, _ = make_router(relics=FakeRelics())
@@ -1201,6 +1203,8 @@ class RelicCommandTest(unittest.TestCase):
     def test_missing_relic_source_has_clear_feedback(self):
         class NoRelics:
             last_error = "HTTP 404"
+            def extract_refinement(self, text):
+                return text, "Intact"
             def search(self, text):
                 return []
             def available(self):

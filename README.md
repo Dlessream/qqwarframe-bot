@@ -173,11 +173,20 @@
 #遗物 后s18
 #遗物 古纪a1
 #遗物 Axi S18
+#遗物 后纪s18 光辉
+#遗物 后s18 无瑕
 ```
 
-- 显示遗物内所有奖励、稀有度、概率、杜卡德；
-- 显示 **已入库 / 出库中**；
+- 显示遗物内**全部奖励**、稀有度、掉率、杜卡德；
+- 默认 **完整（Intact）**，可加 `完整 / 优良 / 无瑕 / 光辉` 查看对应精炼掉率：
+  - 完整 25.33% / 11% / 2%
+  - 优良 23.33% / 13% / 4%
+  - 无瑕 20% / 17% / 6%
+  - 光辉 16.67% / 20% / 10%
+- 图片右上角明确标注 **已入库 / 未入库**；
+- 显示遗物掉落地点（数据源提供时）；
 - 每个奖励补 warframe.market 的 **48h 加权均价、90d 加权均价、成交量**；
+- 文字和图片都附 Wiki 链接：<https://wiki.warframe.com/w/Void_Relic>；
 - 等级别名：`后纪=后`、`前纪=前`、`中纪=中`、`古纪=古`，英文 `Axi/Lith/Meso/Neo` 也认；
 - 数据来自 warframestat `/relics`；该接口 404 时自动尝试 WFCD drop-data / drops.warframestat.us 的遗物静态数据；
 - 全部失败时才读 `data/relics_zh.json` 缓存；
@@ -1300,7 +1309,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**825 个离线测试**，不联网、不连 QQ，覆盖：
+**826 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1409,7 +1418,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 825 个测试 + fixtures
+├── tests/                 # 826 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

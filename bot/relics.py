@@ -35,6 +35,30 @@ _CLEAN_RE = re.compile(r"\s+")
 
 RARITY_LABELS = {"common": "铜", "uncommon": "银", "rare": "金"}
 
+# 遗物精炼：完整 / 优良 / 无瑕 / 光辉。
+# 每个稀有度的单条概率来自 Wiki 的 Void Relic 掉率表。
+REFINEMENTS = {
+    "Intact": {
+        "label": "完整", "chances": {"common": 25.33, "uncommon": 11.0, "rare": 2.0},
+    },
+    "Exceptional": {
+        "label": "优良", "chances": {"common": 23.33, "uncommon": 13.0, "rare": 4.0},
+    },
+    "Flawless": {
+        "label": "无瑕", "chances": {"common": 20.0, "uncommon": 17.0, "rare": 6.0},
+    },
+    "Radiant": {
+        "label": "光辉", "chances": {"common": 16.67, "uncommon": 20.0, "rare": 10.0},
+    },
+}
+REFINEMENT_ALIASES = {
+    "完整": "Intact", "完好": "Intact", "intact": "Intact",
+    "优良": "Exceptional", "exceptional": "Exceptional",
+    "无瑕": "Flawless", "flawless": "Flawless",
+    "光辉": "Radiant", "radiant": "Radiant",
+}
+WIKI_URL = "https://wiki.warframe.com/w/Void_Relic"
+
 # warframestat /pc/relics 在部分 API 版本返回 404，按顺序尝试社区静态数据。
 DROP_URLS = (
     "https://raw.githubusercontent.com/WFCD/warframe-drop-data/master/data/Relics.json",
@@ -68,10 +92,18 @@ class Relic:
     code: str = ""
     vaulted: bool = False
     rewards: List[RelicReward] = field(default_factory=list)
+    refinement: str = "Intact"
+    locations: List[str] = field(default_factory=list)
+    vault_date: str = ""
+    wiki_url: str = WIKI_URL
 
     @property
     def tier_label(self) -> str:
         return TIER_LABELS.get(self.tier, self.tier or "遗物")
+
+    @property
+    def refinement_label(self) -> str:
+        return REFINEMENTS.get(self.refinement, {}).get("label", self.refinement)
 
     @property
     def title(self) -> str:
@@ -79,7 +111,7 @@ class Relic:
 
     @property
     def vault_label(self) -> str:
-        return "已入库" if self.vaulted else "出库中"
+        return "已入库" if self.vaulted else "未入库"
 
 
 def _clean(text: Any) -> str:
@@ -136,6 +168,23 @@ def _reward_from_raw(raw: Dict[str, Any]) -> RelicReward:
     )
 
 
+def _locations_from_raw(raw: Dict[str, Any]) -> List[str]:
+    rows = raw.get("locations") or raw.get("location") or []
+    if isinstance(rows, (str, dict)):
+        rows = [rows]
+    result = []
+    for row in rows:
+        if isinstance(row, dict):
+            text = (row.get("name") or row.get("node")
+                    or row.get("location") or "")
+        else:
+            text = row
+        text = _clean(text)
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
 def parse_relic(raw: Dict[str, Any]) -> Optional[Relic]:
     if not isinstance(raw, dict):
         return None
@@ -166,6 +215,8 @@ def parse_relic(raw: Dict[str, Any]) -> Optional[Relic]:
         name=name, tier=tier, code=code,
         vaulted=bool(vaulted),
         rewards=rewards,
+        locations=_locations_from_raw(raw),
+        vault_date=_clean(raw.get("vaultDate") or raw.get("vault_date")),
     )
 
 
@@ -277,7 +328,7 @@ class RelicClient:
         return list(self._cache)
 
     def search(self, text: str) -> List[Relic]:
-        query = _clean(text)
+        query, _ = self.extract_refinement(text)
         if not query:
             return []
         tier, code = parse_tier_code(query)
@@ -300,6 +351,18 @@ class RelicClient:
         return results
 
     # ------------------------------------------------------------------ 行情
+    @staticmethod
+    def extract_refinement(text: str) -> Tuple[str, str]:
+        """`后纪s18 光辉` → (`后纪s18`, `Radiant`)；没写默认 Intact。"""
+        words = [word for word in str(text or "").split() if word]
+        refinement = "Intact"
+        if words:
+            key = REFINEMENT_ALIASES.get(words[-1].lower())
+            if key:
+                refinement = key
+                words.pop()
+        return " ".join(words), refinement
+
     def _item_for(self, reward: RelicReward):
         index = getattr(self.market, "index", None)
         if index is not None and reward.slug:
@@ -318,7 +381,15 @@ class RelicClient:
                 return None
         return None
 
-    def enrich(self, relic: Relic, platform: Optional[str] = None) -> Relic:
+    def enrich(self, relic: Relic, platform: Optional[str] = None,
+               refinement: str = "Intact") -> Relic:
+        relic.refinement = (refinement if refinement in REFINEMENTS
+                            else "Intact")
+        chances = REFINEMENTS[relic.refinement]["chances"]
+        for reward in relic.rewards:
+            rarity = (reward.rarity or "").lower()
+            if rarity in chances:
+                reward.chance = chances[rarity]
         rows: List[RelicReward] = []
         for reward in relic.rewards:
             item = self._item_for(reward)

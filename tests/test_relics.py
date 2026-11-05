@@ -124,6 +124,17 @@ class RelicClientTest(unittest.TestCase):
         self.assertEqual(relic.title, "后纪 S18")
         self.assertEqual(relic.rewards[0].name, "Paris Prime Upper Limb")
 
+    def test_refinement_changes_chance(self):
+        text, refinement = self.client.extract_refinement("后s18 光辉")
+        self.assertEqual((text, refinement), ("后s18", "Radiant"))
+        relic = self.client.search("后s18 光辉")[0]
+        self.client.enrich(relic, refinement=refinement)
+        self.assertEqual(relic.refinement_label, "光辉")
+        self.assertEqual(relic.rewards[1].chance, 20.0)  # 银卡
+        rare = self.client.search("后s18")[0]
+        self.client.enrich(rare, refinement="Radiant")
+        self.assertEqual(rare.vault_label, "已入库")
+
     def test_relic_card(self):
         relic = self.client.search("后s18")[0]
         self.client.enrich(relic)

@@ -675,25 +675,35 @@ def _invasion_reward(side, row) -> str:
 
 
 def relic_reply(relic, platform: str = "pc") -> Reply:
-    """遗物内容 + 杜卡德 + 出入库 + WM 均价。"""
+    """遗物完整内容 + 精炼掉率 + 杜卡德 + 出入库 + WM 均价。"""
     rewards = list(getattr(relic, "rewards", ()) or ())
     title = getattr(relic, "title", "遗物")
     vault = getattr(relic, "vault_label", "")
     lines = ["【%s】%s" % (title, vault),
+             "精炼：%s（%s）" % (
+                 getattr(relic, "refinement_label", "完整"),
+                 getattr(relic, "refinement", "Intact")),
              "价格为 WM 加权均价（48h / 90d），D=杜卡德"]
-    for reward in rewards:
+    for index, reward in enumerate(rewards, 1):
         name = getattr(reward, "market_name", "") or getattr(reward, "name", "—")
-        lines.append("%s [%s] · %d D · 48h %.2fp · 90d %.2fp" % (
-            name, getattr(reward, "rarity_label", "—"),
+        lines.append("%d. %s [%s] · 概率 %.2f%% · %d D · 48h %.2fp · 90d %.2fp" % (
+            index, name, getattr(reward, "rarity_label", "—"),
+            float(getattr(reward, "chance", 0) or 0),
             int(getattr(reward, "ducats", 0) or 0),
             float(getattr(reward, "price48", 0) or 0),
             float(getattr(reward, "price90", 0) or 0)))
     if not rewards:
         lines.append("没有读取到这个遗物的奖励数据。")
+    locations = list(getattr(relic, "locations", ()) or ())
+    if locations:
+        lines.append("获取：%s" % "、".join(locations[:8]))
+    wiki = getattr(relic, "wiki_url", "") or "https://wiki.warframe.com/w/Void_Relic"
+    lines.append("Wiki：%s" % wiki)
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.relic_card(
-            relic, "数据 warframestat · warframe.market · %s" % platform_label(platform)))
+            relic, "数据 WFCD / warframe.market · Wiki: Void_Relic · %s"
+            % platform_label(platform)))
 
 
 def _safe_int(value) -> int:
