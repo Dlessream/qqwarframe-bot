@@ -683,6 +683,8 @@ def relic_reply(relic, platform: str = "pc") -> Reply:
              "精炼：%s（%s）" % (
                  getattr(relic, "refinement_label", "完整"),
                  getattr(relic, "refinement", "Intact")),
+             "本地库：%s · 行情实时" % (
+                 getattr(relic, "data_updated", "") or "内置"),
              "价格为 WM 加权均价（48h / 90d），D=杜卡德"]
     for index, reward in enumerate(rewards, 1):
         name = getattr(reward, "market_name", "") or getattr(reward, "name", "—")
@@ -702,7 +704,7 @@ def relic_reply(relic, platform: str = "pc") -> Reply:
     return Reply(
         text="\n".join(lines),
         image=lambda: imagecard.relic_card(
-            relic, "数据 WFCD / warframe.market · Wiki: Void_Relic · %s"
+            relic, "本地遗物库 · warframe.market · Wiki: Void_Relic · %s"
             % platform_label(platform)))
 
 

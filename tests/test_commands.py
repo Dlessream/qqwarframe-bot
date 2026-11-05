@@ -1211,7 +1211,7 @@ class RelicCommandTest(unittest.TestCase):
                 return False
         router, _, _ = make_router(relics=NoRelics())
         reply = router.handle("#遗物 后s18", self.ctx)[0]
-        self.assertIn("遗物数据源暂不可用", reply.text)
+        self.assertIn("本地遗物库不可用", reply.text)
         self.assertIn("HTTP 404", reply.text)
 
     def test_parse_and_reply(self):

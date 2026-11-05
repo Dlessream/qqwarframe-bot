@@ -114,7 +114,7 @@ DEFAULTS: Dict[str, Any] = {
         "aliases_file": "data/riven_aliases.json",
     },
     "relics": {
-        "cache_file": "data/relics_zh.json",
+        "local_file": "data/relics_local.json",
     },
     "arbi": {
         "enabled": True,

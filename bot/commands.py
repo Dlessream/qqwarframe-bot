@@ -797,8 +797,8 @@ class CommandRouter:
             if not self.relics.available():
                 detail = str(getattr(self.relics, "last_error", "") or "")
                 return present.error_reply(
-                    "遗物数据源暂不可用（warframestat / 静态遗物源都失败）。\n"
-                    "请检查代理或稍后再试。"
+                    "本地遗物库不可用。\n"
+                    "请确认 data/relics_local.json 存在且格式正确。"
                     + (("\n" + detail[:180]) if detail else ""))
             return present.error_reply(
                 "没有找到遗物「%s」。\n"

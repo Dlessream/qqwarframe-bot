@@ -177,8 +177,8 @@ class BotApp:
             database=self.database,
             relics=RelicClient(
                 self.worldstate, self.market,
-                cache_file=config.get("relics", {}).get(
-                    "cache_file", "data/relics_zh.json"),
+                local_file=config.get("relics", {}).get(
+                    "local_file", "data/relics_local.json"),
                 logger=self.log))
         self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",

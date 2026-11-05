@@ -1,11 +1,7 @@
-"""遗物查询：遗物内容、杜卡德、出入库状态与 warframe.market 行情。
+"""遗物查询：本地遗物库 + warframe.market 实时行情。
 
-数据源（按顺序尝试）：
-  1. warframestat `/pc/relics`（部分版本已下线，可能 404）；
-  2. WFCD drop-data 的 `Relics.json`；
-  3. drops.warframestat.us 的 `relics.json`；
-  4. 本地 `data/relics_zh.json` 缓存。
-
+遗物内容、奖励、精炼掉率、掉落地点与出入库状态全部读取
+`data/relics_local.json`，运行时不请求任何遗物数据接口；
 warframe.market 只负责奖励物品的杜卡德/中文名与 48h、90d 行情。
 """
 
@@ -15,7 +11,6 @@ import json
 import logging
 import os
 import re
-import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -59,13 +54,6 @@ REFINEMENT_ALIASES = {
 }
 WIKI_URL = "https://wiki.warframe.com/w/Void_Relic"
 
-# warframestat /pc/relics 在部分 API 版本返回 404，按顺序尝试社区静态数据。
-DROP_URLS = (
-    "https://raw.githubusercontent.com/WFCD/warframe-drop-data/master/data/Relics.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-drop-data/main/data/Relics.json",
-    "https://drops.warframestat.us/data/relics.json",
-)
-
 
 @dataclass
 class RelicReward:
@@ -96,6 +84,7 @@ class Relic:
     locations: List[str] = field(default_factory=list)
     vault_date: str = ""
     wiki_url: str = WIKI_URL
+    data_updated: str = ""
 
     @property
     def tier_label(self) -> str:
@@ -143,6 +132,17 @@ def parse_tier_code(text: str) -> Tuple[str, str]:
     return tier, code
 
 
+def _rarity_from_chance(chance: float, fallback: str = "") -> str:
+    """WFCD 的 rarity 字段不可靠，以 Intact 基础掉率为准。"""
+    if chance >= 20:
+        return "Common"
+    if chance >= 6:
+        return "Uncommon"
+    if chance > 0:
+        return "Rare"
+    return fallback
+
+
 def _reward_from_raw(raw: Dict[str, Any]) -> RelicReward:
     item = raw.get("item") if isinstance(raw.get("item"), dict) else raw
     market = (item.get("warframeMarket") or item.get("warframe_market")
@@ -159,10 +159,11 @@ def _reward_from_raw(raw: Dict[str, Any]) -> RelicReward:
         ducats = int(item.get("ducats") or raw.get("ducats") or 0)
     except (TypeError, ValueError):
         ducats = 0
+    rarity = _clean(raw.get("rarity"))
     return RelicReward(
         name=_clean(item.get("name") or item.get("itemName")),
         slug=slug,
-        rarity=_clean(raw.get("rarity")),
+        rarity=_rarity_from_chance(chance, rarity),
         chance=chance,
         ducats=ducats,
     )
@@ -221,26 +222,39 @@ def parse_relic(raw: Dict[str, Any]) -> Optional[Relic]:
 
 
 class RelicClient:
-    def __init__(self, worldstate, market, cache_file: str = "data/relics_zh.json",
+    """本地遗物库；内容不再依赖 warframestat / WFCD 接口。
+
+    市场价仍由 warframe.market 实时查询；本地文件只保存遗物内容、
+    奖励、掉率、掉落地点与出入库状态。
+    """
+
+    def __init__(self, worldstate, market,
+                 local_file: str = "data/relics_local.json",
+                 cache_file: Optional[str] = None,
                  logger: Optional[logging.Logger] = None):
         self.worldstate = worldstate
         self.market = market
-        self.cache_file = str(cache_file or "data/relics_zh.json")
+        # cache_file 仅保留旧配置兼容；新配置使用 local_file。
+        self.local_file = str(local_file or cache_file or "data/relics_local.json")
         self.log = logger or LOGGER
         self._cache: List[Relic] = []
-        self._cached_at = 0.0
+        self._updated = ""
+        self._mtime = 0.0
         self.last_error = ""
-        self._load_cache()
+        self._load_local()
 
     # ------------------------------------------------------------------ 数据
-    def _load_cache(self) -> None:
+    def _load_local(self) -> None:
         try:
-            with open(self.cache_file, encoding="utf-8") as handle:
+            with open(self.local_file, encoding="utf-8") as handle:
                 data = json.load(handle)
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            self.last_error = "本地遗物库读取失败：%s" % exc
+            self.log.warning(self.last_error)
             return
         rows = data.get("relics") if isinstance(data, dict) else data
         if not isinstance(rows, list):
+            self.last_error = "本地遗物库格式异常"
             return
         relics = []
         for row in rows:
@@ -249,82 +263,24 @@ class RelicClient:
                 if relic is not None:
                     relics.append(relic)
         self._cache = relics
-        self._cached_at = float(data.get("fetched_at") or 0) if isinstance(data, dict) else 0.0
-
-    def _save_cache(self, raw: Any) -> None:
-        directory = os.path.dirname(os.path.abspath(self.cache_file))
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        temp = self.cache_file + ".tmp"
-        payload = {"fetched_at": time.time(), "relics": raw}
-        with open(temp, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False)
-        os.replace(temp, self.cache_file)
-
-    def _fetch_raw(self) -> Any:
-        errors = []
-        if self.worldstate is not None:
-            # 不走 worldstate.fetch：遗物接口 404 不该把整个世界状态标记为宕机。
-            http = getattr(self.worldstate, "http", None)
-            if http is not None:
-                base = str(getattr(self.worldstate, "base_url",
-                                   "https://api.warframestat.us")).rstrip("/")
-                language = str(getattr(self.worldstate, "language", "") or "")
-                url = base + "/pc/relics"
-                if language:
-                    url += "?language=" + language
-                try:
-                    raw = http.get_json(url)
-                    if isinstance(raw, (list, dict)) and raw:
-                        return raw
-                except Exception as exc:  # noqa: BLE001
-                    errors.append(str(exc))
-                    self.log.info("warframestat relics 不可用：%s", exc)
-            if http is not None:
-                for url in DROP_URLS:
-                    try:
-                        raw = http.get_json(url)
-                    except Exception as exc:  # noqa: BLE001
-                        errors.append("%s: %s" % (url, exc))
-                        self.log.info("遗物静态源失败（%s）：%s", url, exc)
-                        continue
-                    if isinstance(raw, (list, dict)) and raw:
-                        return raw
-                    errors.append("%s: 返回格式不是遗物数组" % url)
-            else:
-                try:
-                    raw = self.worldstate.fetch("relics")
-                    if isinstance(raw, (list, dict)) and raw:
-                        return raw
-                except Exception as exc:  # noqa: BLE001
-                    errors.append(str(exc))
-        self.last_error = "；".join(errors[-3:]) or "没有可用数据源"
-        return None
+        self._updated = str(data.get("updated") or "") if isinstance(data, dict) else ""
+        try:
+            self._mtime = os.path.getmtime(self.local_file)
+        except OSError:
+            self._mtime = 0.0
+        self.last_error = "" if relics else "本地遗物库为空"
 
     def available(self) -> bool:
         return bool(self._cache)
 
     def relics(self) -> List[Relic]:
-        raw = self._fetch_raw()
-        if isinstance(raw, dict):
-            for key in ("relics", "data", "items"):
-                if isinstance(raw.get(key), (list, dict)):
-                    raw = raw.get(key)
-                    break
-        if isinstance(raw, dict):
-            # 有些数据源按遗物编号分组
-            raw = list(raw.values())
-        if isinstance(raw, list) and raw:
-            parsed = [parse_relic(row) for row in raw]
-            parsed = [item for item in parsed if item is not None]
-            if parsed:
-                self._cache = parsed
-                self.last_error = ""
-                try:
-                    self._save_cache(raw)
-                except OSError as exc:
-                    self.log.warning("遗物缓存写入失败：%s", exc)
-                return list(parsed)
+        # 修改 data/relics_local.json 后无需重启，下一次查询自动重载。
+        try:
+            mtime = os.path.getmtime(self.local_file)
+        except OSError:
+            mtime = 0.0
+        if not self._cache or mtime != self._mtime:
+            self._load_local()
         return list(self._cache)
 
     def search(self, text: str) -> List[Relic]:
@@ -385,6 +341,7 @@ class RelicClient:
                refinement: str = "Intact") -> Relic:
         relic.refinement = (refinement if refinement in REFINEMENTS
                             else "Intact")
+        relic.data_updated = self._updated
         chances = REFINEMENTS[relic.refinement]["chances"]
         for reward in relic.rewards:
             rarity = (reward.rarity or "").lower()

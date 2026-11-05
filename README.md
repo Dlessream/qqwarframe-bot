@@ -184,13 +184,14 @@
   - 无瑕 20% / 17% / 6%
   - 光辉 16.67% / 20% / 10%
 - 图片右上角明确标注 **已入库 / 未入库**；
-- 显示遗物掉落地点（数据源提供时）；
-- 每个奖励补 warframe.market 的 **48h 加权均价、90d 加权均价、成交量**；
+- 显示遗物掉落地点（本地库有记录时）；
+- 每个奖励补 warframe.market 的 **48h 加权均价、90d 加权均价、成交量**（行情实时）；
 - 文字和图片都附 Wiki 链接：<https://wiki.warframe.com/w/Void_Relic>；
 - 等级别名：`后纪=后`、`前纪=前`、`中纪=中`、`古纪=古`，英文 `Axi/Lith/Meso/Neo` 也认；
-- 数据来自 warframestat `/relics`；该接口 404 时自动尝试 WFCD drop-data / drops.warframestat.us 的遗物静态数据；
-- 全部失败时才读 `data/relics_zh.json` 缓存；
-- 缓存文件默认 `data/relics_zh.json`，可在 `relics.cache_file` 修改。
+- **遗物内容全部来自本地 `data/relics_local.json`，运行时不请求 warframestat / WFCD 等遗物数据接口**；
+- 本地库当前包含 800 个遗物，已按当前掉落表标记 `已入库 / 未入库`；
+- 修改本地 JSON 后不需要重启，下一次查询按文件修改时间自动重载；
+- 本地库路径可在 `relics.local_file` 修改（默认 `data/relics_local.json`）。
 
 细节：
 
@@ -1155,7 +1156,7 @@ environment:
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `cache_file` | `data/relics_zh.json` | warframestat 遗物数据缓存；接口失败时读它 |
+| `local_file` | `data/relics_local.json` | 本地遗物库；运行时不再请求遗物数据接口 |
 
 ### arbi
 
@@ -1324,7 +1325,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**828 个离线测试**，不联网、不连 QQ，覆盖：
+**829 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1433,7 +1434,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 828 个测试 + fixtures
+├── tests/                 # 829 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

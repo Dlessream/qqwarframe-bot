@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -88,8 +89,10 @@ class RelicClientTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
         self.cache = os.path.join(self.dir, "relics.json")
+        with open(self.cache, "w", encoding="utf-8") as handle:
+            json.dump({"relics": RAW}, handle)
         self.client = RelicClient(FakeWorld(), FakeMarket(),
-                                  cache_file=self.cache)
+                                  local_file=self.cache)
 
     def tearDown(self):
         for name in os.listdir(self.dir):
@@ -113,6 +116,17 @@ class RelicClientTest(unittest.TestCase):
         self.assertEqual(self.client.search("古a1")[0].tier, "Lith")
         self.assertEqual(self.client.search("后a1"), [])
         self.assertEqual(self.client.search("Axi S18")[0].code, "S18")
+
+    def test_local_relic_database(self):
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "data", "relics_local.json")
+        client = RelicClient(None, FakeMarket(), local_file=path)
+        self.assertTrue(client.available())
+        self.assertGreaterEqual(len(client.relics()), 800)
+        relic = client.search("后纪s18")[0]
+        self.assertEqual(relic.title, "后纪 S18")
+        self.assertEqual(relic.vault_label, "已入库")
+        self.assertEqual(len(relic.rewards), 6)
 
     def test_wfcd_drop_shape(self):
         from bot.relics import parse_relic
