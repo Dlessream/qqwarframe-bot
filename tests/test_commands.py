@@ -1198,6 +1198,18 @@ class RelicCommandTest(unittest.TestCase):
         self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
         self.router, _, _ = make_router(relics=FakeRelics())
 
+    def test_missing_relic_source_has_clear_feedback(self):
+        class NoRelics:
+            last_error = "HTTP 404"
+            def search(self, text):
+                return []
+            def available(self):
+                return False
+        router, _, _ = make_router(relics=NoRelics())
+        reply = router.handle("#遗物 后s18", self.ctx)[0]
+        self.assertIn("遗物数据源暂不可用", reply.text)
+        self.assertIn("HTTP 404", reply.text)
+
     def test_parse_and_reply(self):
         self.assertEqual(self.router.parse("#遗物 后s18"), ("relic", "后s18"))
         reply = self.router.handle("#遗物 后s18", self.ctx)[0]

@@ -114,6 +114,16 @@ class RelicClientTest(unittest.TestCase):
         self.assertEqual(self.client.search("后a1"), [])
         self.assertEqual(self.client.search("Axi S18")[0].code, "S18")
 
+    def test_wfcd_drop_shape(self):
+        from bot.relics import parse_relic
+        relic = parse_relic({
+            "tier": "Axi", "relicName": "S18", "vaulted": True,
+            "rewards": [{"itemName": "Paris Prime Upper Limb",
+                         "rarity": "Common", "chance": 25.33}],
+        })
+        self.assertEqual(relic.title, "后纪 S18")
+        self.assertEqual(relic.rewards[0].name, "Paris Prime Upper Limb")
+
     def test_relic_card(self):
         relic = self.client.search("后s18")[0]
         self.client.enrich(relic)

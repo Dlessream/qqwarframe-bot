@@ -790,6 +790,12 @@ class CommandRouter:
                 % (ctx.prefix, ctx.prefix, ctx.prefix, ctx.prefix))
         matches = self.relics.search(text)
         if not matches:
+            if not self.relics.available():
+                detail = str(getattr(self.relics, "last_error", "") or "")
+                return present.error_reply(
+                    "遗物数据源暂不可用（warframestat / 静态遗物源都失败）。\n"
+                    "请检查代理或稍后再试。"
+                    + (("\n" + detail[:180]) if detail else ""))
             return present.error_reply(
                 "没有找到遗物「%s」。\n"
                 "可写：后纪s18 / 后s18 / Axi S18；"

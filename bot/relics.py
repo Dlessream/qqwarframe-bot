@@ -1,11 +1,12 @@
 """遗物查询：遗物内容、杜卡德、出入库状态与 warframe.market 行情。
 
-数据源：
-  * warframestat `/pc/relics`：遗物、奖励、稀有度、概率、vaulted；
-  * warframe.market 物品索引：奖励物品的杜卡德与 slug；
-  * warframe.market `/v1/items/{slug}/statistics`：48h / 90d 加权均价。
+数据源（按顺序尝试）：
+  1. warframestat `/pc/relics`（部分版本已下线，可能 404）；
+  2. WFCD drop-data 的 `Relics.json`；
+  3. drops.warframestat.us 的 `relics.json`；
+  4. 本地 `data/relics_zh.json` 缓存。
 
-warframestat 不可用时读 `data/relics_zh.json` 缓存。
+warframe.market 只负责奖励物品的杜卡德/中文名与 48h、90d 行情。
 """
 
 from __future__ import annotations
@@ -33,6 +34,13 @@ _CODE_RE = re.compile(r"[A-Za-z]?\d+[A-Za-z]?", re.I)
 _CLEAN_RE = re.compile(r"\s+")
 
 RARITY_LABELS = {"common": "铜", "uncommon": "银", "rare": "金"}
+
+# warframestat /pc/relics 在部分 API 版本返回 404，按顺序尝试社区静态数据。
+DROP_URLS = (
+    "https://raw.githubusercontent.com/WFCD/warframe-drop-data/master/data/Relics.json",
+    "https://raw.githubusercontent.com/WFCD/warframe-drop-data/main/data/Relics.json",
+    "https://drops.warframestat.us/data/relics.json",
+)
 
 
 @dataclass
@@ -133,15 +141,30 @@ def parse_relic(raw: Dict[str, Any]) -> Optional[Relic]:
         return None
     name = _clean(raw.get("name") or raw.get("relicName"))
     tier, code = parse_tier_code(name)
+    tier_raw = _clean(raw.get("tier") or raw.get("relicTier") or "")
+    if tier_raw:
+        tier = TIER_ALIASES.get(tier_raw.lower(), tier)
+    code = (_clean(raw.get("relicName") or raw.get("code") or raw.get("relic_code"))
+            or code)
+    if not name and tier and code:
+        name = "%s %s Relic" % (tier, code)
     if not tier and not code:
         return None
     rewards = []
-    for row in raw.get("rewards") or []:
+    rows = (raw.get("rewards") or raw.get("drops") or raw.get("items")
+            or raw.get("relicIntact") or [])
+    if isinstance(rows, dict):
+        rows = rows.get("rewards") or rows.get("drops") or []
+    for row in rows:
         if isinstance(row, dict):
             rewards.append(_reward_from_raw(row))
+    vaulted = raw.get("vaulted")
+    if vaulted is None:
+        state = _clean(raw.get("state") or "").lower()
+        vaulted = state in ("vaulted", "已入库")
     return Relic(
         name=name, tier=tier, code=code,
-        vaulted=bool(raw.get("vaulted")),
+        vaulted=bool(vaulted),
         rewards=rewards,
     )
 
@@ -155,6 +178,7 @@ class RelicClient:
         self.log = logger or LOGGER
         self._cache: List[Relic] = []
         self._cached_at = 0.0
+        self.last_error = ""
         self._load_cache()
 
     # ------------------------------------------------------------------ 数据
@@ -186,20 +210,65 @@ class RelicClient:
             json.dump(payload, handle, ensure_ascii=False)
         os.replace(temp, self.cache_file)
 
-    def relics(self) -> List[Relic]:
-        raw = None
+    def _fetch_raw(self) -> Any:
+        errors = []
         if self.worldstate is not None:
-            try:
-                raw = self.worldstate.fetch("relics")
-            except Exception as exc:  # noqa: BLE001
-                self.log.warning("读取遗物接口失败：%s", exc)
+            # 不走 worldstate.fetch：遗物接口 404 不该把整个世界状态标记为宕机。
+            http = getattr(self.worldstate, "http", None)
+            if http is not None:
+                base = str(getattr(self.worldstate, "base_url",
+                                   "https://api.warframestat.us")).rstrip("/")
+                language = str(getattr(self.worldstate, "language", "") or "")
+                url = base + "/pc/relics"
+                if language:
+                    url += "?language=" + language
+                try:
+                    raw = http.get_json(url)
+                    if isinstance(raw, (list, dict)) and raw:
+                        return raw
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(str(exc))
+                    self.log.info("warframestat relics 不可用：%s", exc)
+            if http is not None:
+                for url in DROP_URLS:
+                    try:
+                        raw = http.get_json(url)
+                    except Exception as exc:  # noqa: BLE001
+                        errors.append("%s: %s" % (url, exc))
+                        self.log.info("遗物静态源失败（%s）：%s", url, exc)
+                        continue
+                    if isinstance(raw, (list, dict)) and raw:
+                        return raw
+                    errors.append("%s: 返回格式不是遗物数组" % url)
+            else:
+                try:
+                    raw = self.worldstate.fetch("relics")
+                    if isinstance(raw, (list, dict)) and raw:
+                        return raw
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(str(exc))
+        self.last_error = "；".join(errors[-3:]) or "没有可用数据源"
+        return None
+
+    def available(self) -> bool:
+        return bool(self._cache)
+
+    def relics(self) -> List[Relic]:
+        raw = self._fetch_raw()
         if isinstance(raw, dict):
-            raw = raw.get("relics") or raw.get("data")
+            for key in ("relics", "data", "items"):
+                if isinstance(raw.get(key), (list, dict)):
+                    raw = raw.get(key)
+                    break
+        if isinstance(raw, dict):
+            # 有些数据源按遗物编号分组
+            raw = list(raw.values())
         if isinstance(raw, list) and raw:
             parsed = [parse_relic(row) for row in raw]
             parsed = [item for item in parsed if item is not None]
             if parsed:
                 self._cache = parsed
+                self.last_error = ""
                 try:
                     self._save_cache(raw)
                 except OSError as exc:
@@ -233,13 +302,18 @@ class RelicClient:
     # ------------------------------------------------------------------ 行情
     def _item_for(self, reward: RelicReward):
         index = getattr(self.market, "index", None)
-        if index is not None:
+        if index is not None and reward.slug:
             item = index.by_slug.get(reward.slug)
             if item is not None:
                 return item
         if reward.slug:
             try:
                 return self.market.lookup(reward.slug, limit=1)[0].item
+            except Exception:  # noqa: BLE001
+                pass
+        if reward.name:
+            try:
+                return self.market.lookup(reward.name, limit=1)[0].item
             except Exception:  # noqa: BLE001
                 return None
         return None
