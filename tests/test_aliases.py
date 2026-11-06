@@ -32,6 +32,10 @@ class AliasStoreTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.delete("电男头")
 
+    def test_mod_nickname_aliases(self):
+        self.assertEqual(DEFAULT_ALIASES["异况超量"], "condition_overload")
+        self.assertEqual(DEFAULT_ALIASES["异况超载"], "condition_overload")
+
     def test_frame_defaults_migrate_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "aliases.json")

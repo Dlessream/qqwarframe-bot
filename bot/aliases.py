@@ -15,6 +15,8 @@ DEFAULT_ALIASES = {
     "电男头": "volt_prime_neuroptics_blueprint",
     "电男机体": "volt_prime_chassis_blueprint",
     "电男系统": "volt_prime_systems_blueprint",
+    "异况超量": "condition_overload",
+    "异况超载": "condition_overload",
 }
 
 _ALIAS_RE = re.compile(r"^[^\s_].{0,39}$")

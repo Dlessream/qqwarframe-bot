@@ -221,6 +221,19 @@ def parse_relic(raw: Dict[str, Any]) -> Optional[Relic]:
     )
 
 
+def _resolve_local_file(path: str) -> str:
+    """相对路径优先按项目根目录解析，避免服务 cwd 不在项目目录时找不到。"""
+    raw = str(path or "data/relics_local.json")
+    if os.path.isabs(raw):
+        return raw
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [os.path.join(root, raw), os.path.abspath(raw)]
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return candidates[0]
+
+
 class RelicClient:
     """本地遗物库；内容不再依赖 warframestat / WFCD 接口。
 
@@ -235,7 +248,8 @@ class RelicClient:
         self.worldstate = worldstate
         self.market = market
         # cache_file 仅保留旧配置兼容；新配置使用 local_file。
-        self.local_file = str(local_file or cache_file or "data/relics_local.json")
+        self.local_file = _resolve_local_file(
+            local_file or cache_file or "data/relics_local.json")
         self.log = logger or LOGGER
         self._cache: List[Relic] = []
         self._updated = ""
@@ -249,7 +263,8 @@ class RelicClient:
             with open(self.local_file, encoding="utf-8") as handle:
                 data = json.load(handle)
         except (OSError, ValueError) as exc:
-            self.last_error = "本地遗物库读取失败：%s" % exc
+            self.last_error = "本地遗物库读取失败：%s（%s）" % (
+                exc, self.local_file)
             self.log.warning(self.last_error)
             return
         rows = data.get("relics") if isinstance(data, dict) else data
