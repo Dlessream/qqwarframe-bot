@@ -1342,18 +1342,19 @@ def cetus_reply(cycle, raw) -> Reply:
     for key in ("A", "B", "C"):
         missions = "·".join(CETUS_TENTS[key])
         rows.append(["帐篷 %s" % key, missions, "—", "—", "—"])
-        text_lines.append("帐篷 %s / %s" % (key, " / ".join(CETUS_TENTS[key])))
+        text_lines.append("帐篷 %s（固定参考） / %s" % (
+            key, " / ".join(CETUS_TENTS[key])))
 
     state = _state_label((cycle or {}).get("state"))
     time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
     return _world_reply(
-        "希图斯赏金", "当前 %s · 剩余 %s ｜ 7 档赏金 + 帐篷 A/B/C" % (
+        "希图斯赏金", "当前 %s · 剩余 %s ｜ 7 档官方实时 + 帐篷 A/B/C 固定参考" % (
             state, time_left),
         ["档位", "任务", "等级", "奖励", "剩余"], rows,
-        "数据 世界状态聚合源 · 希图斯", "希图斯",
+        "数据 官方世界状态 · 希图斯 + 固定帐篷参考", "希图斯",
         text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 1.0, 0.8],
         accent=imagecard.GREEN,
-        note="帐篷 A/B/C 各 3 个任务；赏金按当前 Ostrons 任务顺序显示。")
+        note="7 档赏金来自官方世界状态；帐篷 A/B/C 为固定参考，不随实时赏金轮换。")
 
 
 def translation_reply(query: str, zh: str, en: str,
@@ -1440,6 +1441,18 @@ def _reward_list(items, limit: int = BOUNTY_REWARD_LIMIT) -> List[str]:
     return values
 
 
+def _live_job_rewards(job) -> List[str]:
+    """优先用世界状态里当前赏金的 rewardPoolDrops；没有才退回本地档位表。"""
+    values = []
+    for drop in _as_list(job.get("rewardPoolDrops")):
+        if not isinstance(drop, dict) or not drop.get("item"):
+            continue
+        item = terms.localize_reward(str(drop["item"]))
+        if item and item not in values:
+            values.append(item)
+    return values
+
+
 def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
     """一个据点的全部赏金行：档位、任务、等级 / 剩余、该档奖励池。"""
     jobs = _as_list((syndicate or {}).get("jobs"))
@@ -1455,7 +1468,9 @@ def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
             level = _bounty_level(job)
             left = countdown(parse_timestamp(job.get("expiry")))
             vault = "隔离宝库" in title or "Isolation Vault" in title
-            rewards = bountyrewards.for_level(name, job.get("enemyLevels"), vault=vault)
+            rewards = (_live_job_rewards(job)
+                       or bountyrewards.for_level(
+                           name, job.get("enemyLevels"), vault=vault))
             rows.append({
                 "badge": _tier_badge(index),
                 "task": title,
@@ -1505,6 +1520,8 @@ def bounties_reply(raw, location: str = "") -> Reply:
     groups = []
     text_lines = []
     static_used = False
+    live_places = 0
+    static_places = []
     for name, label, group_note in BOUNTY_GROUPS:
         if location and name != location:
             continue
@@ -1514,8 +1531,13 @@ def bounties_reply(raw, location: str = "") -> Reply:
         rows = _bounty_rows(name, syndicate, with_tents=not location)
         if not rows:
             continue
-        if not _as_list((syndicate or {}).get("jobs")):
+        is_live = bool(_as_list((syndicate or {}).get("jobs")))
+        if is_live:
+            live_places += 1
+        else:
             static_used = True
+            static_places.append(label)
+            group_note = "Wiki 固定档位参考 · 任务类型以游戏内为准"
         owner = _bounty_owner(name)
         place = BOUNTY_LOCATIONS.get(name, terms.localize_syndicate(name))
         for row in rows:
@@ -1539,21 +1561,35 @@ def bounties_reply(raw, location: str = "") -> Reply:
     if location:
         only = BOUNTY_LOCATIONS.get(location, terms.localize_syndicate(location))
         title = "%s 赏金" % only
-        subtitle = "%d 档 · 每 %s 小时换一批" % (len(groups[0]["rows"]), hours)
+        if static_used:
+            subtitle = "Wiki 固定档位参考 · 官方世界状态无实时任务"
+        else:
+            subtitle = "%d 档官方实时 · 每 %s 小时换一批" % (
+                len(groups[0]["rows"]), hours)
     else:
         title = "赏金一览"
-        subtitle = "各据点可接赏金 · %d 处 · 奖励为该档掉落池 · 每 %s 小时换一批" % (
-            len(groups), hours)
+        if static_used:
+            subtitle = ("官方实时 %d 处 + Wiki 固定档位 %d 处 · "
+                        "实时据点用当前掉落池 · 每 %s 小时换一批" % (
+                            live_places, len(static_places), hours))
+        else:
+            subtitle = ("各据点官方实时赏金 · %d 处 · 奖励为当前掉落池 · "
+                        "每 %s 小时换一批" % (len(groups), hours))
 
     note = ""
     if location:
         missions = bountystatic.missions(location)
-        if missions:
+        if static_used:
+            pool = "、".join(missions) if missions else "—"
+            note = ("官方世界状态不提供实时任务；Wiki 固定档位可接任务类型：%s，"
+                    "实际以游戏内赏金板为准" % pool)
+        elif missions:
             note = "可接任务：%s；每 %s 小时换一批" % ("、".join(missions), hours)
     elif static_used:
-        note = ("扎里曼 / 解剖圣所 / 霍瓦尼亚：档位与等级固定，"
-                 "任务类型每 %s 小时换一批" % hours)
-    footer = "数据 世界状态聚合源 + WARFRAME Wiki + 官方掉落表"
+        note = ("%s：官方 Jobs 为空，任务类型为 Wiki 固定档位参考，"
+                "实际以游戏内赏金板为准" % " / ".join(static_places))
+    footer = ("数据 官方世界状态 + Wiki 固定档位"
+              if static_used else "数据 官方世界状态 · 实时赏金")
     text = "【%s】\n%s" % (title, subtitle)
     if text_lines:
         text += "\n" + "\n".join(text_lines)

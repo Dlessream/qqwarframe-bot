@@ -1055,6 +1055,17 @@ environment:
 - 钢铁侵袭、午夜电波、无尽回廊、执刑官、新闻、每日特惠、虚空风暴这几项官方接口不提供，
   会明确显示「暂不可用」，不会伪造数据。
 
+### 赏金同步范围
+
+- **希图斯 / 福尔图娜 / 火卫二**：`Ostrons`、`Solaris United`、`Entrati` 的
+  `Jobs` 来自官方世界状态，任务类型、等级、到期时间、`rewardPoolDrops` 当前掉落池都是实时的；
+- **扎里曼 / 解剖圣所 / 霍瓦尼亚**：官方 `Jobs` 恒为空，`data/bounty_static.json`
+  里的档位、等级、任务类型是 **Wiki 固定档位参考**，只有据点到期的 2½ 小时周期来自官方；
+  卡片和文字版会标明「Wiki 固定档位参考 / 实际以游戏内赏金板为准」，不再冒充实时；
+- **希图斯帐篷 A/B/C**：固定参考，不随 Ostrons 赏金轮换；
+- 官方/中转源临时不可用时，奖励退回 `data/bounty_rewards.json` 的静态掉落表；
+- 旧版 `#赏金` 把三处固定档位和实时赏金混在一起显示，现在分区、分标签展示。
+
 ### 三处固定档位赏金（扎里曼 / 解剖圣所 / 霍瓦尼亚）
 
 官方 `SyndicateMissions` 只给希图斯、福尔图娜、火卫二三处的 `Jobs`，
@@ -1077,10 +1088,11 @@ environment:
 ### 赏金奖励（每档能出什么）
 
 官方 worldState 的 `Jobs` 只有任务 / 等级 / 到期，没有掉落明细；warframestat 的
-`rewardPoolDrops` 只有英文名，线上还经常被 403。所以把 DE 官方掉落表
-（`https://drops.warframestat.us/data/all.json`，含 `cetusBountyRewards` /
-`solarisBountyRewards` / `deimosRewards` / `zarimanRewards` / `entratiLabRewards` /
-`hexRewards`）按「据点 × 档位」整理成静态文件 `data/bounty_rewards.json`：
+`rewardPoolDrops` 只有英文名，但能拿到当前批次的掉落池。因此 `#赏金` 现在优先用
+世界状态里的 `rewardPoolDrops`（实时），没有时才退回 `data/bounty_rewards.json`：
+把 DE 官方掉落表（`https://drops.warframestat.us/data/all.json`，含
+`cetusBountyRewards` / `solarisBountyRewards` / `deimosRewards` / `zarimanRewards` /
+`entratiLabRewards` / `hexRewards`）按「据点 × 档位」整理成静态兜底。
 
 - 希图斯 / 福尔图娜 / 火卫二按**等级段**（`5-15`、`10-30`…）索引，隔离宝库单独一套（`vault-40-50`）；
 - 扎里曼 / 解剖圣所 / 霍瓦尼亚按**档位序号**（`1`…`5`/`7`）索引，和 `bounty_static.json` 对齐；
@@ -1342,7 +1354,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**833 个离线测试**，不联网、不连 QQ，覆盖：
+**835 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1452,7 +1464,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 833 个测试 + fixtures
+├── tests/                 # 835 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

@@ -230,5 +230,31 @@ class BountyStaticTest(unittest.TestCase):
         self.assertEqual(bountystatic.tiers("Ostrons"), [])
 
 
+class BountyLiveTest(unittest.TestCase):
+    """实时赏金用 rewardPoolDrops，固定档位明确标注为参考。"""
+
+    RAW = [{
+        "syndicate": "Ostrons",
+        "expiry": "2030-01-01T00:00:00.000Z",
+        "jobs": [{
+            "type": "Extermination",
+            "enemyLevels": [5, 15],
+            "expiry": "2030-01-01T00:00:00.000Z",
+            "rewardPoolDrops": [{"item": "Pressure Point", "rarity": "Common",
+                                 "chance": 20}],
+        }],
+    }]
+
+    def test_live_reward_pool_is_used(self):
+        reply = present.bounties_reply(list(self.RAW))
+        self.assertIn("压迫点", reply.text)
+        self.assertIn("官方实时", reply.text)
+
+    def test_static_groups_are_marked(self):
+        reply = present.bounties_reply(list(self.RAW))
+        self.assertIn("Wiki 固定档位参考", reply.text)
+        self.assertIn("实际以游戏内赏金板为准", reply.text)
+
+
 if __name__ == "__main__":
     unittest.main()
