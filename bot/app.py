@@ -1045,6 +1045,12 @@ class BotApp:
                 "name": item.name,
                 "name_en": item.name_en,
                 "legacy": str(entry.get("legacy") or ""),
+                "translation_source": ("wiki" if entry else
+                                       "official" if item.name == item.name_en
+                                       else "market"),
+                "translation_label": ("中文 Wiki" if entry else
+                                      "官方英文" if item.name == item.name_en
+                                      else "市场中文"),
                 "category": kind,
                 "category_label": label,
                 "aliases": alias_info["aliases"],

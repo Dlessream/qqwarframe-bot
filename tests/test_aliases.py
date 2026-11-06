@@ -44,6 +44,13 @@ class AliasStoreTest(unittest.TestCase):
         self.assertGreaterEqual(len(mod_names_zh._load()), 1300)
         self.assertEqual(mod_names_zh.chinese("Serration"), "膛线")
 
+    def test_mod_english_display_matches_international(self):
+        from bot.market import _canonical_mod_en
+        self.assertEqual(_canonical_mod_en("Bane Of Grineer"), "Bane of Grineer")
+        self.assertEqual(_canonical_mod_en("Mark Of The Beast"), "Mark of the Beast")
+        self.assertEqual(_canonical_mod_en("The Perrin Sequence Augment Mod"),
+                         "The Perrin Sequence Augment Mod")
+
     def test_frame_defaults_migrate_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "aliases.json")

@@ -15,6 +15,7 @@ import collections
 import json
 import logging
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -111,6 +112,17 @@ WEAPON_TAGS = {"weapon", "primary", "secondary", "melee", "archgun", "archmelee"
 
 def _clean(text: Any) -> str:
     return str(text or "").strip()
+
+
+_MOD_EN_SMALL_WORDS = ("Of", "The", "And", "For", "In", "To", "With")
+
+
+def _canonical_mod_en(name: Any) -> str:
+    """国际服 MOD 英文名的介词/冠词用小写（Bane of Grineer）。"""
+    text = _clean(name)
+    for word in _MOD_EN_SMALL_WORDS:
+        text = re.sub(r"(?<=\s)%s(?=\s)" % word, word.lower(), text)
+    return text
 
 
 def _as_int(value: Any, default: int = 0) -> int:
@@ -761,7 +773,8 @@ class MarketClient:
         rows = list(items)
         # 中文 Wiki 优先：MOD 用 Data:DictCY 的新译名，其他物品用灰机国服译名。
         for item in rows:
-            if item.kind == "mod":
+            if item.kind in ("mod", "riven"):
+                item.name_en = _canonical_mod_en(item.name_en)
                 chinese = mod_names_zh.chinese(item.name_en or item.name)
             else:
                 chinese = wiki_zh.lookup(item.name_en or item.name)

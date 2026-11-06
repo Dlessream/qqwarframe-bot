@@ -672,7 +672,7 @@ http://127.0.0.1:8080
 - 列表显示**全部 MOD**（约 1399 个），不再只显示已有别名的条目；
 - 顶部按分类切换：战甲 / 主武器 / 副武器 / 近战 / 同伴 / 空战 / 殁世机甲 / 航道星舰 / 灭骸之刃 / K式悬浮板 / 裂罅 / 其他；
 - 每页 40 条，支持上一页 / 下一页和名称 / 英文名 / slug 筛选；
-- 每行显示中文 Wiki 名、英文名、slug、别名标签；没有别名会标“未设置别名”；
+- 每行显示中文 Wiki 名、国际服英文名、译名来源（中文 Wiki / 市场中文 / 官方英文）、slug 和别名标签；没有别名会标“未设置别名”；
 - 每个别名后面可点 `×` 删除（内置别名锁定），点“设为目标”可把该 MOD 填进新增表单；
 - “新增 MOD 别名”填写别名和目标 MOD，点“搜索 MOD”会只返回 MOD 候选，保存后立即写入 `data/aliases.json` 并重载索引；
 - 内置示例：`异况超量` / `状态超载` → Condition Overload；
@@ -1123,6 +1123,10 @@ environment:
   （MediaWiki API redirects，1336 条；旧快照 `mod_names_zh.json` 仅作兜底），优先级最高，用于纠正市场旧译名：
   `Split Chamber → 分裂膛室`（旧 `分裂弹头`）、`Condition Overload → 异况超量`（旧 `状态超载`）、
   `Galvanized Chamber → 镀层分裂膛室`（旧 `镀层枪膛`）；旧译名会自动写成别名，所以两种叫法都能查；
+- **MOD 英文名**：显示时按国际服写法规范介词/冠词大小写（`Bane Of Grineer → Bane of Grineer`、
+  `Mark Of The Beast → Mark of the Beast`），搜索仍然大小写不敏感；
+- **MOD 兜底**：Wiki 没有独立页面的 63 个条目（紫卡未开卡、集团占位、安魂拉丁名等）保留市场中文名或官方英文名，
+  后台会标出来源，不冒充 Wiki 翻译；
 - **战甲别名**：`data/warframe_alias.json` 存玩家日常叫法（`Mesa → 女枪`、
   `Chroma → 龙骑`、`Atlas → 土甲`），`#回廊` 的战甲那一栏写成 **别名（English）**，
   例如 `女枪（Mesa）`；圣装版按「别名 + P」（`Mesa Prime → 女枪P`）；
@@ -1354,7 +1358,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**835 个离线测试**，不联网、不连 QQ，覆盖：
+**836 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1464,7 +1468,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 835 个测试 + fixtures
+├── tests/                 # 836 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

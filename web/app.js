@@ -952,8 +952,8 @@
     const groups = Array.isArray(data.groups) ? data.groups : [];
     const categories = Array.isArray(data.categories) ? data.categories : [];
     setText("modAliasInfo", "共 " + Number(data.all_count || 0) +
-      " 个 MOD · 当前分类 " + Number(data.total || 0) +
-      " 个；保存后 #wm / #mod 立即生效");
+      " 个 MOD · 国际服英文名 + 中文 Wiki 译名（无 Wiki 页用市场中文）· 当前分类 " +
+      Number(data.total || 0) + " 个");
     const tabs = $("modAliasTabs");
     if (tabs) {
       tabs.innerHTML = "";
@@ -1006,9 +1006,19 @@
       target.className = "alias-target";
       const name = document.createElement("b");
       name.textContent = group.name || group.slug;
+      const english = document.createElement("small");
+      english.className = "mod-alias-en";
+      english.textContent = group.name_en && group.name_en !== group.name
+        ? group.name_en : "";
+      const translation = document.createElement("small");
+      translation.className = "mod-alias-source";
+      translation.textContent = group.translation_label || "";
       const slug = document.createElement("small");
       slug.textContent = group.slug;
-      target.append(name, slug);
+      target.append(name);
+      if (english.textContent) target.append(english);
+      if (translation.textContent) target.append(translation);
+      target.append(slug);
       const tags = document.createElement("div");
       tags.className = "mod-alias-tags";
       (group.aliases || []).forEach((alias) => {
