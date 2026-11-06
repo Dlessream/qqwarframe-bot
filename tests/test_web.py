@@ -172,15 +172,21 @@ class FakeApp:
         self.aliases.pop(alias, None)
         return {"ok": True, "removed": True}
 
-    def mod_alias_snapshot(self, query="", offset=0, limit=40):
+    def mod_alias_snapshot(self, query="", category="all", offset=0, limit=40):
         return {
             "source": {"items": 3},
+            "category": category,
+            "counts": {"warframe": 1},
+            "all_count": 1,
+            "categories": [{"key": "warframe", "label": "战甲", "count": 1}],
             "total": 1,
             "offset": offset,
             "limit": limit,
             "groups": [{"slug": "condition_overload",
                         "name": "状态超载", "name_en": "Condition Overload",
-                        "category_label": "模组",
+                        "legacy": "状态超载",
+                        "category": "warframe",
+                        "category_label": "战甲",
                         "aliases": ["异况超量"], "builtin": []}],
         }
 
@@ -671,9 +677,12 @@ class AdminServerTest(unittest.TestCase):
 
     def test_mod_aliases_get(self):
         status, body = self.request(
-            "/api/mod-aliases", headers={"X-Admin-Token": "secret"})
+            "/api/mod-aliases?category=warframe",
+            headers={"X-Admin-Token": "secret"})
         self.assertEqual(status, 200)
         data = json.loads(body)
+        self.assertEqual(data["category"], "warframe")
+        self.assertEqual(data["all_count"], 1)
         self.assertEqual(data["groups"][0]["slug"], "condition_overload")
         self.assertEqual(data["groups"][0]["aliases"], ["异况超量"])
 

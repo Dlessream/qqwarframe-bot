@@ -15,6 +15,10 @@
     aliasesLoaded: false,
     modAliasLoaded: false,
     modAliasQuery: "",
+    modAliasCategory: "all",
+    modAliasOffset: 0,
+    modAliasLimit: 40,
+    modAliasTotal: 0,
     aliasGroups: [],
     aliasCategory: "all",
     catalogCounts: {},
@@ -924,30 +928,75 @@
 
   async function loadModAliases() {
     const box = $("modAliasGroups");
-    if (box) box.innerHTML = '<div class="alias-empty">正在读取 MOD 别名…</div>';
+    if (box) box.innerHTML = '<div class="alias-empty">正在读取 MOD 列表…</div>';
     try {
-      const params = new URLSearchParams({ limit: "100" });
+      const params = new URLSearchParams({
+        category: state.modAliasCategory,
+        offset: String(state.modAliasOffset),
+        limit: String(state.modAliasLimit),
+      });
       if (state.modAliasQuery) params.set("q", state.modAliasQuery);
       const data = await api("/api/mod-aliases?" + params.toString());
       state.modAliasLoaded = true;
       state.modAliases = data;
+      state.modAliasTotal = Number(data.total || 0);
       renderModAliases(data);
     } catch (exc) {
       if (exc.message !== "UNAUTHORIZED") {
-        setText("modAliasInfo", "读取 MOD 别名失败：" + exc.message);
+        setText("modAliasInfo", "读取 MOD 列表失败：" + exc.message);
       }
     }
   }
 
   function renderModAliases(data) {
     const groups = Array.isArray(data.groups) ? data.groups : [];
-    setText("modAliasInfo", "共 " + Number(data.total || 0) +
-      " 个 MOD 有别名；保存后 #wm / #mod 立即生效");
+    const categories = Array.isArray(data.categories) ? data.categories : [];
+    setText("modAliasInfo", "共 " + Number(data.all_count || 0) +
+      " 个 MOD · 当前分类 " + Number(data.total || 0) +
+      " 个；保存后 #wm / #mod 立即生效");
+    const tabs = $("modAliasTabs");
+    if (tabs) {
+      tabs.innerHTML = "";
+      const all = document.createElement("button");
+      all.type = "button";
+      all.className = "alias-tab" + (state.modAliasCategory === "all" ? " active" : "");
+      all.textContent = "全部 " + Number(data.all_count || 0);
+      all.addEventListener("click", () => {
+        state.modAliasCategory = "all";
+        state.modAliasOffset = 0;
+        loadModAliases();
+      });
+      tabs.appendChild(all);
+      categories.forEach((row) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "alias-tab" +
+          (state.modAliasCategory === row.key ? " active" : "");
+        button.textContent = row.label + " " + Number(row.count || 0);
+        button.addEventListener("click", () => {
+          state.modAliasCategory = row.key;
+          state.modAliasOffset = 0;
+          loadModAliases();
+        });
+        tabs.appendChild(button);
+      });
+    }
+    const page = Math.floor(state.modAliasOffset / state.modAliasLimit) + 1;
+    const pages = Math.max(1, Math.ceil(Number(data.total || 0) / state.modAliasLimit));
+    setText("modAliasPage", "第 " + page + " / " + pages + " 页 · " +
+      Number(data.total || 0) + " 条");
+    if ($("modAliasPrev")) {
+      $("modAliasPrev").disabled = state.modAliasOffset <= 0;
+    }
+    if ($("modAliasNext")) {
+      $("modAliasNext").disabled =
+        state.modAliasOffset + state.modAliasLimit >= Number(data.total || 0);
+    }
     const box = $("modAliasGroups");
     if (!box) return;
     box.innerHTML = "";
     if (!groups.length) {
-      box.innerHTML = '<div class="alias-empty">还没有 MOD 别名，在下面新增一个。</div>';
+      box.innerHTML = '<div class="alias-empty">这个分类没有 MOD。</div>';
       return;
     }
     groups.forEach((group) => {
@@ -976,7 +1025,20 @@
         }
         tags.appendChild(tag);
       });
-      row.append(target, tags);
+      if (!(group.aliases || []).length) {
+        const empty = document.createElement("small");
+        empty.textContent = "未设置别名";
+        tags.appendChild(empty);
+      }
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "btn btn-ghost btn-sm";
+      pick.textContent = "设为目标";
+      pick.addEventListener("click", () => {
+        $("modAliasTarget").value = group.slug;
+        $("modAliasName").focus();
+      });
+      row.append(target, tags, pick);
       box.appendChild(row);
     });
   }
@@ -1745,10 +1807,20 @@
       $("modAliasRefresh").addEventListener("click", loadModAliases);
       $("modAliasFilterBtn").addEventListener("click", () => {
         state.modAliasQuery = $("modAliasFilter").value.trim();
+        state.modAliasOffset = 0;
         loadModAliases();
       });
       $("modAliasFilter").addEventListener("keydown", (event) => {
         if (event.key === "Enter") $("modAliasFilterBtn").click();
+      });
+      $("modAliasPrev").addEventListener("click", () => {
+        state.modAliasOffset = Math.max(
+          0, state.modAliasOffset - state.modAliasLimit);
+        loadModAliases();
+      });
+      $("modAliasNext").addEventListener("click", () => {
+        state.modAliasOffset += state.modAliasLimit;
+        loadModAliases();
       });
       $("modAliasSearch").addEventListener("click", searchModTargets);
       $("modAliasSave").addEventListener("click", saveModAlias);
@@ -1845,6 +1917,7 @@
       loadSubs();
       loadCommands();
       loadRivenAliases();
+      loadModAliases();
     });
     $("tokenInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter") $("tokenSave").click();

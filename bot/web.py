@@ -231,6 +231,7 @@ class AdminServer:
                     try:
                         payload = server.app.mod_alias_snapshot(
                             params.get("q", [""])[0],
+                            params.get("category", ["all"])[0],
                             int(params.get("offset", ["0"])[0] or 0),
                             int(params.get("limit", ["40"])[0] or 40))
                     except Exception as exc:  # noqa: BLE001

@@ -669,11 +669,14 @@ http://127.0.0.1:8080
 
 控制台新增独立的“MOD 别名（WM）”面板，专门管理 `#wm` / `#mod` 的 MOD 叫法：
 
-- 列表只显示**已经有别名的 MOD**，直接看中文名、英文名、slug 和别名标签；
-- 每个别名后面可点 `×` 删除（内置别名锁定）；
+- 列表显示**全部 MOD**（约 1399 个），不再只显示已有别名的条目；
+- 顶部按分类切换：战甲 / 主武器 / 副武器 / 近战 / 同伴 / 空战 / 殁世机甲 / 航道星舰 / 灭骸之刃 / K式悬浮板 / 裂罅 / 其他；
+- 每页 40 条，支持上一页 / 下一页和名称 / 英文名 / slug 筛选；
+- 每行显示中文 Wiki 名、英文名、slug、别名标签；没有别名会标“未设置别名”；
+- 每个别名后面可点 `×` 删除（内置别名锁定），点“设为目标”可把该 MOD 填进新增表单；
 - “新增 MOD 别名”填写别名和目标 MOD，点“搜索 MOD”会只返回 MOD 候选，保存后立即写入 `data/aliases.json` 并重载索引；
-- 内置示例：`异况超量` / `异况超载` → `状态超载`（Condition Overload）；
-- 接口：`GET /api/mod-aliases`、`POST /api/mod-aliases`、`POST /api/mod-aliases/delete`（都需要 `X-Admin-Token`）。
+- 内置示例：`异况超量` / `状态超载` → Condition Overload；
+- 接口：`GET /api/mod-aliases?category=...&q=...&offset=...&limit=...`、`POST /api/mod-aliases`、`POST /api/mod-aliases/delete`（都需要 `X-Admin-Token`）。
 
 ### 指令菜单
 

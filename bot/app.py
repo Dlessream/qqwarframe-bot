@@ -25,6 +25,7 @@ from .rotation import RotationClient
 from .commands import CommandRouter, Context, strip_cq
 from .database import DatabaseService
 from .market import COMPONENT_LABELS, Item, MarketClient, MarketError
+from . import mod_names_zh
 from .net import HttpClient, HttpError
 from .onebot import OneBotClient, OneBotError, escape_cq
 from .replies import Reply
@@ -50,6 +51,52 @@ GROUP_POLICY_REASONS = {
     "not_whitelisted": "不在白名单里",
     "whitelist_empty": "白名单为空，未配置任何可用群",
 }
+
+
+MOD_CATEGORIES = (
+    ("warframe", "战甲"),
+    ("primary", "主武器"),
+    ("secondary", "副武器"),
+    ("melee", "近战"),
+    ("companion", "同伴"),
+    ("archwing", "空战"),
+    ("necramech", "殁世机甲"),
+    ("railjack", "航道星舰"),
+    ("parazon", "灭骸之刃"),
+    ("kdrive", "K式悬浮板"),
+    ("riven", "裂罅"),
+    ("other", "其他"),
+)
+
+
+def _mod_category(item) -> tuple:
+    """MOD 后台分类：按 market tags，避免 1399 条全堆在一起。"""
+    tags = set(item.tags if item is not None else ())
+    if "warframe" in tags or "aura" in tags:
+        return "warframe", "战甲"
+    if "archwing" in tags or "archgun" in tags or "archmelee" in tags:
+        return "archwing", "空战"
+    if tags & {"companion", "sentinel", "kavat", "kubrow", "beast",
+               "moa", "hound", "robotic"}:
+        return "companion", "同伴"
+    if "necramech" in tags:
+        return "necramech", "殁世机甲"
+    if "railjack" in tags:
+        return "railjack", "航道星舰"
+    if "parazon" in tags:
+        return "parazon", "灭骸之刃"
+    if "k_drive" in tags:
+        return "kdrive", "K式悬浮板"
+    if "riven_mod" in tags or "veiled_riven" in tags:
+        return "riven", "裂罅"
+    if tags & {"primary", "rifle", "shotgun", "sniper", "bow",
+               "launcher", "assault_rifle"}:
+        return "primary", "主武器"
+    if tags & {"secondary", "pistol", "thrown"}:
+        return "secondary", "副武器"
+    if tags & {"melee", "stance", "claws", "thrown_melee"}:
+        return "melee", "近战"
+    return "other", "其他"
 
 
 def _item_category(item):
@@ -959,41 +1006,64 @@ class BotApp:
             source["error"] = error
         return {"source": source, "aliases": entries}
 
-    def mod_alias_snapshot(self, query: str = "", offset: int = 0,
+    def mod_alias_snapshot(self, query: str = "", category: str = "all",
+                           offset: int = 0,
                            limit: int = 40) -> Dict[str, Any]:
-        """只返回带别名的 MOD，供 wm 后台「MOD 别名」面板使用。"""
+        """所有 MOD（不是只显示已有别名的），按战甲/武器/同伴等分类分页。"""
         index = self.market.index
         query = str(query or "").strip().casefold()
+        category = str(category or "all").lower()
         offset = max(0, int(offset or 0))
         limit = max(1, min(100, int(limit or 40)))
-        groups: Dict[str, Dict[str, Any]] = {}
+        aliases_by_slug: Dict[str, Dict[str, Any]] = {}
         for entry in self.alias_store.entries():
-            item = index.get(entry["slug"])
-            if item is None:
-                continue
-            kind, label = _item_category(item)
-            if kind != "mod":
-                continue
-            group = groups.setdefault(entry["slug"], {
-                "slug": entry["slug"],
-                "name": item.name,
-                "name_en": item.name_en,
-                "category_label": label,
-                "aliases": [],
-                "builtin": [],
+            group = aliases_by_slug.setdefault(entry["slug"], {
+                "aliases": [], "builtin": [],
             })
             group["aliases"].append(entry["alias"])
             if entry.get("builtin"):
                 group["builtin"].append(entry["alias"])
-        rows = list(groups.values())
-        if query:
-            rows = [row for row in rows if query in " ".join((
-                row["name"], row["name_en"], row["slug"],
-                " ".join(row["aliases"]))).casefold()]
-        rows.sort(key=lambda row: row["name"] or row["slug"])
+        order = {key: position for position, (key, _label) in
+                 enumerate(MOD_CATEGORIES)}
+        counts = {key: 0 for key, _label in MOD_CATEGORIES}
+        rows = []
+        for item in index.items:
+            if item.kind not in ("mod", "riven"):
+                continue
+            kind, label = _mod_category(item)
+            counts[kind] = counts.get(kind, 0) + 1
+            if category != "all" and kind != category:
+                continue
+            alias_info = aliases_by_slug.get(item.slug, {"aliases": [], "builtin": []})
+            entry = mod_names_zh.lookup(item.name_en or item.name) or {}
+            haystack = " ".join((item.name or "", item.name_en or "",
+                                 item.slug or "", " ".join(alias_info["aliases"])))
+            if query and query not in haystack.casefold():
+                continue
+            rows.append({
+                "slug": item.slug,
+                "name": item.name,
+                "name_en": item.name_en,
+                "legacy": str(entry.get("legacy") or ""),
+                "category": kind,
+                "category_label": label,
+                "aliases": alias_info["aliases"],
+                "builtin": alias_info["builtin"],
+            })
+        rows.sort(key=lambda row: (order.get(row["category"], 99),
+                                   row["name"] or row["slug"]))
         total = len(rows)
+        categories = [
+            {"key": key, "label": label, "count": counts.get(key, 0)}
+            for key, label in MOD_CATEGORIES
+        ]
+        all_count = sum(counts.values())
         return {
             "source": self._market_source(index),
+            "category": category,
+            "counts": counts,
+            "all_count": all_count,
+            "categories": categories,
             "total": total,
             "offset": offset,
             "limit": limit,
