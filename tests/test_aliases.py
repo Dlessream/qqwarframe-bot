@@ -41,6 +41,8 @@ class AliasStoreTest(unittest.TestCase):
         self.assertEqual(mod_names_zh.chinese("Condition Overload"), "异况超量")
         self.assertEqual(mod_names_zh.chinese("Split Chamber"), "分裂膛室")
         self.assertEqual(mod_names_zh.chinese("Galvanized Chamber"), "镀层分裂膛室")
+        self.assertGreaterEqual(len(mod_names_zh._load()), 1300)
+        self.assertEqual(mod_names_zh.chinese("Serration"), "膛线")
 
     def test_frame_defaults_migrate_once(self):
         with tempfile.TemporaryDirectory() as tmp:

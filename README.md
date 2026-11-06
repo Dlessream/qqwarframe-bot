@@ -1104,8 +1104,8 @@ environment:
   `Wraith → 红莲`、`Vandal → 破坏者`；`X Prime` 会自动回退到「圣装 + 基础名」
   （`Rubico Prime → 圣装绝路`），查不到才逐层退回上面的表。覆盖 weapons / mods / zaw /
   arcane / resources / fish 六类，运行时不联网；
-- **MOD 新译名**：`data/mod_names_zh.json` 来自中文 Warframe Wiki 的 `Data:DictCY.tabx`
-  （445 条），优先级最高，用于纠正市场旧译名：
+- **MOD 新译名**：`data/mod_names_zh_full.json` 来自中文 Warframe Wiki 的页面标题
+  （MediaWiki API redirects，1336 条；旧快照 `mod_names_zh.json` 仅作兜底），优先级最高，用于纠正市场旧译名：
   `Split Chamber → 分裂膛室`（旧 `分裂弹头`）、`Condition Overload → 异况超量`（旧 `状态超载`）、
   `Galvanized Chamber → 镀层分裂膛室`（旧 `镀层枪膛`）；旧译名会自动写成别名，所以两种叫法都能查；
 - **战甲别名**：`data/warframe_alias.json` 存玩家日常叫法（`Mesa → 女枪`、

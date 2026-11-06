@@ -1,7 +1,7 @@
-"""MOD 中文译名：读取中文 Wiki 的 Data:DictCY 快照。
+"""MOD 中文译名：读取中文 Wiki 的完整页面标题快照。
 
-数据文件 `data/mod_names_zh.json` 由中文 Warframe Wiki 的
-`Data:DictCY.tabx` 整理；运行时只读本地文件。
+优先使用 `data/mod_names_zh_full.json`（MediaWiki API redirects，1336 条），
+没有时退回 `data/mod_names_zh.json`（旧 Data:DictCY 快照）；运行时只读本地文件。
 """
 
 from __future__ import annotations
@@ -19,8 +19,14 @@ _DATA: Optional[Dict[str, Dict[str, str]]] = None
 
 
 def _path() -> str:
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "data", "mod_names_zh.json")
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "data")
+    # 优先使用完整 Wiki 抓取结果；没有时退回内置快照。
+    for name in ("mod_names_zh_full.json", "mod_names_zh.json"):
+        path = os.path.join(root, name)
+        if os.path.isfile(path):
+            return path
+    return os.path.join(root, "mod_names_zh.json")
 
 
 def _normalize(text: str) -> str:
