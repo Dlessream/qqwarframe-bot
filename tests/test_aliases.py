@@ -36,6 +36,12 @@ class AliasStoreTest(unittest.TestCase):
         self.assertEqual(DEFAULT_ALIASES["异况超量"], "condition_overload")
         self.assertEqual(DEFAULT_ALIASES["异况超载"], "condition_overload")
 
+    def test_wiki_mod_translations(self):
+        from bot import mod_names_zh
+        self.assertEqual(mod_names_zh.chinese("Condition Overload"), "异况超量")
+        self.assertEqual(mod_names_zh.chinese("Split Chamber"), "分裂膛室")
+        self.assertEqual(mod_names_zh.chinese("Galvanized Chamber"), "镀层分裂膛室")
+
     def test_frame_defaults_migrate_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "aliases.json")

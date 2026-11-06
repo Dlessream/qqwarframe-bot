@@ -202,7 +202,7 @@
   带参数的命令仍可连写（`wm绝路`、`查绝路`），但明显是句子的不接（`紫卡这个怎么样`）。
 - `wm绝路` 这种不加空格的写法也能识别；普通聊天不会被当成物品查询。
 - 平台写在名称最后：`wm 绝路 ps`、`价格 牛甲 xbox`，默认 PC。
-- 名称支持中文、英文、外号；`绝路p`、`mesa p` 会当成 `prime`；`异况超量` / `异况超载` 会映射到 `状态超载`（Condition Overload）。
+- 名称支持中文、英文、外号；`绝路p`、`mesa p` 会当成 `prime`；MOD 名称优先采用中文 Wiki 的 `Data:DictCY` 译名，市场旧译名保留为别名（`异况超量` / `状态超载`、`分裂膛室` / `分裂弹头` 都能查）。
 - 只有可交易物品才会出现在市场里（普通战甲本体、任务钥匙等不可交易）。
 
 ### 价格榜怎么跑
@@ -1104,6 +1104,10 @@ environment:
   `Wraith → 红莲`、`Vandal → 破坏者`；`X Prime` 会自动回退到「圣装 + 基础名」
   （`Rubico Prime → 圣装绝路`），查不到才逐层退回上面的表。覆盖 weapons / mods / zaw /
   arcane / resources / fish 六类，运行时不联网；
+- **MOD 新译名**：`data/mod_names_zh.json` 来自中文 Warframe Wiki 的 `Data:DictCY.tabx`
+  （445 条），优先级最高，用于纠正市场旧译名：
+  `Split Chamber → 分裂膛室`（旧 `分裂弹头`）、`Condition Overload → 异况超量`（旧 `状态超载`）、
+  `Galvanized Chamber → 镀层分裂膛室`（旧 `镀层枪膛`）；旧译名会自动写成别名，所以两种叫法都能查；
 - **战甲别名**：`data/warframe_alias.json` 存玩家日常叫法（`Mesa → 女枪`、
   `Chroma → 龙骑`、`Atlas → 土甲`），`#回廊` 的战甲那一栏写成 **别名（English）**，
   例如 `女枪（Mesa）`；圣装版按「别名 + P」（`Mesa Prime → 女枪P`）；
@@ -1335,7 +1339,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**832 个离线测试**，不联网、不连 QQ，覆盖：
+**833 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1429,6 +1433,7 @@ qqwarframe-bot/
 │   ├── riven.py           # 紫卡
 │   ├── rivencalc.py       # 紫卡词条基础数据、范围计算与别名
 │   ├── wiki_zh.py         # 灰机 wiki 国服译名查表（data/wiki_zh.json）
+│   ├── mod_names_zh.py    # 中文 Wiki MOD 译名（data/mod_names_zh.json）
 │   ├── arbi.py            # 仲裁评级（arbi.wf.wiki）
 │   ├── missioncolors.py   # 任务类型显示色（仲裁卡片上色，可在控制台改）
 │   ├── updater.py         # 后台自动更新（市场/紫卡/仲裁）
@@ -1444,7 +1449,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 832 个测试 + fixtures
+├── tests/                 # 833 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

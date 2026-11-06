@@ -25,6 +25,7 @@ from .aliases import DEFAULT_ALIASES
 from .cache import TTLCache
 from .net import HttpClient, HttpError
 from . import wiki_zh
+from . import mod_names_zh
 
 LOGGER = logging.getLogger("qqwarframe.market")
 
@@ -758,9 +759,12 @@ class MarketClient:
 
     def _build_index(self, items: Iterable[Item]) -> ItemIndex:
         rows = list(items)
-        # 灰机 wiki 的国服译名优先：市场接口的 zh-hans 常常还是国际服叫法
+        # 中文 Wiki 优先：MOD 用 Data:DictCY 的新译名，其他物品用灰机国服译名。
         for item in rows:
-            chinese = wiki_zh.lookup(item.name_en or item.name)
+            if item.kind == "mod":
+                chinese = mod_names_zh.chinese(item.name_en or item.name)
+            else:
+                chinese = wiki_zh.lookup(item.name_en or item.name)
             if chinese:
                 item.name = chinese
         return ItemIndex(rows, self._load_aliases())

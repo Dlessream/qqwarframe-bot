@@ -1,0 +1,2233 @@
+{
+ "version": 1,
+ "updated": "2026-11-06",
+ "source": "中文 Warframe Wiki Data:DictCY.tabx",
+ "count": 445,
+ "mods": {
+  "aero agility": {
+   "origin": "Aero Agility",
+   "name": "空飞灵巧",
+   "legacy": "空之迅捷"
+  },
+  "aero periphery": {
+   "origin": "Aero Periphery",
+   "name": "空飞边际",
+   "legacy": "空之边际"
+  },
+  "aero vantage": {
+   "origin": "Aero Vantage",
+   "name": "空飞俯瞰",
+   "legacy": "空之俯瞰"
+  },
+  "augur accord": {
+   "origin": "Augur Accord",
+   "name": "预言协约",
+   "legacy": "预言者的调和"
+  },
+  "augur message": {
+   "origin": "Augur Message",
+   "name": "预言启示",
+   "legacy": "预言者的启示"
+  },
+  "augur pact": {
+   "origin": "Augur Pact",
+   "name": "预言契约",
+   "legacy": "预言者的誓约"
+  },
+  "augur reach": {
+   "origin": "Augur Reach",
+   "name": "预言通灵",
+   "legacy": "预言者的远见"
+  },
+  "augur secrets": {
+   "origin": "Augur Secrets",
+   "name": "预言神密",
+   "legacy": "预言者的秘密"
+  },
+  "augur seeker": {
+   "origin": "Augur Seeker",
+   "name": "预言探求",
+   "legacy": "预言者的探求"
+  },
+  "gladiator aegis": {
+   "origin": "Gladiator Aegis",
+   "name": "角斗士圣盾",
+   "legacy": "角斗士的壁垒"
+  },
+  "gladiator finesse": {
+   "origin": "Gladiator Finesse",
+   "name": "角斗士灵巧",
+   "legacy": "角斗士的灵敏"
+  },
+  "gladiator might": {
+   "origin": "Gladiator Might",
+   "name": "角斗士威猛",
+   "legacy": "角斗士的力量"
+  },
+  "gladiator resolve": {
+   "origin": "Gladiator Resolve",
+   "name": "角斗士决心",
+   "legacy": "角斗士的决心"
+  },
+  "gladiator rush": {
+   "origin": "Gladiator Rush",
+   "name": "角斗士猛突",
+   "legacy": "角斗士的迅疾"
+  },
+  "gladiator vice": {
+   "origin": "Gladiator Vice",
+   "name": "角斗士钳制",
+   "legacy": "角斗士的恶毒"
+  },
+  "hunter adrenaline": {
+   "origin": "Hunter Adrenaline",
+   "name": "猎人肾上腺素",
+   "legacy": "猎手的奋勇"
+  },
+  "hunter command": {
+   "origin": "Hunter Command",
+   "name": "猎人命令",
+   "legacy": "猎手的命令"
+  },
+  "hunter munitions": {
+   "origin": "Hunter Munitions",
+   "name": "猎人战备",
+   "legacy": "猎手的军火"
+  },
+  "hunter recovery": {
+   "origin": "Hunter Recovery",
+   "name": "猎人复元",
+   "legacy": "猎手的恢复"
+  },
+  "hunter synergy": {
+   "origin": "Hunter Synergy",
+   "name": "猎人协力",
+   "legacy": "猎手的协同"
+  },
+  "hunter track": {
+   "origin": "Hunter Track",
+   "name": "猎人追踪",
+   "legacy": "猎手的追踪"
+  },
+  "mecha empowered": {
+   "origin": "Mecha Empowered",
+   "name": "机甲强化",
+   "legacy": "机械赋能"
+  },
+  "mecha overdrive": {
+   "origin": "Mecha Overdrive",
+   "name": "机甲超载",
+   "legacy": "机械过载"
+  },
+  "mecha pulse": {
+   "origin": "Mecha Pulse",
+   "name": "机甲脉冲",
+   "legacy": "机械脉冲"
+  },
+  "mecha recharge": {
+   "origin": "Mecha Recharge",
+   "name": "机甲充能",
+   "legacy": "机械充能"
+  },
+  "motus impact": {
+   "origin": "Motus Impact",
+   "name": "跃动冲击",
+   "legacy": ""
+  },
+  "motus setup": {
+   "origin": "Motus Setup",
+   "name": "跃动设局",
+   "legacy": "跃动设置"
+  },
+  "motus signal": {
+   "origin": "Motus Signal",
+   "name": "跃动信号",
+   "legacy": ""
+  },
+  "proton jet": {
+   "origin": "Proton Jet",
+   "name": "质子喷射",
+   "legacy": ""
+  },
+  "proton pulse": {
+   "origin": "Proton Pulse",
+   "name": "质子脉动",
+   "legacy": ""
+  },
+  "proton snap": {
+   "origin": "Proton Snap",
+   "name": "质子猛扑",
+   "legacy": "质子迸裂"
+  },
+  "strain consume": {
+   "origin": "Strain Consume",
+   "name": "菌株吸收",
+   "legacy": ""
+  },
+  "strain eruption": {
+   "origin": "Strain Eruption",
+   "name": "菌株爆裂",
+   "legacy": ""
+  },
+  "strain fever": {
+   "origin": "Strain Fever",
+   "name": "菌株热毒",
+   "legacy": "菌株狂热"
+  },
+  "strain infection": {
+   "origin": "Strain Infection",
+   "name": "菌株感染",
+   "legacy": ""
+  },
+  "synth charge": {
+   "origin": "Synth Charge",
+   "name": "合成充能",
+   "legacy": "合成蓄能"
+  },
+  "synth deconstruct": {
+   "origin": "Synth Deconstruct",
+   "name": "合成解构",
+   "legacy": "合成拆解"
+  },
+  "synth fiber": {
+   "origin": "Synth Fiber",
+   "name": "合成纤维",
+   "legacy": ""
+  },
+  "synth reflex": {
+   "origin": "Synth Reflex",
+   "name": "合成反射",
+   "legacy": ""
+  },
+  "tek assault": {
+   "origin": "Tek Assault",
+   "name": "技法猛袭",
+   "legacy": "技术侵袭"
+  },
+  "tek collateral": {
+   "origin": "Tek Collateral",
+   "name": "技法连带",
+   "legacy": "技术衍生"
+  },
+  "tek enhance": {
+   "origin": "Tek Enhance",
+   "name": "技法强化",
+   "legacy": "技术强化"
+  },
+  "tek gravity": {
+   "origin": "Tek Gravity",
+   "name": "技法引力",
+   "legacy": "技术牵引"
+  },
+  "vigilante armaments": {
+   "origin": "Vigilante Armaments",
+   "name": "私法军备",
+   "legacy": "警备官的武装"
+  },
+  "vigilante fervor": {
+   "origin": "Vigilante Fervor",
+   "name": "私法热诚",
+   "legacy": "警备官的热切"
+  },
+  "vigilante offense": {
+   "origin": "Vigilante Offense",
+   "name": "私法侵犯",
+   "legacy": "警备官的攻势"
+  },
+  "vigilante pursuit": {
+   "origin": "Vigilante Pursuit",
+   "name": "私法追踪",
+   "legacy": "警备官的追击"
+  },
+  "vigilante supplies": {
+   "origin": "Vigilante Supplies",
+   "name": "私法补给",
+   "legacy": "警备官的储备"
+  },
+  "vigilante vigor": {
+   "origin": "Vigilante Vigor",
+   "name": "私法活力",
+   "legacy": "警备营的活力"
+  },
+  "ammo stock": {
+   "origin": "Ammo Stock",
+   "name": "霰弹扩充",
+   "legacy": ""
+  },
+  "argon scope": {
+   "origin": "Argon Scope",
+   "name": "氩晶瞄具",
+   "legacy": "氩素准镜"
+  },
+  "bane of corpus": {
+   "origin": "Bane of Corpus",
+   "name": "灭亡Corpus",
+   "legacy": "科普斯克星"
+  },
+  "bane of grineer": {
+   "origin": "Bane of Grineer",
+   "name": "灭亡Grineer",
+   "legacy": "克隆尼克星"
+  },
+  "bane of infested": {
+   "origin": "Bane of Infested",
+   "name": "灭亡Infested",
+   "legacy": "异变体克星"
+  },
+  "charged chamber": {
+   "origin": "Charged Chamber",
+   "name": "蓄力装填",
+   "legacy": "充能弹膛"
+  },
+  "chilling reload": {
+   "origin": "Chilling Reload",
+   "name": "激冷装填",
+   "legacy": "冰冷装填"
+  },
+  "cleanse corpus": {
+   "origin": "Cleanse Corpus",
+   "name": "净化Corpus",
+   "legacy": "净化科普斯"
+  },
+  "cleanse grineer": {
+   "origin": "Cleanse Grineer",
+   "name": "净化Grineer",
+   "legacy": "净化克隆尼"
+  },
+  "cleanse infested": {
+   "origin": "Cleanse Infested",
+   "name": "净化Infested",
+   "legacy": "净化异变体"
+  },
+  "fanged fusillade": {
+   "origin": "Fanged Fusillade",
+   "name": "尖牙连射",
+   "legacy": "锯齿弹链"
+  },
+  "fast hands": {
+   "origin": "Fast Hands",
+   "name": "爆发装填",
+   "legacy": "灵巧快手"
+  },
+  "flux overdrive": {
+   "origin": "Flux Overdrive",
+   "name": "通量射线步枪超载",
+   "legacy": "热能过载"
+  },
+  "guided ordinance": {
+   "origin": "Guided Ordinance",
+   "name": "制导弹药",
+   "legacy": "制导武器"
+  },
+  "hawk eye": {
+   "origin": "Hawk Eye",
+   "name": "隼目",
+   "legacy": "鹰眼"
+  },
+  "infected clip": {
+   "origin": "Infected Clip",
+   "name": "污染弹匣",
+   "legacy": "污染弹夹"
+  },
+  "kinetic ricochet": {
+   "origin": "Kinetic Ricochet",
+   "name": "动力回弹",
+   "legacy": "动能弹射"
+  },
+  "laser sight": {
+   "origin": "Laser Sight",
+   "name": "雷射瞄具",
+   "legacy": "激光校准"
+  },
+  "magazine warp": {
+   "origin": "Magazine Warp",
+   "name": "弹匣增幅",
+   "legacy": "弹夹增幅"
+  },
+  "nano-applicator": {
+   "origin": "Nano-Applicator",
+   "name": "纳米涂覆",
+   "legacy": "纳米涂料"
+  },
+  "piercing hit": {
+   "origin": "Piercing Hit",
+   "name": "穿甲伤害",
+   "legacy": "穿甲攻击"
+  },
+  "repeater clip": {
+   "origin": "Repeater Clip",
+   "name": "转轮弹匣",
+   "legacy": "高速弹夹"
+  },
+  "seeking force": {
+   "origin": "Seeking Force",
+   "name": "穿透力",
+   "legacy": "强力穿透"
+  },
+  "shotgun savvy": {
+   "origin": "Shotgun Savvy",
+   "name": "通晓霰弹枪",
+   "legacy": "霰弹精通"
+  },
+  "shotgun spazz": {
+   "origin": "Shotgun Spazz",
+   "name": "表演时间",
+   "legacy": "急速射击"
+  },
+  "spring-loaded chamber": {
+   "origin": "Spring-Loaded Chamber",
+   "name": "簧压膛室",
+   "legacy": "弹簧承载式箭头"
+  },
+  "target acquired": {
+   "origin": "Target Acquired",
+   "name": "锁定目标",
+   "legacy": "目标锁定"
+  },
+  "tether grenades": {
+   "origin": "Tether Grenades",
+   "name": "系绳榴弹",
+   "legacy": "束缚榴弹"
+  },
+  "abating link": {
+   "origin": "Abating Link",
+   "name": "耗弱链接",
+   "legacy": "耗弱联结"
+  },
+  "accumulating whipclaw": {
+   "origin": "Accumulating Whipclaw",
+   "name": "蓄积长鞭",
+   "legacy": "蓄势鞭袭"
+  },
+  "adaptation": {
+   "origin": "Adaptation",
+   "name": "适应",
+   "legacy": "适应抗性"
+  },
+  "assimilate": {
+   "origin": "Assimilate",
+   "name": "同化",
+   "legacy": "伤害同化"
+  },
+  "beguiling lantern": {
+   "origin": "Beguiling Lantern",
+   "name": "欺幻魔灯",
+   "legacy": "迷醉幻梦"
+  },
+  "blinding reave": {
+   "origin": "Blinding Reave",
+   "name": "致盲掠夺",
+   "legacy": "致盲生气收割"
+  },
+  "calm & frenzy": {
+   "origin": "Calm & Frenzy",
+   "name": "冷静与疯狂",
+   "legacy": "平和-狂躁"
+  },
+  "celestial stomp": {
+   "origin": "Celestial Stomp",
+   "name": "天圣践踏",
+   "legacy": ""
+  },
+  "chilling globe": {
+   "origin": "Chilling Globe",
+   "name": "冰封护罩",
+   "legacy": "极寒护罩"
+  },
+  "chromatic blade": {
+   "origin": "Chromatic Blade",
+   "name": "华彩刀剑",
+   "legacy": "幻彩剑刃"
+  },
+  "concentrated arrow": {
+   "origin": "Concentrated Arrow",
+   "name": "集中箭矢",
+   "legacy": "千钧一箭"
+  },
+  "conductor": {
+   "origin": "Conductor",
+   "name": "指挥家",
+   "legacy": "共振指挥"
+  },
+  "counter pulse": {
+   "origin": "Counter Pulse",
+   "name": "反转脉冲",
+   "legacy": "反制脉冲"
+  },
+  "creeping terrify": {
+   "origin": "Creeping Terrify",
+   "name": "缓动惊骇",
+   "legacy": "破胆恐惧"
+  },
+  "duality": {
+   "origin": "Duality",
+   "name": "二元性状",
+   "legacy": "二元一体"
+  },
+  "empowered quiver": {
+   "origin": "Empowered Quiver",
+   "name": "强化箭袋",
+   "legacy": ""
+  },
+  "enveloping cloud": {
+   "origin": "Enveloping Cloud",
+   "name": "包覆游云",
+   "legacy": "云雾缭绕"
+  },
+  "eternal war": {
+   "origin": "Eternal War",
+   "name": "永恒战意",
+   "legacy": "永恒之战"
+  },
+  "explosive legerdemain": {
+   "origin": "Explosive Legerdemain",
+   "name": "爆炸戏法",
+   "legacy": "多重变奏"
+  },
+  "fatal teleport": {
+   "origin": "Fatal Teleport",
+   "name": "致命传送",
+   "legacy": "瞬移冷酷"
+  },
+  "firequake": {
+   "origin": "Firequake",
+   "name": "烈焰爆震",
+   "legacy": "火海地震"
+  },
+  "flash accelerant": {
+   "origin": "Flash Accelerant",
+   "name": "闪耀助燃",
+   "legacy": "闪电加速"
+  },
+  "fleeting expertise": {
+   "origin": "Fleeting Expertise",
+   "name": "弹指瞬技",
+   "legacy": ""
+  },
+  "funnel clouds": {
+   "origin": "Funnel Clouds",
+   "name": "漏斗状云",
+   "legacy": "漏斗云"
+  },
+  "greedy pull": {
+   "origin": "Greedy Pull",
+   "name": "贪婪吸引",
+   "legacy": "贪婪天引"
+  },
+  "hall of malevolence": {
+   "origin": "Hall of Malevolence",
+   "name": "恶怨厅",
+   "legacy": "恶怨殿堂"
+  },
+  "hysterical assault": {
+   "origin": "Hysterical Assault",
+   "name": "狂化突击",
+   "legacy": "狂化猛袭"
+  },
+  "ice wave impedance": {
+   "origin": "Ice Wave Impedance",
+   "name": "滞痕冰浪",
+   "legacy": "酷冷阻抗"
+  },
+  "icy avalanche": {
+   "origin": "Icy Avalanche",
+   "name": "冰冷雪崩",
+   "legacy": "冰结雪崩"
+  },
+  "infiltrate": {
+   "origin": "Infiltrate",
+   "name": "渗透",
+   "legacy": "无孔不入"
+  },
+  "insatiable": {
+   "origin": "Insatiable",
+   "name": "不竭贪婪",
+   "legacy": "饕餮异变"
+  },
+  "larva burst": {
+   "origin": "Larva Burst",
+   "name": "幼体爆发",
+   "legacy": "卷须爆裂"
+  },
+  "lasting covenant": {
+   "origin": "Lasting Covenant",
+   "name": "持久誓约",
+   "legacy": "永结契约"
+  },
+  "magnetized discharge": {
+   "origin": "Magnetized Discharge",
+   "name": "磁吸释放",
+   "legacy": "磁场释放"
+  },
+  "mending splinters": {
+   "origin": "Mending Splinters",
+   "name": "治愈玻片",
+   "legacy": "碎刃补天"
+  },
+  "mesa's waltz": {
+   "origin": "Mesa's Waltz",
+   "name": "Mesa的华尔兹",
+   "legacy": "圣枪圆舞"
+  },
+  "mind freak": {
+   "origin": "Mind Freak",
+   "name": "精神狂怒",
+   "legacy": "心智掌控"
+  },
+  "narrow minded": {
+   "origin": "Narrow Minded",
+   "name": "心志偏狭",
+   "legacy": "心智偏狭"
+  },
+  "negation swarm": {
+   "origin": "Negation Swarm",
+   "name": "抵消虫群",
+   "legacy": "无懈虫群"
+  },
+  "ore gaze": {
+   "origin": "Ore Gaze",
+   "name": "矿石凝视",
+   "legacy": "矿化凝视"
+  },
+  "partitioned mallet": {
+   "origin": "Partitioned Mallet",
+   "name": "分裂槌音",
+   "legacy": "分裂鼓点"
+  },
+  "path of statues": {
+   "origin": "Path of Statues",
+   "name": "化像之道",
+   "legacy": "石像之路"
+  },
+  "peaceful provocation": {
+   "origin": "Peaceful Provocation",
+   "name": "和平挑衅",
+   "legacy": "轻声挑拨"
+  },
+  "peculiar bloom": {
+   "origin": "Peculiar Bloom",
+   "name": "花开怪奇",
+   "legacy": "奇异绽放"
+  },
+  "peculiar growth": {
+   "origin": "Peculiar Growth",
+   "name": "生长怪奇",
+   "legacy": "奇异增长"
+  },
+  "phoenix renewal": {
+   "origin": "Phoenix Renewal",
+   "name": "凤凰新生",
+   "legacy": "凤凰重生"
+  },
+  "piercing navigator": {
+   "origin": "Piercing Navigator",
+   "name": "穿刺抛体",
+   "legacy": "穿刺弹道"
+  },
+  "piercing roar": {
+   "origin": "Piercing Roar",
+   "name": "刺骨战吼",
+   "legacy": "刺耳号角"
+  },
+  "pilfering strangledome": {
+   "origin": "Pilfering Strangledome",
+   "name": "贪夺穹顶",
+   "legacy": "神偷天罗地网"
+  },
+  "pilfering swarm": {
+   "origin": "Pilfering Swarm",
+   "name": "贪夺触角",
+   "legacy": "触角神偷"
+  },
+  "power donation": {
+   "origin": "Power Donation",
+   "name": "献出力量",
+   "legacy": "能量奉献"
+  },
+  "primal rage": {
+   "origin": "Primal Rage",
+   "name": "原始暴怒",
+   "legacy": "怒发冲冠"
+  },
+  "prolonged paralysis": {
+   "origin": "Prolonged Paralysis",
+   "name": "长时瘫痪",
+   "legacy": "持久瘫痪"
+  },
+  "pyroclastic flow": {
+   "origin": "Pyroclastic Flow",
+   "name": "火成碎流",
+   "legacy": "焰涌川流"
+  },
+  "radiant finish": {
+   "origin": "Radiant Finish",
+   "name": "终结闪光",
+   "legacy": "折光终结"
+  },
+  "razorwing blitz": {
+   "origin": "Razorwing Blitz",
+   "name": "刀翼闪击",
+   "legacy": "锋翅闪击"
+  },
+  "redirection": {
+   "origin": "Redirection",
+   "name": "蓄能重划",
+   "legacy": "弹道偏转"
+  },
+  "reinforcing stomp": {
+   "origin": "Reinforcing Stomp",
+   "name": "践踏加固",
+   "legacy": "强固践踏"
+  },
+  "repelling bastille": {
+   "origin": "Repelling Bastille",
+   "name": "驱逐力场",
+   "legacy": "永恒牢狱"
+  },
+  "resonating quake": {
+   "origin": "Resonating Quake",
+   "name": "震地共鸣",
+   "legacy": "共鸣冲击"
+  },
+  "rising storm": {
+   "origin": "Rising Storm",
+   "name": "风起云涌",
+   "legacy": "风暴降临"
+  },
+  "rolling guard": {
+   "origin": "Rolling Guard",
+   "name": "翻滚防护",
+   "legacy": "翻滚庇护"
+  },
+  "safeguard": {
+   "origin": "Safeguard",
+   "name": "火绫守护",
+   "legacy": "金霞护身"
+  },
+  "savage silence": {
+   "origin": "Savage Silence",
+   "name": "残酷无息",
+   "legacy": "残酷光环"
+  },
+  "seeking shuriken": {
+   "origin": "Seeking Shuriken",
+   "name": "削甲手里剑",
+   "legacy": "重拾袖箭"
+  },
+  "shield of shadows": {
+   "origin": "Shield of Shadows",
+   "name": "幽影之护",
+   "legacy": "幻影之盾"
+  },
+  "shock trooper": {
+   "origin": "Shock Trooper",
+   "name": "电击奇兵",
+   "legacy": "电击震荡"
+  },
+  "shocking speed": {
+   "origin": "Shocking Speed",
+   "name": "电击加速",
+   "legacy": "雷霆烈风"
+  },
+  "smite infusion": {
+   "origin": "Smite Infusion",
+   "name": "惩击洗礼",
+   "legacy": "重射洗礼"
+  },
+  "sonic fracture": {
+   "origin": "Sonic Fracture",
+   "name": "破碎声波",
+   "legacy": "超声碎裂"
+  },
+  "spectrosiphon": {
+   "origin": "Spectrosiphon",
+   "name": "光谱虹吸",
+   "legacy": ""
+  },
+  "swing line": {
+   "origin": "Swing Line",
+   "name": "摆荡钩索",
+   "legacy": "飞悬钩索"
+  },
+  "target fixation": {
+   "origin": "Target Fixation",
+   "name": "目标入定",
+   "legacy": "目标定位"
+  },
+  "tectonic fracture": {
+   "origin": "Tectonic Fracture",
+   "name": "构造裂缝",
+   "legacy": "石壁碎裂"
+  },
+  "teeming virulence": {
+   "origin": "Teeming Virulence",
+   "name": "猛爆致病",
+   "legacy": "破甲突变"
+  },
+  "titanic rumbler": {
+   "origin": "Titanic Rumbler",
+   "name": "巨大石者",
+   "legacy": "泰坦岩灵"
+  },
+  "transistor shield": {
+   "origin": "Transistor Shield",
+   "name": "晶管屏障",
+   "legacy": "导体之盾"
+  },
+  "vampire leech": {
+   "origin": "Vampire Leech",
+   "name": "汲能榨取",
+   "legacy": "能量剥夺"
+  },
+  "venari bodyguard": {
+   "origin": "Venari Bodyguard",
+   "name": "薇娜丽的护卫",
+   "legacy": "维纳利的护卫"
+  },
+  "vigorous swap": {
+   "origin": "Vigorous Swap",
+   "name": "强力切换",
+   "legacy": "活跃切换"
+  },
+  "warding thurible": {
+   "origin": "Warding Thurible",
+   "name": "庇护焚炉",
+   "legacy": "守护香炉"
+  },
+  "agility drift": {
+   "origin": "Agility Drift",
+   "name": "矫捷窜升",
+   "legacy": "敏捷奔流"
+  },
+  "coaction drift": {
+   "origin": "Coaction Drift",
+   "name": "协力窜升",
+   "legacy": "协作奔流"
+  },
+  "cunning drift": {
+   "origin": "Cunning Drift",
+   "name": "狡诈窜升",
+   "legacy": "灵巧奔流"
+  },
+  "endurance drift": {
+   "origin": "Endurance Drift",
+   "name": "坚忍窜升",
+   "legacy": "坚毅奔流"
+  },
+  "power drift": {
+   "origin": "Power Drift",
+   "name": "力量窜升",
+   "legacy": "能量奔流"
+  },
+  "speed drift": {
+   "origin": "Speed Drift",
+   "name": "速度窜升",
+   "legacy": "速度奔流"
+  },
+  "stealth drift": {
+   "origin": "Stealth Drift",
+   "name": "匿踪窜升",
+   "legacy": "隐蔽奔流"
+  },
+  "ammo case": {
+   "origin": "Ammo Case",
+   "name": "弹药储转箱",
+   "legacy": "弹药箱"
+  },
+  "arc coil": {
+   "origin": "Arc Coil",
+   "name": "电弧线圈",
+   "legacy": "弧光陷阱"
+  },
+  "coolant leak": {
+   "origin": "Coolant Leak",
+   "name": "冷却液外泄",
+   "legacy": "冷气外泄"
+  },
+  "crowd dispersion": {
+   "origin": "Crowd Dispersion",
+   "name": "人群驱散",
+   "legacy": "驱散敌群"
+  },
+  "electro pulse": {
+   "origin": "Electro Pulse",
+   "name": "电光脉冲",
+   "legacy": "电子脉冲"
+  },
+  "enhanced vitality": {
+   "origin": "Enhanced Vitality",
+   "name": "构造强化",
+   "legacy": "强化生命力"
+  },
+  "ghost": {
+   "origin": "Ghost",
+   "name": "幽灵",
+   "legacy": "魅影"
+  },
+  "hastened deflection": {
+   "origin": "Hastened Deflection",
+   "name": "急速偏斜",
+   "legacy": "急速充能"
+  },
+  "howl": {
+   "origin": "Howl",
+   "name": "嚎声",
+   "legacy": "怒吼"
+  },
+  "metal fiber": {
+   "origin": "Metal Fiber",
+   "name": "金属纤维",
+   "legacy": "合金纤维"
+  },
+  "molecular conversion": {
+   "origin": "Molecular Conversion",
+   "name": "分子转化",
+   "legacy": "分子转换"
+  },
+  "retarget": {
+   "origin": "Retarget",
+   "name": "重定向",
+   "legacy": "复位定向"
+  },
+  "sanctuary": {
+   "origin": "Sanctuary",
+   "name": "守护光罩",
+   "legacy": "圣域"
+  },
+  "shield charger": {
+   "origin": "Shield Charger",
+   "name": "护盾充能",
+   "legacy": "加速充能"
+  },
+  "spare parts": {
+   "origin": "Spare Parts",
+   "name": "残余",
+   "legacy": "多余部件"
+  },
+  "vacuum": {
+   "origin": "Vacuum",
+   "name": "吸取",
+   "legacy": "真空吸物"
+  },
+  "warrior": {
+   "origin": "Warrior",
+   "name": "战士",
+   "legacy": "勇士"
+  },
+  "afterburner": {
+   "origin": "Afterburner",
+   "name": "加力燃烧",
+   "legacy": "后燃装置"
+  },
+  "cold snap": {
+   "origin": "Cold Snap",
+   "name": "寒流来袭",
+   "legacy": "骤冷寒潮"
+  },
+  "system reroute": {
+   "origin": "System Reroute",
+   "name": "系统重划",
+   "legacy": "系统重置"
+  },
+  "morphic transformer": {
+   "origin": "Morphic Transformer",
+   "name": "非晶变压器",
+   "legacy": "无态晶变压器"
+  },
+  "archgun ace": {
+   "origin": "Archgun Ace",
+   "name": "Archwing枪械行家",
+   "legacy": "反重力枪械专家"
+  },
+  "hollowed bullets": {
+   "origin": "Hollowed Bullets",
+   "name": "中空子弹",
+   "legacy": "空尖弹"
+  },
+  "hypothermic shell": {
+   "origin": "Hypothermic Shell",
+   "name": "低温外壳",
+   "legacy": "低温子弹"
+  },
+  "critical focus": {
+   "origin": "Critical Focus",
+   "name": "关键焦点",
+   "legacy": "暴击专精"
+  },
+  "resolute focus": {
+   "origin": "Resolute Focus",
+   "name": "坚决专注",
+   "legacy": "决心专精"
+  },
+  "comet blast": {
+   "origin": "Comet Blast",
+   "name": "彗星爆发",
+   "legacy": "彗星冲击"
+  },
+  "magazine extension": {
+   "origin": "Magazine Extension",
+   "name": "扩充弹匣",
+   "legacy": "扩充弹匣"
+  },
+  "quasar drill": {
+   "origin": "Quasar Drill",
+   "name": "类星钻体",
+   "legacy": "星体钻刺"
+  },
+  "rubedo-lined barrel": {
+   "origin": "Rubedo-Lined Barrel",
+   "name": "红晶枪管",
+   "legacy": "赤晶枪管"
+  },
+  "deadly efficiency": {
+   "origin": "Deadly Efficiency",
+   "name": "致命效率",
+   "legacy": "惊人高效"
+  },
+  "zodiac shred": {
+   "origin": "Zodiac Shred",
+   "name": "黄道碎裂",
+   "legacy": "星座撕裂"
+  },
+  "sabot rounds": {
+   "origin": "Sabot Rounds",
+   "name": "覆壳弹药",
+   "legacy": "穿壳弹药"
+  },
+  "cutting edge": {
+   "origin": "Cutting Edge",
+   "name": "切割刃缘",
+   "legacy": "切割利刃"
+  },
+  "tempered blade": {
+   "origin": "Tempered Blade",
+   "name": "强化刀片",
+   "legacy": "强化刀锋"
+  },
+  "nebula bore": {
+   "origin": "Nebula Bore",
+   "name": "星云钻孔",
+   "legacy": "星云镗孔"
+  },
+  "astral slash": {
+   "origin": "Astral Slash",
+   "name": "星体切砍",
+   "legacy": "星穹切割"
+  },
+  "astral autopsy": {
+   "origin": "Astral Autopsy",
+   "name": "星界剖解",
+   "legacy": "星际解剖"
+  },
+  "atlantis vulcan": {
+   "origin": "Atlantis Vulcan",
+   "name": "深渊之火",
+   "legacy": "亚特兰蒂斯火神"
+  },
+  "auger strike": {
+   "origin": "Auger Strike",
+   "name": "螺钻打击",
+   "legacy": "螺旋打击"
+  },
+  "blind justice": {
+   "origin": "Blind Justice",
+   "name": "无明制裁",
+   "legacy": "盲目正义"
+  },
+  "blood rush": {
+   "origin": "Blood Rush",
+   "name": "急进猛突",
+   "legacy": "暴击冲动"
+  },
+  "body count": {
+   "origin": "Body Count",
+   "name": "杀伤计数",
+   "legacy": "清点战场"
+  },
+  "bullet dance": {
+   "origin": "Bullet Dance",
+   "name": "刀锋弹舞",
+   "legacy": "枪林刃舞"
+  },
+  "collision force": {
+   "origin": "Collision Force",
+   "name": "冲击巨力",
+   "legacy": "冲突武力"
+  },
+  "condition overload": {
+   "origin": "Condition Overload",
+   "name": "异况超量",
+   "legacy": "状态超载"
+  },
+  "crushing ruin": {
+   "origin": "Crushing Ruin",
+   "name": "月落乌啼",
+   "legacy": "排山倒海"
+  },
+  "defiled snapdragon": {
+   "origin": "Defiled Snapdragon",
+   "name": "积秽骁龙",
+   "legacy": "污损骁龙"
+  },
+  "drifting contact": {
+   "origin": "Drifting Contact",
+   "name": "漂移接触",
+   "legacy": "游离触点"
+  },
+  "eleventh storm": {
+   "origin": "Eleventh Storm",
+   "name": "终焉风暴",
+   "legacy": "风起云涌"
+  },
+  "enduring affliction": {
+   "origin": "Enduring Affliction",
+   "name": "长时苦难",
+   "legacy": "持久痛苦"
+  },
+  "enduring strike": {
+   "origin": "Enduring Strike",
+   "name": "不朽打击",
+   "legacy": "耐久打击"
+  },
+  "fever strike": {
+   "origin": "Fever Strike",
+   "name": "热病打击",
+   "legacy": "狂热打击"
+  },
+  "focused defense": {
+   "origin": "Focused Defense",
+   "name": "重点防御",
+   "legacy": "专注防御"
+  },
+  "gaia's tragedy": {
+   "origin": "Gaia's Tragedy",
+   "name": "母神悲歌",
+   "legacy": "盖亚之黄昏"
+  },
+  "gnashing payara": {
+   "origin": "Gnashing Payara",
+   "name": "狼鱼咬咬",
+   "legacy": "狼鱼噬咬"
+  },
+  "guardian derision": {
+   "origin": "Guardian Derision",
+   "name": "奚落守护",
+   "legacy": "高傲卫士"
+  },
+  "healing return": {
+   "origin": "Healing Return",
+   "name": "治愈归复",
+   "legacy": "治疗回馈"
+  },
+  "high noon": {
+   "origin": "High Noon",
+   "name": "正午",
+   "legacy": "如日中天"
+  },
+  "homing fang": {
+   "origin": "Homing Fang",
+   "name": "连牙追袭",
+   "legacy": "利牙追袭"
+  },
+  "hunter's bonesaw": {
+   "origin": "Hunter's Bonesaw",
+   "name": "猎人骨锯",
+   "legacy": "猎手的骨锯"
+  },
+  "lasting sting": {
+   "origin": "Lasting Sting",
+   "name": "未完之刺",
+   "legacy": "持续苦痛"
+  },
+  "maiming strike": {
+   "origin": "Maiming Strike",
+   "name": "致残突击",
+   "legacy": "重伤打击"
+  },
+  "melee prowess": {
+   "origin": "Melee Prowess",
+   "name": "非凡技巧",
+   "legacy": "近战技巧"
+  },
+  "relentless combination": {
+   "origin": "Relentless Combination",
+   "name": "残酷组合",
+   "legacy": "残酷连击"
+  },
+  "smite corpus": {
+   "origin": "Smite Corpus",
+   "name": "毁灭Corpus",
+   "legacy": "惩击科普斯"
+  },
+  "smite grineer": {
+   "origin": "Smite Grineer",
+   "name": "毁灭Grineer",
+   "legacy": "惩击克隆尼"
+  },
+  "smite infested": {
+   "origin": "Smite Infested",
+   "name": "毁灭Infested",
+   "legacy": "惩击异变体"
+  },
+  "sovereign outcast": {
+   "origin": "Sovereign Outcast",
+   "name": "至尊浪人",
+   "legacy": "王权放逐"
+  },
+  "spinning needle": {
+   "origin": "Spinning Needle",
+   "name": "旋压刺针",
+   "legacy": "旋针绞刺"
+  },
+  "vengeful revenant": {
+   "origin": "Vengeful Revenant",
+   "name": "复仇亡灵",
+   "legacy": "惩戒赤晶"
+  },
+  "vermillion storm": {
+   "origin": "Vermillion Storm",
+   "name": "朱红暴风",
+   "legacy": "赭红风暴"
+  },
+  "vulcan blitz": {
+   "origin": "Vulcan Blitz",
+   "name": "火神闪击",
+   "legacy": "火神猛袭"
+  },
+  "weeping wounds": {
+   "origin": "Weeping Wounds",
+   "name": "创口溃烂",
+   "legacy": "持久伤口"
+  },
+  "brief respite": {
+   "origin": "Brief Respite",
+   "name": "快速休整",
+   "legacy": "短暂喘息"
+  },
+  "empowered blades": {
+   "origin": "Empowered Blades",
+   "name": "强化刀锋",
+   "legacy": "剑刃注能"
+  },
+  "growing power": {
+   "origin": "Growing Power",
+   "name": "成长之力",
+   "legacy": "能量增长"
+  },
+  "pistol scavenger": {
+   "origin": "Pistol Scavenger",
+   "name": "手枪弹药搜集者",
+   "legacy": "手枪清道夫"
+  },
+  "rifle scavenger": {
+   "origin": "Rifle Scavenger",
+   "name": "步枪弹药搜集者",
+   "legacy": "步枪清道夫"
+  },
+  "shotgun scavenger": {
+   "origin": "Shotgun Scavenger",
+   "name": "霰弹枪弹药搜集者",
+   "legacy": "霰弹枪清道夫"
+  },
+  "sniper scavenger": {
+   "origin": "Sniper Scavenger",
+   "name": "狙击枪弹药搜集者",
+   "legacy": "狙击枪清道夫"
+  },
+  "sprint boost": {
+   "origin": "Sprint Boost",
+   "name": "冲刺提升",
+   "legacy": "急速冲刺"
+  },
+  "anemic agility": {
+   "origin": "Anemic Agility",
+   "name": "乏能迅敏",
+   "legacy": "残血敏捷"
+  },
+  "concussion rounds": {
+   "origin": "Concussion Rounds",
+   "name": "震荡弹头",
+   "legacy": "震荡弹"
+  },
+  "expel corpus": {
+   "origin": "Expel Corpus",
+   "name": "驱逐Corpus",
+   "legacy": "驱逐科普斯"
+  },
+  "expel grineer": {
+   "origin": "Expel Grineer",
+   "name": "驱逐Grineer",
+   "legacy": "驱逐克隆尼"
+  },
+  "expel infested": {
+   "origin": "Expel Infested",
+   "name": "驱逐Infested",
+   "legacy": "驱逐异变体"
+  },
+  "ice storm": {
+   "origin": "Ice Storm",
+   "name": "冰风暴",
+   "legacy": "寒冰风暴"
+  },
+  "lethal momentum": {
+   "origin": "Lethal Momentum",
+   "name": "致命动量",
+   "legacy": "致死冲力"
+  },
+  "pathogen rounds": {
+   "origin": "Pathogen Rounds",
+   "name": "病原弹头",
+   "legacy": "病毒子弹"
+  },
+  "pressurized magazine": {
+   "origin": "Pressurized Magazine",
+   "name": "增压弹匣",
+   "legacy": "弹夹增压"
+  },
+  "quickdraw": {
+   "origin": "Quickdraw",
+   "name": "持续火力",
+   "legacy": "快速装弹"
+  },
+  "ruinous extension": {
+   "origin": "Ruinous Extension",
+   "name": "毁灭扩展",
+   "legacy": "毁灭延伸"
+  },
+  "scorch": {
+   "origin": "Scorch",
+   "name": "灼痕焦点",
+   "legacy": "怒焚"
+  },
+  "seeker": {
+   "origin": "Seeker",
+   "name": "弹头导引",
+   "legacy": "斥候"
+  },
+  "slip magazine": {
+   "origin": "Slip Magazine",
+   "name": "串联弹匣",
+   "legacy": "串联弹夹"
+  },
+  "steady hands": {
+   "origin": "Steady Hands",
+   "name": "稳定枪手",
+   "legacy": "稳定之手"
+  },
+  "stunning speed": {
+   "origin": "Stunning Speed",
+   "name": "慑人神速",
+   "legacy": "惊人神速"
+  },
+  "sure shot": {
+   "origin": "Sure Shot",
+   "name": "准确射手",
+   "legacy": "精准射手"
+  },
+  "targeting subsystem": {
+   "origin": "Targeting Subsystem",
+   "name": "定位辅助",
+   "legacy": "瞄准辅助"
+  },
+  "trick mag": {
+   "origin": "Trick Mag",
+   "name": "戏法增幅",
+   "legacy": "弹夹扩容"
+  },
+  "amalgam barrel diffusion": {
+   "origin": "Amalgam Barrel Diffusion",
+   "name": "并合弹头扩散",
+   "legacy": ""
+  },
+  "amalgam organ shatter": {
+   "origin": "Amalgam Organ Shatter",
+   "name": "并合肢解",
+   "legacy": "并合分割"
+  },
+  "amalgam serration": {
+   "origin": "Amalgam Serration",
+   "name": "并合膛线",
+   "legacy": ""
+  },
+  "amalgam shotgun spazz": {
+   "origin": "Amalgam Shotgun Spazz",
+   "name": "并合霰弹速射",
+   "legacy": "并合急速射击"
+  },
+  "bursting mass": {
+   "origin": "Bursting Mass",
+   "name": "爆发质量",
+   "legacy": "质量爆发"
+  },
+  "napalm grenades": {
+   "origin": "Napalm Grenades",
+   "name": "凝固汽油榴弹",
+   "legacy": "猛烈发狂"
+  },
+  "wild frenzy": {
+   "origin": "Wild Frenzy",
+   "name": "猛烈发狂",
+   "legacy": "狂野暴怒"
+  },
+  "primed ammo stock": {
+   "origin": "Primed Ammo Stock",
+   "name": "霰弹扩充Prime",
+   "legacy": "高阶霰弹扩充"
+  },
+  "primed bane of corpus": {
+   "origin": "Primed Bane of Corpus",
+   "name": "灭亡Corpus Prime",
+   "legacy": "高阶科普斯克星"
+  },
+  "primed bane of corrupted": {
+   "origin": "Primed Bane of Corrupted",
+   "name": "灭亡堕落者Prime",
+   "legacy": "高阶堕落者克星"
+  },
+  "primed bane of grineer": {
+   "origin": "Primed Bane of Grineer",
+   "name": "灭亡Grineer Prime",
+   "legacy": "高阶克隆尼克星"
+  },
+  "primed bane of infested": {
+   "origin": "Primed Bane of Infested",
+   "name": "灭亡Infested Prime",
+   "legacy": "高阶异变体克星"
+  },
+  "primed chamber": {
+   "origin": "Primed Chamber",
+   "name": "膛室Prime",
+   "legacy": "强效充能弹膛"
+  },
+  "primed charged chamber": {
+   "origin": "Primed Charged Chamber",
+   "name": "高阶充能弹膛",
+   "legacy": "高阶充能弹膛"
+  },
+  "primed charged shell": {
+   "origin": "Primed Charged Shell",
+   "name": "充电弹头Prime",
+   "legacy": "高阶充电弹头"
+  },
+  "primed continuity": {
+   "origin": "Primed Continuity",
+   "name": "持久力Prime",
+   "legacy": "高阶持久力"
+  },
+  "primed cryo rounds": {
+   "origin": "Primed Cryo Rounds",
+   "name": "低温弹头Prime",
+   "legacy": "高阶低温弹头"
+  },
+  "primed fast hands": {
+   "origin": "Primed Fast Hands",
+   "name": "爆发装填Prime",
+   "legacy": "高阶灵巧快手"
+  },
+  "primed fever strike": {
+   "origin": "Primed Fever Strike",
+   "name": "热病打击Prime",
+   "legacy": "高阶狂热打击"
+  },
+  "primed flow": {
+   "origin": "Primed Flow",
+   "name": "川流不息Prime",
+   "legacy": "高阶川流不息"
+  },
+  "primed fury": {
+   "origin": "Primed Fury",
+   "name": "狂暴Prime",
+   "legacy": "高阶狂暴"
+  },
+  "primed heated charge": {
+   "origin": "Primed Heated Charge",
+   "name": "火焰装填Prime",
+   "legacy": "高阶火焰装填"
+  },
+  "primed heavy trauma": {
+   "origin": "Primed Heavy Trauma",
+   "name": "重创Prime",
+   "legacy": "高阶重创"
+  },
+  "primed morphic transformer": {
+   "origin": "Primed Morphic Transformer",
+   "name": "非晶变压器Prime",
+   "legacy": "高阶无态晶变压器"
+  },
+  "primed pistol ammo mutation": {
+   "origin": "Primed Pistol Ammo Mutation",
+   "name": "手枪弹药转换Prime",
+   "legacy": "高阶手枪弹药转换"
+  },
+  "primed pistol gambit": {
+   "origin": "Primed Pistol Gambit",
+   "name": "手枪精通Prime",
+   "legacy": "高阶手枪精通"
+  },
+  "primed point blank": {
+   "origin": "Primed Point Blank",
+   "name": "抵近射击Prime",
+   "legacy": "高阶抵近射击"
+  },
+  "primed pressure point": {
+   "origin": "Primed Pressure Point",
+   "name": "压迫点Prime",
+   "legacy": "高阶血压点"
+  },
+  "primed quickdraw": {
+   "origin": "Primed Quickdraw",
+   "name": "持续火力Prime",
+   "legacy": "高阶快速装弹"
+  },
+  "primed ravage": {
+   "origin": "Primed Ravage",
+   "name": "破灭Prime",
+   "legacy": "高阶摧枯拉朽"
+  },
+  "primed reach": {
+   "origin": "Primed Reach",
+   "name": "剑风Prime",
+   "legacy": "高阶剑风"
+  },
+  "primed rifle ammo mutation": {
+   "origin": "Primed Rifle Ammo Mutation",
+   "name": "步枪弹药转换Prime",
+   "legacy": "高阶步枪弹药转换"
+  },
+  "primed shotgun ammo mutation": {
+   "origin": "Primed Shotgun Ammo Mutation",
+   "name": "霰弹枪弹药转换Prime",
+   "legacy": "高阶霰弹枪弹药转换"
+  },
+  "primed shred": {
+   "origin": "Primed Shred",
+   "name": "撕裂Prime",
+   "legacy": "高阶撕裂"
+  },
+  "primed slip magazine": {
+   "origin": "Primed Slip Magazine",
+   "name": "串联弹匣Prime",
+   "legacy": "高阶串联弹夹"
+  },
+  "primed sure footed": {
+   "origin": "Primed Sure Footed",
+   "name": "顶天立地Prime",
+   "legacy": "高阶顶天立地"
+  },
+  "primed target cracker": {
+   "origin": "Primed Target Cracker",
+   "name": "弱点专精Prime",
+   "legacy": "高阶弱点专精"
+  },
+  "primed vigor": {
+   "origin": "Primed Vigor",
+   "name": "活力Prime",
+   "legacy": "高阶活力"
+  },
+  "neutralize": {
+   "origin": "Neutralize",
+   "name": "啃咬压制",
+   "legacy": "中和"
+  },
+  "retrieve": {
+   "origin": "Retrieve",
+   "name": "嗅索取物",
+   "legacy": "寻回"
+  },
+  "hunt": {
+   "origin": "Hunt",
+   "name": "狩猎",
+   "legacy": ""
+  },
+  "stalk": {
+   "origin": "Stalk",
+   "name": "隐密追踪",
+   "legacy": ""
+  },
+  "protect": {
+   "origin": "Protect",
+   "name": "保护",
+   "legacy": ""
+  },
+  "dig": {
+   "origin": "Dig",
+   "name": "挖掘",
+   "legacy": ""
+  },
+  "ferocity": {
+   "origin": "Ferocity",
+   "name": "凶恶终结",
+   "legacy": ""
+  },
+  "savagery": {
+   "origin": "Savagery",
+   "name": "野蛮压制",
+   "legacy": ""
+  },
+  "unleashed": {
+   "origin": "Unleashed",
+   "name": "释放",
+   "legacy": ""
+  },
+  "draining bite": {
+   "origin": "Draining Bite",
+   "name": "吸血噬咬",
+   "legacy": ""
+  },
+  "transfusion": {
+   "origin": "Transfusion",
+   "name": "血注",
+   "legacy": ""
+  },
+  "mischief": {
+   "origin": "Mischief",
+   "name": "顽皮",
+   "legacy": "恶作剧"
+  },
+  "charm": {
+   "origin": "Charm",
+   "name": "招福",
+   "legacy": "好运"
+  },
+  "cat's eye": {
+   "origin": "Cat's Eye",
+   "name": "猫眼",
+   "legacy": ""
+  },
+  "reflect": {
+   "origin": "Reflect",
+   "name": "反射",
+   "legacy": ""
+  },
+  "proboscis": {
+   "origin": "Proboscis",
+   "name": "长吻",
+   "legacy": "触钩"
+  },
+  "trample": {
+   "origin": "Trample",
+   "name": "践踏",
+   "legacy": ""
+  },
+  "helminth ferocity": {
+   "origin": "Helminth Ferocity",
+   "name": "Helminth凶恶终结",
+   "legacy": "寄生凶恶终结"
+  },
+  "fetch": {
+   "origin": "Fetch",
+   "name": "取回",
+   "legacy": "衔回猎物"
+  },
+  "scavenge": {
+   "origin": "Scavenge",
+   "name": "搜集",
+   "legacy": ""
+  },
+  "sense danger": {
+   "origin": "Sense Danger",
+   "name": "危机感知",
+   "legacy": "危险感知"
+  },
+  "territorial aggression": {
+   "origin": "Territorial Aggression",
+   "name": "侵略领土",
+   "legacy": "领地侵略"
+  },
+  "bite": {
+   "origin": "Bite",
+   "name": "咬碎",
+   "legacy": ""
+  },
+  "flame gland": {
+   "origin": "Flame Gland",
+   "name": "火焰腺体",
+   "legacy": ""
+  },
+  "frost jaw": {
+   "origin": "Frost Jaw",
+   "name": "冰冻双颚",
+   "legacy": "冰霜下颚"
+  },
+  "maul": {
+   "origin": "Maul",
+   "name": "捶击",
+   "legacy": ""
+  },
+  "pack leader": {
+   "origin": "Pack Leader",
+   "name": "领袖",
+   "legacy": ""
+  },
+  "shock collar": {
+   "origin": "Shock Collar",
+   "name": "电击项圈",
+   "legacy": ""
+  },
+  "venom teeth": {
+   "origin": "Venom Teeth",
+   "name": "牙齿毒液",
+   "legacy": "毒液牙齿"
+  },
+  "pounce": {
+   "origin": "Pounce",
+   "name": "猛扑",
+   "legacy": ""
+  },
+  "sharpened claws": {
+   "origin": "Sharpened Claws",
+   "name": "磨锋之爪",
+   "legacy": "利爪"
+  },
+  "swipe": {
+   "origin": "Swipe",
+   "name": "挥击",
+   "legacy": "横扫"
+  },
+  "link armor": {
+   "origin": "Link Armor",
+   "name": "护甲连接",
+   "legacy": ""
+  },
+  "link health": {
+   "origin": "Link Health",
+   "name": "生命值连接",
+   "legacy": "生命连接"
+  },
+  "link shield": {
+   "origin": "Link Shield",
+   "name": "护盾连接",
+   "legacy": ""
+  },
+  "loyal companion": {
+   "origin": "Loyal Companion",
+   "name": "忠实搭档",
+   "legacy": ""
+  },
+  "medi-pet kit": {
+   "origin": "Medi-Pet Kit",
+   "name": "宠物治疗套件",
+   "legacy": "宠物急救包"
+  },
+  "shelter": {
+   "origin": "Shelter",
+   "name": "庇护",
+   "legacy": ""
+  },
+  "animal instinct": {
+   "origin": "Animal Instinct",
+   "name": "动物本能",
+   "legacy": ""
+  },
+  "primed animal instinct": {
+   "origin": "Primed Animal Instinct",
+   "name": "动物本能Prime",
+   "legacy": "高阶动物本能"
+  },
+  "primed rubedo-lined barrel": {
+   "origin": "Primed Rubedo-Lined Barrel",
+   "name": "红晶枪管Prime",
+   "legacy": "高阶赤晶枪管"
+  },
+  "primed smite corpus": {
+   "origin": "Primed Smite Corpus",
+   "name": "毁灭 Corpus Prime",
+   "legacy": "高阶惩击科普斯"
+  },
+  "primed smite corrupted": {
+   "origin": "Primed Smite Corrupted",
+   "name": "毁灭堕落者 Prime",
+   "legacy": "高阶惩击堕落者"
+  },
+  "primed smite grineer": {
+   "origin": "Primed Smite Grineer",
+   "name": "毁灭 Grineer Prime",
+   "legacy": "高阶惩击克隆尼"
+  },
+  "primed smite infested": {
+   "origin": "Primed Smite Infested",
+   "name": "毁灭 Infested Prime",
+   "legacy": "高阶惩击异变体"
+  },
+  "primed cleanse corpus": {
+   "origin": "Primed Cleanse Corpus",
+   "name": "净化 Corpus Prime",
+   "legacy": "高阶科普斯克星"
+  },
+  "primed cleanse corrupted": {
+   "origin": "Primed Cleanse Corrupted",
+   "name": "净化堕落者Prime",
+   "legacy": "高阶净化堕落者"
+  },
+  "primed cleanse grineer": {
+   "origin": "Primed Cleanse Grineer",
+   "name": "净化 Grineer Prime",
+   "legacy": "高阶净化克隆尼"
+  },
+  "primed cleanse infested": {
+   "origin": "Primed Cleanse Infested",
+   "name": "净化 Infested Prime",
+   "legacy": "高阶净化异变体"
+  },
+  "primed firestorm": {
+   "origin": "Primed Firestorm",
+   "name": "烈焰风暴Prime",
+   "legacy": "高阶烈焰风暴"
+  },
+  "primed pack leader": {
+   "origin": "Primed Pack Leader",
+   "name": "领袖Prime",
+   "legacy": "高阶领袖"
+  },
+  "primed expel corpus": {
+   "origin": "Primed Expel Corpus",
+   "name": "驱逐 Corpus Prime",
+   "legacy": "高阶驱逐科普斯"
+  },
+  "primed expel corrupted": {
+   "origin": "Primed Expel Corrupted",
+   "name": "驱逐堕落者Prime",
+   "legacy": "高阶驱逐堕落者"
+  },
+  "primed expel grineer": {
+   "origin": "Primed Expel Grineer",
+   "name": "驱逐 Grineer Prime",
+   "legacy": "高阶驱逐克隆尼"
+  },
+  "primed expel infested": {
+   "origin": "Primed Expel Infested",
+   "name": "驱逐 Infested Prime",
+   "legacy": "高阶驱逐异变体"
+  },
+  "primed regen": {
+   "origin": "Primed Regen",
+   "name": "重生Prime",
+   "legacy": "高阶重生"
+  },
+  "pistol pestilence": {
+   "origin": "Pistol Pestilence",
+   "name": "瘟疫手枪",
+   "legacy": "异变手枪"
+  },
+  "boreal's anguish": {
+   "origin": "Boreal's Anguish",
+   "name": "诡文枭主之苦",
+   "legacy": ""
+  },
+  "boreal's hatred": {
+   "origin": "Boreal's Hatred",
+   "name": "诡文枭主之恨",
+   "legacy": ""
+  },
+  "boreal's contempt": {
+   "origin": "Boreal's Contempt",
+   "name": "诡文枭主之鄙",
+   "legacy": ""
+  },
+  "amar's anguish": {
+   "origin": "Amar's Anguish",
+   "name": "欺谋狼主之苦",
+   "legacy": ""
+  },
+  "amar's hatred": {
+   "origin": "Amar's Hatred",
+   "name": "欺谋狼主之恨",
+   "legacy": ""
+  },
+  "amar's contempt": {
+   "origin": "Amar's Contempt",
+   "name": "欺谋狼主之鄙",
+   "legacy": ""
+  },
+  "nira's anguish": {
+   "origin": "Nira's Anguish",
+   "name": "混沌蛇主之苦",
+   "legacy": ""
+  },
+  "nira's hatred": {
+   "origin": "Nira's Hatred",
+   "name": "混沌蛇主之恨",
+   "legacy": ""
+  },
+  "nira's contempt": {
+   "origin": "Nira's Contempt",
+   "name": "混沌蛇主之鄙",
+   "legacy": ""
+  },
+  "lohk": {
+   "origin": "LOHK",
+   "name": "LOHK",
+   "legacy": "噩梦"
+  },
+  "xata": {
+   "origin": "XATA",
+   "name": "XATA",
+   "legacy": "神谕"
+  },
+  "jahu": {
+   "origin": "JAHU",
+   "name": "JAHU",
+   "legacy": "命运"
+  },
+  "vome": {
+   "origin": "VOME",
+   "name": "VOME",
+   "legacy": "秩序"
+  },
+  "ris": {
+   "origin": "RIS",
+   "name": "RIS",
+   "legacy": "天启"
+  },
+  "fass": {
+   "origin": "FASS",
+   "name": "FASS",
+   "legacy": "毁灭"
+  },
+  "netra": {
+   "origin": "NETRA",
+   "name": "NETRA",
+   "legacy": "灾难"
+  },
+  "khra": {
+   "origin": "KHRA",
+   "name": "KHRA",
+   "legacy": "主宰"
+  },
+  "oull": {
+   "origin": "OULL",
+   "name": "OULL",
+   "legacy": "奥义"
+  },
+  "intruder": {
+   "origin": "Intruder",
+   "name": "入侵者",
+   "legacy": ""
+  },
+  "auto breach": {
+   "origin": "Auto Breach",
+   "name": "自动破解",
+   "legacy": ""
+  },
+  "failsafe": {
+   "origin": "Failsafe",
+   "name": "失效保险",
+   "legacy": ""
+  },
+  "live wire": {
+   "origin": "Live Wire",
+   "name": "火线电击",
+   "legacy": ""
+  },
+  "master key": {
+   "origin": "Master Key",
+   "name": "万能钥匙",
+   "legacy": ""
+  },
+  "runtime": {
+   "origin": "Runtime",
+   "name": "溜之大吉",
+   "legacy": ""
+  },
+  "untraceable": {
+   "origin": "Untraceable",
+   "name": "无迹可寻",
+   "legacy": ""
+  },
+  "firewall": {
+   "origin": "Firewall",
+   "name": "防火墙",
+   "legacy": ""
+  },
+  "blood for ammo": {
+   "origin": "Blood For Ammo",
+   "name": "血易弹药",
+   "legacy": ""
+  },
+  "blood for energy": {
+   "origin": "Blood For Energy",
+   "name": "血易能量",
+   "legacy": ""
+  },
+  "blood for life": {
+   "origin": "Blood For Life",
+   "name": "血易生命",
+   "legacy": ""
+  },
+  "hit and run": {
+   "origin": "Hit And Run",
+   "name": "脚底抹油",
+   "legacy": ""
+  },
+  "out of sight": {
+   "origin": "Out Of Sight",
+   "name": "视野之外",
+   "legacy": ""
+  },
+  "power drain": {
+   "origin": "Power Drain",
+   "name": "力量汲取",
+   "legacy": ""
+  },
+  "hard reset": {
+   "origin": "Hard Reset",
+   "name": "硬重启",
+   "legacy": ""
+  },
+  "swift mercy": {
+   "origin": "Swift Mercy",
+   "name": "迅捷怜悯",
+   "legacy": ""
+  },
+  "malicious code": {
+   "origin": "Malicious Code",
+   "name": "恶毒指令",
+   "legacy": ""
+  },
+  "necramech deflection": {
+   "origin": "Necramech Deflection",
+   "name": "殁世机甲充能",
+   "legacy": ""
+  },
+  "necramech augur": {
+   "origin": "Necramech Augur",
+   "name": "殁世机甲预言",
+   "legacy": ""
+  },
+  "necramech rage": {
+   "origin": "Necramech Rage",
+   "name": "殁世机甲狂暴化",
+   "legacy": ""
+  },
+  "necramech repair": {
+   "origin": "Necramech Repair",
+   "name": "殁世机甲修复",
+   "legacy": ""
+  },
+  "necramech rebuke": {
+   "origin": "Necramech Rebuke",
+   "name": "殁世机甲训戒",
+   "legacy": ""
+  },
+  "necramech enemy sense": {
+   "origin": "Necramech Enemy Sense",
+   "name": "殁世机甲敌人感应",
+   "legacy": ""
+  },
+  "necramech aviator": {
+   "origin": "Necramech Aviator",
+   "name": "殁世机甲飞行员",
+   "legacy": ""
+  },
+  "necramech intensify": {
+   "origin": "Necramech Intensify",
+   "name": "殁世机甲聚精会神",
+   "legacy": ""
+  },
+  "necramech redirection": {
+   "origin": "Necramech Redirection",
+   "name": "殁世机甲蓄能重划",
+   "legacy": "殁世机甲弹道偏转"
+  },
+  "necramech streamline": {
+   "origin": "Necramech Streamline",
+   "name": "殁世机甲简化",
+   "legacy": ""
+  },
+  "necramech reach": {
+   "origin": "Necramech Reach",
+   "name": "殁世机甲剑风",
+   "legacy": ""
+  },
+  "necramech pressure point": {
+   "origin": "Necramech Pressure Point",
+   "name": "殁世机甲压迫点",
+   "legacy": "殁世机甲血压点"
+  },
+  "necramech fury": {
+   "origin": "Necramech Fury",
+   "name": "殁世机甲狂暴",
+   "legacy": ""
+  },
+  "necramech drift": {
+   "origin": "Necramech Drift",
+   "name": "殁世机甲窜升",
+   "legacy": ""
+  },
+  "necramech friction": {
+   "origin": "Necramech Friction",
+   "name": "殁世机甲摩擦",
+   "legacy": ""
+  },
+  "necramech efficiency": {
+   "origin": "Necramech Efficiency",
+   "name": "殁世机甲增效",
+   "legacy": ""
+  },
+  "necramech thrusters": {
+   "origin": "Necramech Thrusters",
+   "name": "殁世机甲推进器",
+   "legacy": ""
+  },
+  "necramech continuity": {
+   "origin": "Necramech Continuity",
+   "name": "殁世机甲持久力",
+   "legacy": ""
+  },
+  "necramech hydraulics": {
+   "origin": "Necramech Hydraulics",
+   "name": "殁世机甲液压",
+   "legacy": ""
+  },
+  "necramech slipstream": {
+   "origin": "Necramech Slipstream",
+   "name": "殁世机甲滑流",
+   "legacy": ""
+  },
+  "necramech steel fiber": {
+   "origin": "Necramech Steel Fiber",
+   "name": "殁世机甲钢铁纤维",
+   "legacy": ""
+  },
+  "necramech flow": {
+   "origin": "Necramech Flow",
+   "name": "殁世机甲川流不息",
+   "legacy": ""
+  },
+  "necramech vitality": {
+   "origin": "Necramech Vitality",
+   "name": "殁世机甲生命力",
+   "legacy": ""
+  },
+  "necramech stretch": {
+   "origin": "Necramech Stretch",
+   "name": "殁世机甲延伸",
+   "legacy": ""
+  },
+  "necramech seismic wave": {
+   "origin": "Necramech Seismic Wave",
+   "name": "殁世机甲震波",
+   "legacy": ""
+  },
+  "necramech blitz": {
+   "origin": "Necramech Blitz",
+   "name": "殁世机甲闪击",
+   "legacy": ""
+  },
+  "necramech refuel": {
+   "origin": "Necramech Refuel",
+   "name": "殁世机甲燃料补给",
+   "legacy": ""
+  },
+  "volatile quick return": {
+   "origin": "Volatile Quick Return",
+   "name": "易爆速返",
+   "legacy": ""
+  },
+  "volatile rebound": {
+   "origin": "Volatile Rebound",
+   "name": "易爆反弹",
+   "legacy": ""
+  },
+  "dizzying rounds": {
+   "origin": "Dizzying Rounds",
+   "name": "晕眩弹药",
+   "legacy": "晕眩弹头"
+  },
+  "infectious bite": {
+   "origin": "Infectious Bite",
+   "name": "感染噬咬",
+   "legacy": "感染咬噬"
+  },
+  "crescent charge": {
+   "origin": "Crescent Charge",
+   "name": "月刃刺冲",
+   "legacy": "月刃冲锋"
+  },
+  "cold touch": {
+   "origin": "Cold Touch",
+   "name": "蚀骨寒霜",
+   "legacy": "冰冷之触"
+  },
+  "galvanized scope": {
+   "origin": "Galvanized Scope",
+   "name": "镀层氩晶瞄具",
+   "legacy": "镀层瞄具"
+  },
+  "galvanized aptitude": {
+   "origin": "Galvanized Aptitude",
+   "name": "镀层步枪才能",
+   "legacy": "镀层才能"
+  },
+  "galvanized chamber": {
+   "origin": "Galvanized Chamber",
+   "name": "镀层分裂膛室",
+   "legacy": "镀层枪膛"
+  },
+  "berserker fury": {
+   "origin": "Berserker Fury",
+   "name": "嗜血狂暴",
+   "legacy": "狂战士"
+  },
+  "lethal torrent": {
+   "origin": "Lethal Torrent",
+   "name": "致命洪流",
+   "legacy": "冷酷洪流"
+  },
+  "hammer shot": {
+   "origin": "Hammer Shot",
+   "name": "重锤射击",
+   "legacy": ""
+  },
+  "rime rounds": {
+   "origin": "Rime Rounds",
+   "name": "白霜弹头",
+   "legacy": "白霜弹"
+  },
+  "malignant force": {
+   "origin": "Malignant Force",
+   "name": "致命火力",
+   "legacy": "强力火力"
+  },
+  "shell shock": {
+   "origin": "Shell Shock",
+   "name": "电冲弹药",
+   "legacy": "精神冲击"
+  },
+  "buzz kill": {
+   "origin": "Buzz Kill",
+   "name": "败兴虐杀",
+   "legacy": "超灭"
+  },
+  "heavy caliber": {
+   "origin": "Heavy Caliber",
+   "name": "重口径",
+   "legacy": "重型口径"
+  },
+  "split chamber": {
+   "origin": "Split Chamber",
+   "name": "分裂膛室",
+   "legacy": "分裂弹头"
+  },
+  "primed deadly efficiency": {
+   "origin": "Primed Deadly Efficiency",
+   "name": "致命效率Prime",
+   "legacy": "高阶惊人高效"
+  },
+  "primed dual rounds": {
+   "origin": "Primed Dual Rounds",
+   "name": "双重弹头Prime",
+   "legacy": "高阶双重弹头"
+  },
+  "primed convulsion": {
+   "origin": "Primed Convulsion",
+   "name": "痉挛Prime",
+   "legacy": "高阶痉挛"
+  },
+  "hushed invisibility": {
+   "origin": "Hushed Invisibility",
+   "name": "静谧无踪",
+   "legacy": "寂静隐匿"
+  }
+ }
+}

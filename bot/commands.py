@@ -694,6 +694,10 @@ class CommandRouter:
         except MarketError as exc:
             self.log.warning("物品详情失败 %s：%s", item.slug, exc)
             return item
+        if detail is not None:
+            # 详情接口返回市场旧名；保留索引里已按中文 Wiki 纠正的名称。
+            detail.name = item.name or detail.name
+            detail.name_en = item.name_en or detail.name_en
         return detail or item
 
     # ------------------------------------------------------------------ 拆件
