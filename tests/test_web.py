@@ -172,6 +172,26 @@ class FakeApp:
         self.aliases.pop(alias, None)
         return {"ok": True, "removed": True}
 
+    def mod_alias_snapshot(self, query="", offset=0, limit=40):
+        return {
+            "source": {"items": 3},
+            "total": 1,
+            "offset": offset,
+            "limit": limit,
+            "groups": [{"slug": "condition_overload",
+                        "name": "状态超载", "name_en": "Condition Overload",
+                        "category_label": "模组",
+                        "aliases": ["异况超量"], "builtin": []}],
+        }
+
+    def save_mod_alias(self, alias, target):
+        self.aliases[alias] = target
+        return {"ok": True, "aliases": [alias],
+                "entry": {"alias": alias, "slug": target}}
+
+    def delete_mod_alias(self, alias):
+        return self.delete_alias(alias)
+
     def refresh_market_data(self):
         self.refreshed += 1
         return {"ok": True, "source": {"items": 4}}
@@ -648,6 +668,27 @@ class AdminServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["removed"])
         self.assertNotIn("电男头", self.app.aliases)
+
+    def test_mod_aliases_get(self):
+        status, body = self.request(
+            "/api/mod-aliases", headers={"X-Admin-Token": "secret"})
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["groups"][0]["slug"], "condition_overload")
+        self.assertEqual(data["groups"][0]["aliases"], ["异况超量"])
+
+    def test_mod_alias_save_and_delete(self):
+        status, body = self.request(
+            "/api/mod-aliases", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"alias": "异况超载", "target": "condition_overload"})
+        self.assertEqual(status, 200)
+        self.assertIn("异况超载", self.app.aliases)
+        status, body = self.request(
+            "/api/mod-aliases/delete", method="POST",
+            headers={"X-Admin-Token": "secret"}, body={"alias": "异况超载"})
+        self.assertEqual(status, 200)
+        self.assertNotIn("异况超载", self.app.aliases)
 
     def test_item_search(self):
         status, body = self.request(

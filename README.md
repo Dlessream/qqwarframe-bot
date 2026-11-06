@@ -665,6 +665,16 @@ http://127.0.0.1:8080
 - `wm` 默认实时刷新报价：每次查询绕过 60 秒订单缓存，直接取最新买卖单；可设
   `warframe_market.realtime_quotes: false` 恢复缓存模式。
 
+### MOD 别名（WM）
+
+控制台新增独立的“MOD 别名（WM）”面板，专门管理 `#wm` / `#mod` 的 MOD 叫法：
+
+- 列表只显示**已经有别名的 MOD**，直接看中文名、英文名、slug 和别名标签；
+- 每个别名后面可点 `×` 删除（内置别名锁定）；
+- “新增 MOD 别名”填写别名和目标 MOD，点“搜索 MOD”会只返回 MOD 候选，保存后立即写入 `data/aliases.json` 并重载索引；
+- 内置示例：`异况超量` / `异况超载` → `状态超载`（Condition Overload）；
+- 接口：`GET /api/mod-aliases`、`POST /api/mod-aliases`、`POST /api/mod-aliases/delete`（都需要 `X-Admin-Token`）。
+
 ### 指令菜单
 
 控制台的“指令菜单”面板可以直接改运行时命令，不需要改源码或重启：
@@ -1325,7 +1335,7 @@ environment:
 python -m unittest discover -s tests -t . -v
 ```
 
-**830 个离线测试**，不联网、不连 QQ，覆盖：
+**832 个离线测试**，不联网、不连 QQ，覆盖：
 
 - WebSocket 握手/掩码/分片/ping-pong
 - 中文/英文/外号搜索排序、平台参数、拆件与紫卡逻辑
@@ -1434,7 +1444,7 @@ qqwarframe-bot/
 │   ├── web.py             # 零依赖 Web 控制台
 │   └── app.py             # 过滤、限流、发送、提醒循环
 ├── web/                   # 控制台 HTML / CSS / JS
-├── tests/                 # 830 个测试 + fixtures
+├── tests/                 # 832 个测试 + fixtures
 └── logs/                  # 运行后生成
 ```
 

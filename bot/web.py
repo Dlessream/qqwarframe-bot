@@ -223,6 +223,22 @@ class AdminServer:
                         return
                     self._json({"ok": True, **server.app.alias_snapshot()})
                     return
+                if path == "/api/mod-aliases":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    params = parse_qs(parsed.query)
+                    try:
+                        payload = server.app.mod_alias_snapshot(
+                            params.get("q", [""])[0],
+                            int(params.get("offset", ["0"])[0] or 0),
+                            int(params.get("limit", ["40"])[0] or 40))
+                    except Exception as exc:  # noqa: BLE001
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json({"ok": True, **payload})
+                    return
                 if path == "/api/arbi":
                     if not self._authorized():
                         self._unauthorized()
@@ -462,6 +478,33 @@ class AdminServer:
                 if parsed.path == "/api/aliases/delete":
                     try:
                         result = server.app.delete_alias(
+                            str(data.get("alias") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/mod-aliases":
+                    try:
+                        result = server.app.save_mod_alias(
+                            str(data.get("alias") or ""),
+                            str(data.get("target") or ""))
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return
+                    except Exception as exc:  # noqa: BLE001
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
+                        return
+                    self._json(result)
+                    return
+
+                if parsed.path == "/api/mod-aliases/delete":
+                    try:
+                        result = server.app.delete_mod_alias(
                             str(data.get("alias") or ""))
                     except ValueError as exc:
                         self._json({"ok": False, "message": str(exc)},

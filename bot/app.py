@@ -959,6 +959,61 @@ class BotApp:
             source["error"] = error
         return {"source": source, "aliases": entries}
 
+    def mod_alias_snapshot(self, query: str = "", offset: int = 0,
+                           limit: int = 40) -> Dict[str, Any]:
+        """只返回带别名的 MOD，供 wm 后台「MOD 别名」面板使用。"""
+        index = self.market.index
+        query = str(query or "").strip().casefold()
+        offset = max(0, int(offset or 0))
+        limit = max(1, min(100, int(limit or 40)))
+        groups: Dict[str, Dict[str, Any]] = {}
+        for entry in self.alias_store.entries():
+            item = index.get(entry["slug"])
+            if item is None:
+                continue
+            kind, label = _item_category(item)
+            if kind != "mod":
+                continue
+            group = groups.setdefault(entry["slug"], {
+                "slug": entry["slug"],
+                "name": item.name,
+                "name_en": item.name_en,
+                "category_label": label,
+                "aliases": [],
+                "builtin": [],
+            })
+            group["aliases"].append(entry["alias"])
+            if entry.get("builtin"):
+                group["builtin"].append(entry["alias"])
+        rows = list(groups.values())
+        if query:
+            rows = [row for row in rows if query in " ".join((
+                row["name"], row["name_en"], row["slug"],
+                " ".join(row["aliases"]))).casefold()]
+        rows.sort(key=lambda row: row["name"] or row["slug"])
+        total = len(rows)
+        return {
+            "source": self._market_source(index),
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "groups": rows[offset:offset + limit],
+        }
+
+    def save_mod_alias(self, alias: str, target: str) -> Dict[str, Any]:
+        slug = self._resolve_alias_target(target)
+        item = self.market.index.get(slug)
+        if item is None or _item_category(item)[0] != "mod":
+            raise ValueError("目标不是 MOD：%s" % target)
+        result = self.save_aliases([alias], slug)
+        group = next((row for row in self.mod_alias_snapshot()["groups"]
+                      if row["slug"] == slug), None)
+        result["group"] = group
+        return result
+
+    def delete_mod_alias(self, alias: str) -> Dict[str, Any]:
+        return self.delete_alias(alias)
+
     def catalog_groups(self, category: str = "all", query: str = "",
                        offset: int = 0, limit: int = 40) -> Dict[str, Any]:
         index = self.market.index
@@ -1116,7 +1171,9 @@ class BotApp:
         # 管理页找物品是维护用途，赋能不受「必须带赋能前缀」的限制
         hits = self.market.lookup(query, limit=8, allow_arcane=True)
         return [{"slug": hit.item.slug, "name": hit.item.name,
-                 "name_en": hit.item.name_en} for hit in hits]
+                 "name_en": hit.item.name_en,
+                 "kind": _item_category(hit.item)[0]}
+                for hit in hits]
 
     def translate_item(self, query: str) -> Dict[str, str]:
         query = str(query or "").strip()

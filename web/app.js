@@ -13,6 +13,8 @@
     autoPrompted: false,
     groupsDirty: false,
     aliasesLoaded: false,
+    modAliasLoaded: false,
+    modAliasQuery: "",
     aliasGroups: [],
     aliasCategory: "all",
     catalogCounts: {},
@@ -920,6 +922,143 @@
     }
   }
 
+  async function loadModAliases() {
+    const box = $("modAliasGroups");
+    if (box) box.innerHTML = '<div class="alias-empty">正在读取 MOD 别名…</div>';
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (state.modAliasQuery) params.set("q", state.modAliasQuery);
+      const data = await api("/api/mod-aliases?" + params.toString());
+      state.modAliasLoaded = true;
+      state.modAliases = data;
+      renderModAliases(data);
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("modAliasInfo", "读取 MOD 别名失败：" + exc.message);
+      }
+    }
+  }
+
+  function renderModAliases(data) {
+    const groups = Array.isArray(data.groups) ? data.groups : [];
+    setText("modAliasInfo", "共 " + Number(data.total || 0) +
+      " 个 MOD 有别名；保存后 #wm / #mod 立即生效");
+    const box = $("modAliasGroups");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!groups.length) {
+      box.innerHTML = '<div class="alias-empty">还没有 MOD 别名，在下面新增一个。</div>';
+      return;
+    }
+    groups.forEach((group) => {
+      const row = document.createElement("div");
+      row.className = "mod-alias-row";
+      const target = document.createElement("div");
+      target.className = "alias-target";
+      const name = document.createElement("b");
+      name.textContent = group.name || group.slug;
+      const slug = document.createElement("small");
+      slug.textContent = group.slug;
+      target.append(name, slug);
+      const tags = document.createElement("div");
+      tags.className = "mod-alias-tags";
+      (group.aliases || []).forEach((alias) => {
+        const tag = document.createElement("span");
+        tag.className = "mod-alias-tag";
+        tag.textContent = alias + " ";
+        if (!(group.builtin || []).includes(alias)) {
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "×";
+          remove.title = "删除别名";
+          remove.addEventListener("click", () => deleteModAlias(alias));
+          tag.appendChild(remove);
+        }
+        tags.appendChild(tag);
+      });
+      row.append(target, tags);
+      box.appendChild(row);
+    });
+  }
+
+  async function searchModTargets() {
+    const query = $("modAliasTarget").value.trim();
+    const box = $("modAliasResults");
+    if (!query) {
+      toast("先输入 MOD 名称或 slug");
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = '<span class="alias-empty">搜索中…</span>';
+    try {
+      const data = await api("/api/items?q=" + encodeURIComponent(query));
+      const items = (data.items || []).filter((item) => item.kind === "mod");
+      box.innerHTML = "";
+      if (!items.length) {
+        box.innerHTML = '<span class="alias-empty">没有找到 MOD，试试英文名或 slug。</span>';
+        return;
+      }
+      items.forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "alias-candidate";
+        button.textContent = item.name || item.slug;
+        const small = document.createElement("small");
+        small.textContent = (item.name_en ? item.name_en + " · " : "") + item.slug;
+        button.appendChild(small);
+        button.addEventListener("click", () => {
+          $("modAliasTarget").value = item.slug;
+          box.hidden = true;
+        });
+        box.appendChild(button);
+      });
+    } catch (exc) {
+      box.innerHTML = '<span class="alias-empty">搜索失败：' + exc.message + "</span>";
+    }
+  }
+
+  async function saveModAlias() {
+    const alias = $("modAliasName").value.trim();
+    const target = $("modAliasTarget").value.trim();
+    if (!alias || !target) {
+      toast("填写别名和 MOD 目标");
+      return;
+    }
+    const button = $("modAliasSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      await api("/api/mod-aliases", {
+        method: "POST", body: { alias, target },
+      });
+      $("modAliasName").value = "";
+      $("modAliasTarget").value = "";
+      $("modAliasResults").hidden = true;
+      toast("MOD 别名已保存，wm 立即生效");
+      await loadModAliases();
+      await loadAliases();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "保存 MOD 别名";
+    }
+  }
+
+  async function deleteModAlias(alias) {
+    if (!window.confirm("删除 MOD 别名「" + alias + "」？")) return;
+    try {
+      await api("/api/mod-aliases/delete", {
+        method: "POST", body: { alias },
+      });
+      toast("MOD 别名已删除");
+      await loadModAliases();
+      await loadAliases();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("删除失败：" + exc.message);
+    }
+  }
+
   async function loadArbi() {
     try {
       const data = await api("/api/arbi");
@@ -1602,6 +1741,21 @@
       state.catalogOffset += state.catalogLimit;
       loadAliases();
     });
+    if ($("modAliasRefresh")) {
+      $("modAliasRefresh").addEventListener("click", loadModAliases);
+      $("modAliasFilterBtn").addEventListener("click", () => {
+        state.modAliasQuery = $("modAliasFilter").value.trim();
+        loadModAliases();
+      });
+      $("modAliasFilter").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") $("modAliasFilterBtn").click();
+      });
+      $("modAliasSearch").addEventListener("click", searchModTargets);
+      $("modAliasSave").addEventListener("click", saveModAlias);
+      $("modAliasTarget").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") searchModTargets();
+      });
+    }
     $("dataRefresh").addEventListener("click", refreshData);
     $("missionSave").addEventListener("click", saveMissionColors);
     $("missionReset").addEventListener("click", resetMissionColors);
@@ -1706,6 +1860,7 @@
   loadSubs();
   loadCommands();
   loadRivenAliases();
+  loadModAliases();
   state.timer = setInterval(refresh, 10000);
   state.logTimer = setInterval(refreshLogs, 5000);
 })();

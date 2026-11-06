@@ -270,6 +270,12 @@ a { color: inherit; text-decoration: none; }
 .alias-parts div { display: flex; gap: 3px; min-width: 0; }
 .alias-parts span { flex: 0 0 auto; color: var(--gold); opacity: .8; }
 .alias-parts code { color: var(--muted); font-family: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mod-alias-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr); gap: 14px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.mod-alias-row:last-child { border-bottom: 0; }
+.mod-alias-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.mod-alias-tag { display: inline-flex; align-items: center; gap: 2px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: rgba(255,255,255,.03); font-size: 11px; }
+.mod-alias-tag button { border: 0; padding: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 13px; line-height: 1; }
+.mod-alias-tag button:hover { color: #ff6b6b; }
 .alias-new { border-top: 1px solid var(--line); }
 .alias-new summary { padding: 12px 22px; color: var(--gold); font-size: 11px; cursor: pointer; }
 .alias-new[open] summary { border-bottom: 1px solid var(--line); }

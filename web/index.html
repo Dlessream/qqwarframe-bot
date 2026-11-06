@@ -234,6 +234,32 @@
       </details>
     </section>
 
+    <section class="panel mod-alias-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">MOD 别名（WM）</span>
+          <span class="panel-sub">给 #wm / #mod 增加常用叫法，例如 异况超量 → 状态超载</span>
+        </div>
+        <button id="modAliasRefresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+      </div>
+      <div id="modAliasInfo" class="source-strip">正在读取 MOD 别名…</div>
+      <div class="alias-tools">
+        <input id="modAliasFilter" class="input" type="text" placeholder="筛选 MOD 中文名 / 英文名 / slug">
+        <button id="modAliasFilterBtn" class="btn btn-ghost btn-sm" type="button">筛选</button>
+      </div>
+      <div id="modAliasGroups" class="alias-groups"></div>
+      <details class="alias-new">
+        <summary>新增 MOD 别名</summary>
+        <div class="alias-target-row">
+          <input id="modAliasName" class="input" type="text" maxlength="40" placeholder="别名，例如 异况超量">
+          <input id="modAliasTarget" class="input" type="text" placeholder="MOD 名称或 slug，例如 状态超载 / condition_overload">
+          <button id="modAliasSearch" class="btn btn-ghost btn-sm" type="button">搜索 MOD</button>
+          <button id="modAliasSave" class="btn btn-primary btn-sm" type="button">保存 MOD 别名</button>
+        </div>
+        <div id="modAliasResults" class="alias-results" hidden></div>
+      </details>
+    </section>
+
     <section class="panel commands-panel">
       <div class="panel-head">
         <div>
