@@ -88,6 +88,7 @@ CASES: List[Tuple[str, str]] = [
     ("subs", "#订阅列表"),
     ("wiki", "#wiki 高斯"),
     ("translate", "#翻译 Mesa Prime"),
+    ("relic", "#遗物 后纪s18"),
     ("unknown_is_query", "#绝路"),
 ]
 

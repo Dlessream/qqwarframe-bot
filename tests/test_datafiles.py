@@ -138,7 +138,10 @@ class DockerPackagingTest(unittest.TestCase):
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
         self.assertIn("/app/builtin-data", text)
-        self.assertIn("cp -a /app/data/*.json /app/builtin-data/", text)
+        # 只打包静态数据，不能把运行时缓存（board_cache/subscriptions）也塞进去
+        self.assertIn("relics_local.json", text)
+        self.assertIn("mod_names_zh_full.json", text)
+        self.assertNotIn("board_cache.json", text)
 
     def test_entrypoint_backfills_missing_static_data(self):
         path = os.path.join(self.root(), "deploy", "docker-entrypoint.sh")

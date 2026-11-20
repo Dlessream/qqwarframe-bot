@@ -35,10 +35,16 @@ COPY . .
 
 # 静态数据副本：compose 会把宿主机 ./data 挂到 /app/data，宿主机往往只同步
 # 运行时文件，随代码发布的静态知识（遗物库 / MOD 译名 / 别名 / 赏金 / 星图…）
-# 就会在容器里"消失"。这里预先打包一份到 /app/builtin-data，由
-# bot/datafiles.py 在 data/ 缺文件时回退读取。
+# 就会在容器里"消失"。这里只挑静态数据打包到 /app/builtin-data
+# （运行时缓存如 board_cache / subscriptions / baro_names 不入镜像），
+# 由 bot/datafiles.py 在 data/ 缺文件时回退读取。
 RUN mkdir -p /app/builtin-data \
-    && cp -a /app/data/*.json /app/builtin-data/ 2>/dev/null || true
+    && for f in relics_local.json mod_names_zh.json mod_names_zh_full.json \
+                bounty_objectives.json bounty_rewards.json bounty_static.json \
+                names_zh.json wiki_zh.json frame_nicknames.json warframe_alias.json \
+                aliases.json component_aliases.json frame_aliases.json sol_nodes.json; do \
+         if [ -f "/app/data/$f" ]; then cp "/app/data/$f" /app/builtin-data/; fi; \
+       done
 
 RUN mkdir -p /app/config /app/data /app/logs \
     && cp /app/data/aliases.json /app/default-aliases.json \
