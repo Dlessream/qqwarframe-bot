@@ -81,6 +81,8 @@ CASES: List[Tuple[str, str]] = [
     ("cetus", "#希图斯"),
     ("today_arbitration", "#今日仲裁"),
     ("effective_arbitration", "#高效仲裁"),
+    ("ceres_intercept_arbitration", "#谷拦仲裁"),
+    ("mirror_defense_arbitration", "#镜防仲裁"),
     ("deep_research", "#深层科研"),
     ("temporal_research", "#时光科研"),
     ("research", "#科研"),
