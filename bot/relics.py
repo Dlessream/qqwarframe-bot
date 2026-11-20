@@ -366,9 +366,12 @@ class RelicClient:
             try:
                 # 只取在线/游戏中的卖单，给出玩家当前能买到的最低/最高报价。
                 # top_orders 内部已过滤 offline 卖家并按价格排序。
+                # limit 用 5：/top 接口默认就返回 5 条卖单，足够取高低价；
+                # 若设更大（如 7）会额外请求完整订单端点补齐，单次从 ~0.6s 涨到 ~3.5s，
+                # 6 个奖励叠加会把命令顶到 9 秒硬超时边缘。
                 top_orders = getattr(self.market, "top_orders", None)
                 if top_orders is not None:
-                    sell, _ = top_orders(reward.slug, limit=7,
+                    sell, _ = top_orders(reward.slug, limit=5,
                                          platform=platform)
                     prices = [float(getattr(order, "platinum", 0) or 0)
                               for order in sell
