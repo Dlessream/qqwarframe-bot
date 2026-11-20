@@ -112,6 +112,11 @@ def _clean(text: Any) -> str:
     return _CLEAN_RE.sub(" ", str(text or "")).strip()
 
 
+def _norm_key(text: Any) -> str:
+    """奖励名匹配用的归一化键：去空格、忽略大小写。"""
+    return re.sub(r"\s+", "", str(text or "")).lower()
+
+
 def _code_from(text: str) -> str:
     matches = _CODE_RE.findall(str(text or ""))
     return matches[-1].upper() if matches else ""
@@ -321,6 +326,110 @@ class RelicClient:
         results.sort(key=lambda item: (TIER_ORDER.index(item.tier)
                                         if item.tier in TIER_ORDER else 99,
                                         item.code))
+        return results
+
+    # ------------------------------------------------------------------ 反向查询
+    def resolve_reward_targets(self, text: str) -> Tuple[List[str], List[str]]:
+        """把奖励/部件名（走别名表）解析成目标英文名集合与中文标签。
+
+        复用市场物品索引：别名表把「小丑」映射到 `mirage_prime_set`，
+        中文名/英文名/部件名由 `index.search` 兜底。套装会自动展开成各部件，
+        因为遗物奖励里存的是部件英文名（如 Mirage Prime Neuroptics Blueprint），
+        而不是套装名。
+        """
+        index = getattr(self.market, "index", None)
+        if index is None:
+            return [], []
+        aliases = getattr(index, "aliases", {}) or {}
+        by_slug = getattr(index, "by_slug", {}) or {}
+        items = getattr(index, "items", []) or []
+        key = _norm_key(text)
+
+        slugs: List[str] = []
+        alias_slug = aliases.get(key)
+        if alias_slug:
+            slugs.append(alias_slug)
+        if not slugs:
+            search = getattr(index, "search", None)
+            if search:
+                try:
+                    hits = search(text, limit=8)
+                except Exception:  # noqa: BLE001
+                    hits = []
+                # 只接受高置信命中（精确中文/英文名约 994，别名 2000）；
+                # 400 分左右的相邻部件（如「弓弦」带出「弓身/下弓臂」）不算。
+                best = max((float(getattr(hit, "score", 0) or 0)
+                            for hit in hits), default=0.0)
+                if best >= 900:
+                    for hit in hits:
+                        if float(getattr(hit, "score", 0) or 0) >= 900:
+                            item = getattr(hit, "item", None)
+                            if item is not None and getattr(item, "slug", ""):
+                                slugs.append(item.slug)
+
+        # 套装展开：mirage_prime_set → 所有 mirage_prime_* 部件（含总图）
+        expanded: set = set()
+        for slug in slugs:
+            if not slug:
+                continue
+            expanded.add(slug)
+            if slug.endswith("_set"):
+                base = slug[:-len("_set")]
+                for item in items:
+                    other = getattr(item, "slug", "")
+                    if other and other.startswith(base + "_"):
+                        expanded.add(other)
+
+        names: set = set()
+        labels: List[str] = []
+        for slug in expanded:
+            item = by_slug.get(slug)
+            if item is None:
+                continue
+            en = str(getattr(item, "name_en", "") or "")
+            if en:
+                names.add(_norm_key(en))
+            zh = str(getattr(item, "name", "") or "")
+            if zh and zh not in labels:
+                labels.append(zh)
+        return sorted(names), labels
+
+    def _reward_zh_map(self) -> Dict[str, str]:
+        """英文名归一化 → 中文名，用市场本地索引，不发网络请求。"""
+        index = getattr(self.market, "index", None)
+        result: Dict[str, str] = {}
+        if index is None:
+            return result
+        for item in getattr(index, "items", []) or []:
+            en = str(getattr(item, "name_en", "") or "")
+            zh = str(getattr(item, "name", "") or "")
+            if en and zh:
+                result[_norm_key(en)] = zh
+        return result
+
+    def reverse_search(self, text: str) -> List[Tuple[Relic, List[RelicReward]]]:
+        """按奖励/部件名反查包含它的全部遗物。
+
+        返回 [(遗物, 该遗物中命中的奖励列表)]，按遗物等级/编号排序。
+        全程只读本地索引与遗物库，不发起网络请求。
+        """
+        targets, _ = self.resolve_reward_targets(text)
+        if not targets:
+            return []
+        zh_map = self._reward_zh_map()
+        results: List[Tuple[Relic, List[RelicReward]]] = []
+        for relic in self.relics():
+            matched = [reward for reward in relic.rewards
+                       if _norm_key(getattr(reward, "name", "")) in targets]
+            if matched:
+                for reward in matched:
+                    if not getattr(reward, "market_name", ""):
+                        reward.market_name = zh_map.get(
+                            _norm_key(getattr(reward, "name", "")), "")
+                results.append((relic, matched))
+        results.sort(key=lambda pair: (TIER_ORDER.index(pair[0].tier)
+                                        if pair[0].tier in TIER_ORDER else 99,
+                                        pair[0].code))
         return results
 
     # ------------------------------------------------------------------ 行情

@@ -9,7 +9,7 @@ import unittest
 from PIL import Image
 
 from bot import present
-from bot.market import Item, MarketStats, StatSummary
+from bot.market import Item, ItemIndex, MarketStats, StatSummary
 from bot.relics import RelicClient, parse_tier_code
 
 
@@ -236,6 +236,125 @@ class RelicClientTest(unittest.TestCase):
             for name in os.listdir(tmp):
                 os.remove(os.path.join(tmp, name))
             os.rmdir(tmp)
+
+
+class ReverseRelicSearchTest(unittest.TestCase):
+    """按奖励/部件名反查含它的遗物（走别名表、套装展开、中文名映射）。"""
+
+    RAW = [
+        {"name": "Lith V1 Relic", "tier": "Lith", "code": "V1", "vaulted": False,
+         "rewards": [
+             {"rarity": "Common", "chance": 25.33,
+              "item": {"name": "Volt Prime Neuroptics Blueprint"}},
+             {"rarity": "Uncommon", "chance": 11.0,
+              "item": {"name": "Forma Blueprint"}},
+         ]},
+        {"name": "Axi V2 Relic", "tier": "Axi", "code": "V2", "vaulted": True,
+         "rewards": [
+             {"rarity": "Rare", "chance": 2.0,
+              "item": {"name": "Volt Prime Systems Blueprint"}},
+         ]},
+        {"name": "Meso K5 Relic", "tier": "Meso", "code": "K5", "vaulted": False,
+         "rewards": [
+             {"rarity": "Common", "chance": 25.33,
+              "item": {"name": "Boltor Prime Barrel"}},
+         ]},
+    ]
+
+    ITEMS = [
+        Item(slug="volt_prime_set", name="Volt Prime 一套",
+             name_en="Volt Prime Set", tags=("warframe", "set", "prime")),
+        Item(slug="volt_prime_neuroptics_blueprint", name="Volt Prime 头部神经光元 蓝图",
+             name_en="Volt Prime Neuroptics Blueprint",
+             tags=("warframe", "component", "blueprint", "prime")),
+        Item(slug="volt_prime_systems_blueprint", name="Volt Prime 系统 蓝图",
+             name_en="Volt Prime Systems Blueprint",
+             tags=("warframe", "component", "blueprint", "prime")),
+        Item(slug="volt_prime_chassis_blueprint", name="Volt Prime 机体 蓝图",
+             name_en="Volt Prime Chassis Blueprint",
+             tags=("warframe", "component", "blueprint", "prime")),
+        Item(slug="volt_prime_blueprint", name="Volt Prime 蓝图",
+             name_en="Volt Prime Blueprint", tags=("warframe", "blueprint", "prime")),
+        Item(slug="boltor_prime_barrel", name="螺钉步枪 Prime 枪管",
+             name_en="Boltor Prime Barrel", tags=("weapon", "component", "prime")),
+    ]
+
+    ALIASES = {
+        "电男": "volt_prime_set",
+        "电男头": "volt_prime_neuroptics_blueprint",
+        "电男系统": "volt_prime_systems_blueprint",
+    }
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "relics.json")
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"relics": self.RAW}, handle)
+        index = ItemIndex(self.ITEMS, self.ALIASES)
+
+        class RevMarket(FakeMarket):
+            def __init__(inner):
+                inner.index = index
+
+        self.client = RelicClient(None, RevMarket(), local_file=self.path)
+
+    def tearDown(self):
+        for name in os.listdir(self.dir):
+            os.remove(os.path.join(self.dir, name))
+        os.rmdir(self.dir)
+
+    def test_alias_component_reverse(self):
+        """别名「电男头」→ 单个部件 → 只反查含该部件的遗物。"""
+        hits = self.client.reverse_search("电男头")
+        self.assertEqual(len(hits), 1)
+        relic, matched = hits[0]
+        self.assertEqual(relic.title, "古纪 V1")
+        self.assertEqual(matched[0].name, "Volt Prime Neuroptics Blueprint")
+        # 中文名从索引补齐
+        self.assertEqual(matched[0].market_name, "Volt Prime 头部神经光元 蓝图")
+
+    def test_alias_set_expands_to_parts(self):
+        """套装别名「电男」→ 展开成各部件 → 反查含任一部件的遗物。"""
+        names, labels = self.client.resolve_reward_targets("电男")
+        self.assertIn("voltprimeneuropticsblueprint", names)
+        self.assertIn("voltprimesystemsblueprint", names)
+        self.assertIn("voltprimechassisblueprint", names)
+        self.assertIn("voltprimeblueprint", names)
+        self.assertTrue(labels)
+
+        hits = self.client.reverse_search("电男")
+        titles = [relic.title for relic, _ in hits]
+        # 古纪 V1（头）+ 后纪 V2（系统），按等级排序 Lith 在前
+        self.assertEqual(titles, ["古纪 V1", "后纪 V2"])
+
+    def test_high_confidence_name_search(self):
+        """中文全名走高置信 search，能反查到单一物品。"""
+        hits = self.client.reverse_search("螺钉步枪 Prime 枪管")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0][0].title, "前纪 K5")
+
+    def test_low_score_neighbors_excluded(self):
+        """相邻部件（400 分）不该被当成命中目标。"""
+        names, _ = self.client.resolve_reward_targets("电男系统")
+        self.assertEqual(names, ["voltprimesystemsblueprint"])
+
+    def test_no_match_returns_empty(self):
+        self.assertEqual(self.client.reverse_search("不存在的东西xyz"), [])
+
+    def test_relic_number_still_forward(self):
+        """反查不应影响正向编号查询。"""
+        self.assertEqual(self.client.search("后v2")[0].code, "V2")
+
+    def test_reverse_reply(self):
+        hits = self.client.reverse_search("电男")
+        _, labels = self.client.resolve_reward_targets("电男")
+        reply = present.relic_reverse_reply("电男", hits, labels)
+        self.assertIn("奖励反查", reply.text)
+        self.assertIn("共 2 个遗物", reply.text)
+        self.assertIn("古纪 V1", reply.text)
+        self.assertTrue(reply.has_image)
+        png = reply.image()
+        self.assertTrue(png.startswith(b"\x89PNG"))
 
 
 if __name__ == "__main__":

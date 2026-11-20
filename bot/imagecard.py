@@ -1483,7 +1483,8 @@ def help_card(prefix: str = "#", disabled=()) -> bytes:
         ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
         ["%swr <武器> [词条…]" % prefix,
          "在线/游戏中卖家；不写「负任意」= 只看无负面"],
-        ["%s遗物 <编号>" % prefix, "完整奖励 / 精炼掉率 / 杜卡德 / 出入库 / WM 卖单高低价"],
+        ["%s遗物 <编号|奖励名>" % prefix,
+         "编号→奖励明细/行情；奖励名→反查含它的全部遗物（支持别名）"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
         ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
@@ -1980,6 +1981,48 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
     if not rewards:
         draw.text((PAD, y + 18), "这个遗物没有可读取的奖励数据。",
                   font=_font(18), fill=PURPLE_MUTED)
+    y = _footer(draw, height - 48, footer)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
+def relic_reverse_card(query: str, target: str, rows,
+                       footer: str = "本地遗物库 · 别名表自动同步") -> bytes:
+    """奖励反查清单：输入奖励/部件名 → 列出可获得它的全部遗物。
+
+    ``rows`` 为 [(relic, [命中的 RelicReward, ...]), ...]。
+    """
+    rows = list(rows or ())
+    row_h = 84
+    head_h = 128
+    height = head_h + len(rows) * row_h + 66
+    image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
+    draw = ImageDraw.Draw(image)
+    draw.text((PAD, 24), "奖励反查", font=_font(38, bold=True), fill=PURPLE_TEXT)
+    sub = _fit(draw, "%s  →  %s" % (query, target), _font(18), WIDTH - 2 * PAD)
+    draw.text((PAD, 76), sub, font=_font(18), fill=PURPLE_GOLD)
+    draw.text((PAD, 102), "共 %d 个遗物可获得" % len(rows),
+              font=_font(15), fill=PURPLE_MUTED)
+    y = head_h
+    for index, (relic, rewards) in enumerate(rows, 1):
+        title = str(getattr(relic, "title", "遗物"))
+        vault = str(getattr(relic, "vault_label", ""))
+        draw.text((PAD, y + 6), "%d. %s" % (index, title),
+                  font=_font(20, bold=True), fill=PURPLE_TEXT)
+        if vault:
+            _purple_right(draw, vault, WIDTH - PAD, y + 10,
+                          _font(13, bold=True), PURPLE_GOLD)
+        parts = []
+        for reward in rewards:
+            name = str(getattr(reward, "market_name", "")
+                       or getattr(reward, "name", "") or "—")
+            rarity = str(getattr(reward, "rarity_label", "") or "")
+            chance = float(getattr(reward, "chance", 0) or 0)
+            parts.append("%s (%s %.2f%%)" % (name, rarity, chance) if rarity
+                         else "%s (%.2f%%)" % (name, chance))
+        detail = _fit(draw, "、".join(parts), _font(13), WIDTH - 2 * PAD)
+        draw.text((PAD + 16, y + 40), detail, font=_font(13), fill=PURPLE_MUTED)
+        _divider(draw, y + row_h - 10, PAD, WIDTH - PAD)
+        y += row_h
     y = _footer(draw, height - 48, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 

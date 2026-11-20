@@ -789,8 +789,9 @@ class CommandRouter:
         text = str(argument or "").strip()
         if not text:
             return present.error_reply(
-                "用法：%s遗物 <遗物编号> [完整|优良|无瑕|光辉]\n"
-                "例如：%s遗物 后纪s18　%s遗物 后s18　%s遗物 Axi S18 光辉"
+                "用法：%s遗物 <遗物编号|奖励名> [完整|优良|无瑕|光辉]\n"
+                "例如：%s遗物 后纪s18　%s遗物 小丑　%s遗物 小丑头\n"
+                "输入遗物编号查奖励明细；输入奖励/部件名反查含它的全部遗物（支持别名表）。"
                 % (ctx.prefix, ctx.prefix, ctx.prefix, ctx.prefix))
         text, refinement = self.relics.extract_refinement(text)
         if not text:
@@ -804,10 +805,17 @@ class CommandRouter:
                     "本地遗物库不可用。\n"
                     "请确认 data/relics_local.json 存在且格式正确。"
                     + (("\n" + detail[:180]) if detail else ""))
+            # 反向查询：输入奖励/部件名（走别名表），列出含该奖励的全部遗物。
+            reverse = getattr(self.relics, "reverse_search", None)
+            hits = reverse(text) if reverse else []
+            if hits:
+                _, labels = self.relics.resolve_reward_targets(text)
+                return present.relic_reverse_reply(text, hits, labels)
             return present.error_reply(
-                "没有找到遗物「%s」。\n"
-                "可写：后纪s18 / 后s18 / Axi S18；"
-                "后=后纪，前=前纪，中=中纪，古=古纪。" % text)
+                "没有找到遗物「%s」，也没找到含这个奖励的遗物。\n"
+                "遗物可写：后纪s18 / 后s18 / Axi S18；"
+                "奖励可写：小丑 / 小丑头 / Mirage Prime 机体，均支持别名表。"
+                % text)
         if len(matches) > 1:
             codes = "、".join("%s %s" % (item.tier_label, item.code)
                               for item in matches[:12])

@@ -709,6 +709,34 @@ def relic_reply(relic, platform: str = "pc") -> Reply:
             % platform_label(platform)))
 
 
+def relic_reverse_reply(query: str, hits, labels=None) -> Reply:
+    """反向查询：列出含该奖励/部件的全部遗物。
+
+    ``hits`` 为 [(relic, [命中的 RelicReward, ...]), ...]。
+    文字列出遗物编号与命中的奖励；图片为紧凑的遗物清单卡片。
+    """
+    rows = list(hits or ())
+    target = "、".join(list(labels or ())[:4]) or query
+    lines = ["【奖励反查】%s → %s" % (query, target),
+             "共 %d 个遗物可获得：" % len(rows)]
+    for index, (relic, rewards) in enumerate(rows, 1):
+        title = getattr(relic, "title", "遗物")
+        vault = getattr(relic, "vault_label", "")
+        names = []
+        for reward in rewards:
+            name = getattr(reward, "market_name", "") or getattr(reward, "name", "")
+            label = getattr(reward, "rarity_label", "")
+            chance = float(getattr(reward, "chance", 0) or 0)
+            names.append("%s [%s %.2f%%]" % (name, label, chance) if label
+                         else "%s [%.2f%%]" % (name, chance))
+        lines.append("%d. %s%s：%s" % (
+            index, title, ("·" + vault) if vault else "", "、".join(names)))
+    return Reply(
+        text="\n".join(lines),
+        image=lambda: imagecard.relic_reverse_card(
+            query, target, rows, "本地遗物库 · 别名表自动同步"))
+
+
 def eidolon_reply(cycle, speed: bool = False) -> Reply:
     """希图斯黑夜 / 夜灵竞速提醒。"""
     cycle = cycle if isinstance(cycle, dict) else {}

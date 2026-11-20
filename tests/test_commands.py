@@ -1197,6 +1197,8 @@ class RelicCommandTest(unittest.TestCase):
                 return text, "Intact"
             def enrich(inner, relic, platform=None, refinement="Intact"):
                 return relic
+            def available(inner):
+                return True
         self.ctx = Context(user_id="1", group_id="2", is_group=True, prefix="#")
         self.router, _, _ = make_router(relics=FakeRelics())
 
@@ -1220,6 +1222,46 @@ class RelicCommandTest(unittest.TestCase):
         self.assertIn("后纪 S18", reply.text)
         self.assertIn("已入库", reply.text)
         self.assertTrue(reply.has_image)
+
+    def test_reverse_query_by_reward_name(self):
+        """输入奖励/部件名（走别名表）→ 反查含它的全部遗物。"""
+        from bot.relics import Relic, RelicReward
+
+        class ReverseRelics:
+            def __init__(inner):
+                inner.calls = []
+
+            def extract_refinement(inner, text):
+                return text, "Intact"
+
+            def search(inner, text):
+                return []  # 不是遗物编号
+
+            def available(inner):
+                return True
+
+            def resolve_reward_targets(inner, text):
+                inner.calls.append(text)
+                return (["voltprimeneuropticsblueprint"],
+                        ["Volt Prime 头部神经光元 蓝图"])
+
+            def reverse_search(inner, text):
+                relic = Relic(name="Lith V1 Relic", tier="Lith", code="V1",
+                              vaulted=False,
+                              rewards=[RelicReward(name="Volt Prime Neuroptics Blueprint")])
+                return [(relic, relic.rewards)]
+
+        router, _, _ = make_router(relics=ReverseRelics())
+        reply = router.handle("#遗物 电男头", self.ctx)[0]
+        self.assertIn("奖励反查", reply.text)
+        self.assertIn("电男头", reply.text)
+        self.assertIn("古纪 V1", reply.text)
+        self.assertTrue(reply.has_image)
+
+    def test_unknown_shows_both_hints(self):
+        reply = self.router.handle("#遗物 这也不存在xyz", self.ctx)[0]
+        self.assertIn("没找到含这个奖励的遗物", reply.text)
+        self.assertIn("支持别名表", reply.text)
 
 
 class RivenMarketCommandTest(unittest.TestCase):
