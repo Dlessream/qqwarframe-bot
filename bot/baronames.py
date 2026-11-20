@@ -26,6 +26,7 @@ import threading
 import time
 from typing import Any, Dict, Iterable, List, Optional
 
+from .datafiles import resolve as resolve_data_file
 from .net import HttpClient, HttpError
 
 LOGGER = logging.getLogger("qqwarframe.baronames")
@@ -108,7 +109,9 @@ def client() -> HttpClient:
 # --------------------------------------------------------------------- 缓存
 def load_cache() -> int:
     global _names, _fetched_at
-    path = _cache_file()
+    # 读：宿主机 data/ 优先，被挂载覆盖时回退镜像内置副本；
+    # 写（save_cache）仍用原路径，保证不会写进只读的镜像目录。
+    path = resolve_data_file(_cache_file())
     if not os.path.isfile(path):
         return 0
     try:

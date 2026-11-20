@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from . import t2s, terms, worldfallback
 from .cache import TTLCache
+from .datafiles import resolve as resolve_data_file
 from .net import HttpClient, HttpError
 
 LOGGER = logging.getLogger("qqwarframe.worldstate")
@@ -379,8 +380,8 @@ class WorldStateClient:
     def _load_nodes(self) -> Dict[str, Dict[str, str]]:
         if self._nodes is not None:
             return self._nodes
-        path = os.path.join(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))), "data", "sol_nodes.json")
+        # data/ 被宿主机挂载覆盖时，自动回退镜像内置的 builtin-data/ 副本
+        path = resolve_data_file(os.path.join("data", "sol_nodes.json"))
         try:
             with open(path, encoding="utf-8") as handle:
                 raw = json.load(handle)

@@ -15,8 +15,10 @@ from typing import Any, Dict, List, Optional
 
 LOGGER = logging.getLogger("qqwarframe.bountyrewards")
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_FILE = os.path.join(ROOT, "data", "bounty_rewards.json")
+from .datafiles import ROOT, resolve as resolve_data_file
+
+# data/ 被宿主机挂载覆盖时，自动回退镜像内置的 builtin-data/ 副本
+DEFAULT_FILE = resolve_data_file(os.path.join("data", "bounty_rewards.json"))
 
 _lock = threading.Lock()
 _cache: Optional[Dict[str, Dict[str, List[str]]]] = None

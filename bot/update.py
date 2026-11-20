@@ -23,8 +23,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SELF_UPDATE_CODE_DIRS = ("bot", "web")
 SELF_UPDATE_CODE_FILES = ("run.py", "requirements.txt")
-SELF_UPDATE_DATA_FILES = ("component_aliases.json", "frame_aliases.json",
-                          "sol_nodes.json")
+# 随代码发布的静态知识数据：自更新时一并同步。
+# （运行时缓存如 items_cache / board_cache / subscriptions 不在此列，
+#   它们是部署后产生的，不能被仓库版本覆盖。）
+SELF_UPDATE_DATA_FILES = (
+    "component_aliases.json", "frame_aliases.json", "sol_nodes.json",
+    "relics_local.json", "mod_names_zh.json", "mod_names_zh_full.json",
+    "bounty_objectives.json", "bounty_rewards.json", "bounty_static.json",
+    "names_zh.json", "wiki_zh.json", "frame_nicknames.json",
+    "warframe_alias.json",
+)
 
 # GitHub 的源码包有多条入口：codeload 通常最快，archive 走 302，
 # API tarball 在部分网络下可用。任何一个成功即可。

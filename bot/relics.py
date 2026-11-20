@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .datafiles import resolve as resolve_data_file
+
 LOGGER = logging.getLogger("qqwarframe.relics")
 
 # 中文名、缩写、英文名都接受
@@ -222,16 +224,13 @@ def parse_relic(raw: Dict[str, Any]) -> Optional[Relic]:
 
 
 def _resolve_local_file(path: str) -> str:
-    """相对路径优先按项目根目录解析，避免服务 cwd 不在项目目录时找不到。"""
-    raw = str(path or "data/relics_local.json")
-    if os.path.isabs(raw):
-        return raw
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    candidates = [os.path.join(root, raw), os.path.abspath(raw)]
-    for candidate in candidates:
-        if os.path.isfile(candidate):
-            return candidate
-    return candidates[0]
+    """优先项目根目录下的 data/，被宿主机挂载覆盖时回退镜像内置副本。
+
+    部署时 `./data` 会挂到 `/app/data`，宿主机往往只同步运行时文件，
+    静态的 `relics_local.json` 就可能缺失；`builtin-data/` 里有构建时
+    打包的副本，保证遗物库任何情况下都能读出来。
+    """
+    return resolve_data_file(path or "data/relics_local.json")
 
 
 class RelicClient:

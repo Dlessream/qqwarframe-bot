@@ -12,6 +12,8 @@ import os
 import threading
 from typing import Dict, Optional
 
+from .datafiles import resolve as resolve_data_file
+
 LOGGER = logging.getLogger("qqwarframe.mod_names_zh")
 
 _LOCK = threading.Lock()
@@ -19,14 +21,13 @@ _DATA: Optional[Dict[str, Dict[str, str]]] = None
 
 
 def _path() -> str:
-    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "data")
-    # 优先使用完整 Wiki 抓取结果；没有时退回内置快照。
+    # 优先使用完整 Wiki 抓取结果；没有时退回旧快照。
+    # data/ 被宿主机挂载覆盖时，自动回退到镜像内置的 builtin-data/ 副本。
     for name in ("mod_names_zh_full.json", "mod_names_zh.json"):
-        path = os.path.join(root, name)
+        path = resolve_data_file(os.path.join("data", name))
         if os.path.isfile(path):
             return path
-    return os.path.join(root, "mod_names_zh.json")
+    return resolve_data_file(os.path.join("data", "mod_names_zh.json"))
 
 
 def _normalize(text: str) -> str:

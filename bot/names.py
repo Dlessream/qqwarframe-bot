@@ -21,16 +21,15 @@ import threading
 from typing import Dict, Optional, Tuple
 
 from . import wiki_zh
+from .datafiles import resolve as resolve_data_file
 
 LOGGER = logging.getLogger("qqwarframe.names")
 
-_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                     "data", "names_zh.json")
-_ALIAS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                           "data", "warframe_alias.json")
+# data/ 被宿主机挂载覆盖时，自动回退镜像内置的 builtin-data/ 副本
+_PATH = resolve_data_file(os.path.join("data", "names_zh.json"))
+_ALIAS_PATH = resolve_data_file(os.path.join("data", "warframe_alias.json"))
 # 俗名 → 战甲英文名：市场里没有可交易物品的战甲（多为无 Prime 的新战甲）
-_NICKNAME_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                              "data", "frame_nicknames.json")
+_NICKNAME_PATH = resolve_data_file(os.path.join("data", "frame_nicknames.json"))
 
 # 常见后缀：套装 / 蓝图 / 部件，拆掉再查一次基础名
 _STRIP_SUFFIXES = (" set", " blueprint")

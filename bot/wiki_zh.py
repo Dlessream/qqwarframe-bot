@@ -21,10 +21,12 @@ import re
 import threading
 from typing import Dict, Optional
 
+from .datafiles import resolve as resolve_data_file
+
 LOGGER = logging.getLogger("qqwarframe.wiki_zh")
 
-_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                     "data", "wiki_zh.json")
+# data/ 被宿主机挂载覆盖时，自动回退镜像内置的 builtin-data/ 副本
+_PATH = resolve_data_file(os.path.join("data", "wiki_zh.json"))
 
 _SPACE_RE = re.compile(r"\s+")
 _AMP_RE = re.compile(r"\s*&\s*")

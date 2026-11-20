@@ -18,10 +18,12 @@ import re
 import threading
 from typing import Any, Dict
 
+from .datafiles import ROOT, resolve as resolve_data_file
+
 LOGGER = logging.getLogger("qqwarframe.bounties")
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_FILE = os.path.join(ROOT, "data", "bounty_objectives.json")
+# data/ 被宿主机挂载覆盖时，自动回退镜像内置的 builtin-data/ 副本
+DEFAULT_FILE = resolve_data_file(os.path.join("data", "bounty_objectives.json"))
 
 _lock = threading.Lock()
 _jobs: Dict[str, Dict[str, str]] = {}

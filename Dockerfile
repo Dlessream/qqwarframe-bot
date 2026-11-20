@@ -33,6 +33,13 @@ RUN pip install -i "$PIP_INDEX_URL" -r requirements.txt
 
 COPY . .
 
+# 静态数据副本：compose 会把宿主机 ./data 挂到 /app/data，宿主机往往只同步
+# 运行时文件，随代码发布的静态知识（遗物库 / MOD 译名 / 别名 / 赏金 / 星图…）
+# 就会在容器里"消失"。这里预先打包一份到 /app/builtin-data，由
+# bot/datafiles.py 在 data/ 缺文件时回退读取。
+RUN mkdir -p /app/builtin-data \
+    && cp -a /app/data/*.json /app/builtin-data/ 2>/dev/null || true
+
 RUN mkdir -p /app/config /app/data /app/logs \
     && cp /app/data/aliases.json /app/default-aliases.json \
     && chmod +x /app/deploy/docker-entrypoint.sh \

@@ -8,6 +8,8 @@ import shutil
 import threading
 from typing import Dict, List, Optional
 
+from .datafiles import resolve as resolve_data_file
+
 # 这些别名即使运行中的 data/aliases.json 没有，也会生效。
 DEFAULT_ALIASES = {
     "电男": "volt_prime_set",
@@ -28,10 +30,13 @@ class AliasStore:
         self._lock = threading.Lock()
 
     def _read_raw(self) -> Dict[str, str]:
-        if not os.path.isfile(self.path):
+        # 读：宿主机 data/ 优先；被挂载覆盖时回退镜像内置副本。
+        # 写（_write）始终写 self.path，不会落到只读的镜像目录。
+        path = resolve_data_file(self.path)
+        if not os.path.isfile(path):
             return {}
         try:
-            with open(self.path, encoding="utf-8") as handle:
+            with open(path, encoding="utf-8") as handle:
                 raw = json.load(handle)
         except (OSError, ValueError):
             return {}
@@ -59,7 +64,8 @@ class AliasStore:
 
     def ensure_frame_defaults(self) -> int:
         """把随包附带的战甲别名补进现有 data/aliases.json（只补一次）。"""
-        defaults_path = os.path.join(os.path.dirname(self.path), "frame_aliases.json")
+        defaults_path = resolve_data_file(
+            os.path.join(os.path.dirname(self.path), "frame_aliases.json"))
         if not os.path.isfile(defaults_path):
             return 0
         try:
@@ -134,8 +140,8 @@ class AliasStore:
 
     def ensure_component_defaults(self) -> int:
         """把随包附带的全部物品部件别名补进现有 alias 文件（只补一次）。"""
-        defaults_path = os.path.join(os.path.dirname(self.path),
-                                     "component_aliases.json")
+        defaults_path = resolve_data_file(
+            os.path.join(os.path.dirname(self.path), "component_aliases.json"))
         if not os.path.isfile(defaults_path):
             return 0
         try:
