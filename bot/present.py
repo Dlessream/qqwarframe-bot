@@ -675,7 +675,7 @@ def _invasion_reward(side, row) -> str:
 
 
 def relic_reply(relic, platform: str = "pc") -> Reply:
-    """遗物完整内容 + 精炼掉率 + 杜卡德 + 出入库 + WM 均价。"""
+    """遗物完整内容 + 精炼掉率 + 杜卡德 + 出入库 + WM 在线/游戏中卖单高低价。"""
     rewards = list(getattr(relic, "rewards", ()) or ())
     title = getattr(relic, "title", "遗物")
     vault = getattr(relic, "vault_label", "")
@@ -685,15 +685,16 @@ def relic_reply(relic, platform: str = "pc") -> Reply:
                  getattr(relic, "refinement", "Intact")),
              "本地库：%s · 行情实时" % (
                  getattr(relic, "data_updated", "") or "内置"),
-             "价格为 WM 加权均价（48h / 90d），D=杜卡德"]
+             "价格为 WM 在线中/游戏中卖单最低 / 最高价"]
     for index, reward in enumerate(rewards, 1):
         name = getattr(reward, "market_name", "") or getattr(reward, "name", "—")
-        lines.append("%d. %s [%s] · 概率 %.2f%% · %d D · 48h %.2fp · 90d %.2fp" % (
+        low = float(getattr(reward, "price_low", 0) or 0)
+        high = float(getattr(reward, "price_high", 0) or 0)
+        lines.append("%d. %s [%s] · 概率 %.2f%% · %d 杜卡德 · 最低 %.2fp · 最高 %.2fp" % (
             index, name, getattr(reward, "rarity_label", "—"),
             float(getattr(reward, "chance", 0) or 0),
             int(getattr(reward, "ducats", 0) or 0),
-            float(getattr(reward, "price48", 0) or 0),
-            float(getattr(reward, "price90", 0) or 0)))
+            low, high))
     if not rewards:
         lines.append("没有读取到这个遗物的奖励数据。")
     locations = list(getattr(relic, "locations", ()) or ())

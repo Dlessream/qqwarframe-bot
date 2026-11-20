@@ -65,6 +65,19 @@ class FakeMarket:
     def __init__(self):
         self.index = FakeIndex()
 
+    def top_orders(self, slug, limit=5, platform=None, force=False):
+        from bot.market import Order
+        values = {
+            "paris_prime_upper_limb": [3.8, 4.0, 4.2],
+            "forma_blueprint": [7.0, 7.2],
+            "boltor_prime_barrel": [4.3, 5.0, 6.1],
+        }
+        prices = values.get(slug, [])
+        sells = [Order(side="sell", platinum=p, quantity=1,
+                       user="tester", status="ingame")
+                 for p in prices]
+        return sells[:limit], []
+
     def statistics(self, slug, platform=None):
         values = {
             "paris_prime_upper_limb": (3.8, 3.94, 12, 33),
@@ -111,7 +124,8 @@ class RelicClientTest(unittest.TestCase):
         self.client.enrich(relic)
         rows = {row.slug: row for row in relic.rewards}
         self.assertEqual(rows["paris_prime_upper_limb"].ducats, 15)
-        self.assertAlmostEqual(rows["paris_prime_upper_limb"].price48, 3.8)
+        self.assertAlmostEqual(rows["paris_prime_upper_limb"].price_low, 3.8)
+        self.assertAlmostEqual(rows["paris_prime_upper_limb"].price_high, 4.2)
         self.assertEqual(rows["forma_blueprint"].ducats, 0)
 
     def test_tier_aliases_are_not_mixed(self):
@@ -157,7 +171,9 @@ class RelicClientTest(unittest.TestCase):
         reply = present.relic_reply(relic, "pc")
         self.assertIn("后纪 S18", reply.text)
         self.assertIn("已入库", reply.text)
-        self.assertIn("15 D", reply.text)
+        self.assertIn("15 杜卡德", reply.text)
+        self.assertIn("最低 3.80p", reply.text)
+        self.assertIn("最高 4.20p", reply.text)
         png = reply.image()
         self.assertTrue(png.startswith(b"\x89PNG"))
         self.assertEqual(Image.open(io.BytesIO(png)).size[0], 860)
@@ -170,13 +186,13 @@ class RelicClientTest(unittest.TestCase):
         active = [0]
 
         class SlowMarket(FakeMarket):
-            def statistics(self, slug, platform=None):
+            def top_orders(self, slug, limit=5, platform=None, force=False):
                 with lock:
                     active[0] += 1
                     peak[0] = max(peak[0], active[0])
                 try:
                     time.sleep(delay)
-                    return super().statistics(slug, platform)
+                    return super().top_orders(slug, limit, platform, force)
                 finally:
                     with lock:
                         active[0] -= 1
@@ -213,8 +229,9 @@ class RelicClientTest(unittest.TestCase):
             self.assertEqual(
                 [row.name for row in relic.rewards],
                 ["Paris Prime Upper Limb", "Forma Blueprint", "Boltor Prime Barrel"])
-            self.assertAlmostEqual(relic.rewards[0].price48, 3.8)
-            self.assertAlmostEqual(relic.rewards[2].price48, 4.3)
+            self.assertAlmostEqual(relic.rewards[0].price_low, 3.8)
+            self.assertAlmostEqual(relic.rewards[0].price_high, 4.2)
+            self.assertAlmostEqual(relic.rewards[2].price_low, 4.3)
         finally:
             for name in os.listdir(tmp):
                 os.remove(os.path.join(tmp, name))

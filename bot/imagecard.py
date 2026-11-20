@@ -1483,7 +1483,7 @@ def help_card(prefix: str = "#", disabled=()) -> bytes:
         ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
         ["%swr <武器> [词条…]" % prefix,
          "在线/游戏中卖家；不写「负任意」= 只看无负面"],
-        ["%s遗物 <编号>" % prefix, "完整奖励 / 精炼掉率 / 杜卡德 / 出入库 / WM 均价"],
+        ["%s遗物 <编号>" % prefix, "完整奖励 / 精炼掉率 / 杜卡德 / 出入库 / WM 卖单高低价"],
         ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
         ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
         ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
@@ -1942,7 +1942,7 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
                      (112, 82, 119), PURPLE_GOLD)
     refinement = str(getattr(relic, "refinement_label", "完整"))
     code = str(getattr(relic, "refinement", "Intact"))
-    draw.text((PAD, 84), "精炼：%s（%s） · 价格为 WM 加权均价 · 48h / 90d" % (
+    draw.text((PAD, 84), "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
         refinement, code), font=_font(15), fill=PURPLE_MUTED)
     if locations:
         draw.text((PAD, 106), "获取：%s" % _fit(
@@ -1967,18 +1967,14 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
             draw.text((chip_x, y + 41), "概率 %.2f%%" % chance,
                       font=_font(12), fill=PURPLE_MUTED)
         ducats = int(getattr(reward, "ducats", 0) or 0)
-        draw.text((WIDTH - 330, y + 10), "%d D" % ducats,
-                  font=_font(18, bold=True), fill=PURPLE_GOLD)
-        price48 = float(getattr(reward, "price48", 0) or 0)
-        price90 = float(getattr(reward, "price90", 0) or 0)
-        draw.text((WIDTH - 250, y + 10), "48h %.2fp" % price48,
+        draw.text((WIDTH - 350, y + 14), "%d 杜卡德" % ducats,
+                  font=_font(16, bold=True), fill=PURPLE_GOLD)
+        price_low = float(getattr(reward, "price_low", 0) or 0)
+        price_high = float(getattr(reward, "price_high", 0) or 0)
+        draw.text((WIDTH - 232, y + 10), "最低 %.2fp" % price_low,
                   font=_font(15), fill=PURPLE_MUTED)
-        draw.text((WIDTH - 250, y + 34), "90d %.2fp" % price90,
+        draw.text((WIDTH - 232, y + 34), "最高 %.2fp" % price_high,
                   font=_font(15), fill=PURPLE_MUTED)
-        vol48 = int(getattr(reward, "volume48", 0) or 0)
-        vol90 = int(getattr(reward, "volume90", 0) or 0)
-        draw.text((WIDTH - 250, y + 58), "量 %d / %d" % (vol48, vol90),
-                  font=_font(13), fill=PURPLE_MUTED)
         _divider(draw, y + row_h - 12, 34, WIDTH - 34)
         y += row_h
     if not rewards:

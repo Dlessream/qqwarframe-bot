@@ -1188,8 +1188,8 @@ class RelicCommandTest(unittest.TestCase):
                            vaulted=True,
                            rewards=[RelicReward(name="Paris Prime Upper Limb",
                                                 slug="paris_prime_upper_limb",
-                                                ducats=15, price48=3.8,
-                                                price90=3.94)])
+                                                ducats=15, price_low=3.8,
+                                                price_high=3.94)])
         class FakeRelics:
             def search(inner, text):
                 return [self.relic] if "s18" in text.lower() else []

@@ -69,6 +69,8 @@ class RelicReward:
     price90: float = 0.0
     volume48: int = 0
     volume90: int = 0
+    price_low: float = 0.0
+    price_high: float = 0.0
     market_name: str = ""
 
     @property
@@ -362,11 +364,25 @@ class RelicClient:
             reward.slug = reward.slug or getattr(item, "slug", "")
         if reward.slug:
             try:
-                stats = self.market.statistics(reward.slug, platform=platform)
-                reward.price48 = float(getattr(stats.h48, "avg", 0) or 0)
-                reward.price90 = float(getattr(stats.d90, "avg", 0) or 0)
-                reward.volume48 = int(getattr(stats.h48, "volume", 0) or 0)
-                reward.volume90 = int(getattr(stats.d90, "volume", 0) or 0)
+                # 只取在线/游戏中的卖单，给出玩家当前能买到的最低/最高报价。
+                # top_orders 内部已过滤 offline 卖家并按价格排序。
+                top_orders = getattr(self.market, "top_orders", None)
+                if top_orders is not None:
+                    sell, _ = top_orders(reward.slug, limit=7,
+                                         platform=platform)
+                    prices = [float(getattr(order, "platinum", 0) or 0)
+                              for order in sell
+                              if float(getattr(order, "platinum", 0) or 0) > 0]
+                    if prices:
+                        reward.price_low = min(prices)
+                        reward.price_high = max(prices)
+                else:
+                    # 兼容只提供 statistics 的旧客户端。
+                    stats = self.market.statistics(reward.slug, platform=platform)
+                    reward.price48 = float(getattr(stats.h48, "avg", 0) or 0)
+                    reward.price90 = float(getattr(stats.d90, "avg", 0) or 0)
+                    reward.volume48 = int(getattr(stats.h48, "volume", 0) or 0)
+                    reward.volume90 = int(getattr(stats.d90, "volume", 0) or 0)
             except Exception as exc:  # noqa: BLE001
                 self.log.info("遗物奖励行情失败（%s）：%s", reward.slug, exc)
         return reward
