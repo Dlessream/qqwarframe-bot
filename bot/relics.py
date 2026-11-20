@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -351,6 +352,25 @@ class RelicClient:
                 return None
         return None
 
+    def _enrich_reward(self, reward: RelicReward,
+                       platform: Optional[str] = None) -> RelicReward:
+        """补全单个奖励的杜卡德/中文名与 48h/90d 行情。"""
+        item = self._item_for(reward)
+        if item is not None:
+            reward.ducats = int(getattr(item, "ducats", 0) or 0)
+            reward.market_name = getattr(item, "name", "") or reward.name
+            reward.slug = reward.slug or getattr(item, "slug", "")
+        if reward.slug:
+            try:
+                stats = self.market.statistics(reward.slug, platform=platform)
+                reward.price48 = float(getattr(stats.h48, "avg", 0) or 0)
+                reward.price90 = float(getattr(stats.d90, "avg", 0) or 0)
+                reward.volume48 = int(getattr(stats.h48, "volume", 0) or 0)
+                reward.volume90 = int(getattr(stats.d90, "volume", 0) or 0)
+            except Exception as exc:  # noqa: BLE001
+                self.log.info("遗物奖励行情失败（%s）：%s", reward.slug, exc)
+        return reward
+
     def enrich(self, relic: Relic, platform: Optional[str] = None,
                refinement: str = "Intact") -> Relic:
         relic.refinement = (refinement if refinement in REFINEMENTS
@@ -361,22 +381,16 @@ class RelicClient:
             rarity = (reward.rarity or "").lower()
             if rarity in chances:
                 reward.chance = chances[rarity]
-        rows: List[RelicReward] = []
-        for reward in relic.rewards:
-            item = self._item_for(reward)
-            if item is not None:
-                reward.ducats = int(getattr(item, "ducats", 0) or 0)
-                reward.market_name = getattr(item, "name", "") or reward.name
-                reward.slug = reward.slug or getattr(item, "slug", "")
-            if reward.slug:
-                try:
-                    stats = self.market.statistics(reward.slug, platform=platform)
-                    reward.price48 = float(getattr(stats.h48, "avg", 0) or 0)
-                    reward.price90 = float(getattr(stats.d90, "avg", 0) or 0)
-                    reward.volume48 = int(getattr(stats.h48, "volume", 0) or 0)
-                    reward.volume90 = int(getattr(stats.d90, "volume", 0) or 0)
-                except Exception as exc:  # noqa: BLE001
-                    self.log.info("遗物奖励行情失败（%s）：%s", reward.slug, exc)
-            rows.append(reward)
-        relic.rewards = rows
+        # 奖励之间互不依赖，并发补全可把逐个串行的网络等待叠加压成一次；
+        # 市场客户端自带 3 rps 限流，不会因并发触发 429。
+        rewards = list(relic.rewards)
+        if len(rewards) > 1:
+            workers = min(len(rewards), 8)
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [pool.submit(self._enrich_reward, reward, platform)
+                           for reward in rewards]
+                relic.rewards = [future.result() for future in futures]
+        else:
+            relic.rewards = [self._enrich_reward(reward, platform)
+                             for reward in rewards]
         return relic

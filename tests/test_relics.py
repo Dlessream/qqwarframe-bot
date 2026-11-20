@@ -2,6 +2,8 @@ import io
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 
 from PIL import Image
@@ -159,6 +161,64 @@ class RelicClientTest(unittest.TestCase):
         png = reply.image()
         self.assertTrue(png.startswith(b"\x89PNG"))
         self.assertEqual(Image.open(io.BytesIO(png)).size[0], 860)
+
+    def test_enrich_runs_reward_lookups_concurrently(self):
+        """6 个奖励的行情请求应并发执行，耗时远小于逐个串行。"""
+        delay = 0.25
+        lock = threading.Lock()
+        peak = [0]
+        active = [0]
+
+        class SlowMarket(FakeMarket):
+            def statistics(self, slug, platform=None):
+                with lock:
+                    active[0] += 1
+                    peak[0] = max(peak[0], active[0])
+                try:
+                    time.sleep(delay)
+                    return super().statistics(slug, platform)
+                finally:
+                    with lock:
+                        active[0] -= 1
+
+        # 用自建的 3 奖励遗物，全部命中 FakeMarket，避免真实库缺项干扰。
+        raw = [{
+            "name": "Axi S18 Relic", "vaulted": True,
+            "rewards": [
+                {"rarity": "Common", "item": {
+                    "name": "Paris Prime Upper Limb",
+                    "warframeMarket": {"url_name": "paris_prime_upper_limb"}}},
+                {"rarity": "Uncommon", "item": {
+                    "name": "Forma Blueprint",
+                    "warframeMarket": {"url_name": "forma_blueprint"}}},
+                {"rarity": "Rare", "item": {
+                    "name": "Boltor Prime Barrel",
+                    "warframeMarket": {"url_name": "boltor_prime_barrel"}}},
+            ],
+        }]
+        tmp = tempfile.mkdtemp()
+        path = os.path.join(tmp, "relics.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"relics": raw}, handle)
+        try:
+            client = RelicClient(None, SlowMarket(), local_file=path)
+            relic = client.search("后s18")[0]
+            started = time.time()
+            client.enrich(relic)
+            elapsed = time.time() - started
+            self.assertGreaterEqual(peak[0], 2, "奖励行情应并发请求")
+            # 并发时总耗时接近单次延迟，串行会是 delay * 奖励数。
+            self.assertLess(elapsed, delay * len(relic.rewards) * 0.8)
+            # 顺序保持不变，价格正确落到对应奖励。
+            self.assertEqual(
+                [row.name for row in relic.rewards],
+                ["Paris Prime Upper Limb", "Forma Blueprint", "Boltor Prime Barrel"])
+            self.assertAlmostEqual(relic.rewards[0].price48, 3.8)
+            self.assertAlmostEqual(relic.rewards[2].price48, 4.3)
+        finally:
+            for name in os.listdir(tmp):
+                os.remove(os.path.join(tmp, name))
+            os.rmdir(tmp)
 
 
 if __name__ == "__main__":
