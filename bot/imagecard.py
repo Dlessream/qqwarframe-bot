@@ -888,9 +888,40 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
+# 仲裁表底部的快捷筛选按钮（个人号无法点击，画出样式提示用户发对应命令）
+ARBITRATION_BUTTONS = [
+    {"label": "谷拦仲裁", "hint": "谷神星 · 拦截", "color": (86, 200, 190)},
+    {"label": "镜防仲裁", "hint": "火星 / 火卫二 · 镜像防御", "color": (110, 160, 235)},
+    {"label": "高效仲裁", "hint": "评级 S / A+", "color": GOLD},
+]
+
+
+def _draw_buttons(draw, y: int, buttons: Sequence[Dict]) -> int:
+    """在图片底部画一排按钮样式区块，返回绘制后的 y 坐标。"""
+    if not buttons:
+        return y
+    gap = 16
+    col_w = (WIDTH - 2 * PAD - gap * (len(buttons) - 1)) // len(buttons)
+    btn_h = 54
+    top = y + 8
+    label_font = _font(16, bold=True)
+    hint_font = _font(11)
+    for index, spec in enumerate(buttons):
+        x1 = PAD + index * (col_w + gap)
+        x2 = x1 + col_w
+        color = spec.get("color") or GOLD
+        _rrect(draw, (x1, top, x2, top + btn_h), 10,
+               fill=PANEL_LIGHT, outline=color, width=2)
+        label = _fit(draw, str(spec.get("label", "")), label_font, col_w - 24)
+        hint = _fit(draw, str(spec.get("hint", "")), hint_font, col_w - 24)
+        draw.text((x1 + 12, top + 8), label, font=label_font, fill=color)
+        draw.text((x1 + 12, top + 32), hint, font=hint_font, fill=MUTED)
+    return top + btn_h
+
+
 def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                    footer: str, accent=GOLD, chip: str = "",
-                   note: str = "") -> bytes:
+                   note: str = "", buttons: Optional[Sequence[Dict]] = None) -> bytes:
     """按天分组的排期表：每天一节，条目分左右两列铺开。
 
     days: [{"label": "10-28 周三", "badge": "24 场 · S×1",
@@ -901,7 +932,10 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
     per_col = 1
     for item in days:
         per_col = max(per_col, (len(list(item.get("rows") or [])) + 1) // 2)
+    buttons = list(buttons or [])
     height = max(700, 300 + len(days) * (62 + per_col * 32) + 120)
+    if buttons:
+        height += 84
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
@@ -999,6 +1033,11 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
         draw.text((PAD, y + 2), _fit(draw, note, _font(14), usable),
                   font=_font(14), fill=MUTED)
         y += 28
+
+    if buttons:
+        _divider(draw, y + 6)
+        y = _draw_buttons(draw, y, buttons)
+        y += 12
 
     y = _footer(draw, y + 10, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -1506,8 +1545,9 @@ def help_card(prefix: str = "#", disabled=()) -> bytes:
         ["%s深层科研 / %s时光科研" % (prefix, prefix), "深层科研、时光科研"],
         ["%s科研" % prefix, "两种科研总览"],
         ["%s仲裁评级" % prefix, "仲裁梯队（加「本地」看推算）"],
-        ["%s今日仲裁 / %s高效仲裁" % (prefix, prefix), "未来 24 小时轮换、高价值仲裁"],
-        ["%s仲裁表 [天数]" % prefix, "未来 7 天完整仲裁排期"],
+        ["%s今日仲裁 / %s高效仲裁" % (prefix, prefix), "未来 24 小时轮换、S/A+ 高价值仲裁"],
+        ["%s仲裁表 [天数]" % prefix, "未来 7 天完整仲裁排期（底部含筛选按钮）"],
+        ["%s谷拦仲裁 / %s镜防仲裁" % (prefix, prefix), "谷神星拦截、火星/火卫二镜像防御仲裁"],
         ["%s提醒 <名称> <价>" % prefix, "降价提醒"],
         ["%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"],
         ["%s订阅 <类型> [筛选]" % prefix, "新内容出现就推送到群"],

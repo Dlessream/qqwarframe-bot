@@ -105,6 +105,8 @@ COMMANDS: Dict[str, str] = {
     "扎里曼": "bounty_zariman",
     "希图斯": "cetus", "希图斯赏金": "cetus", "希图斯帐篷": "cetus",
     "今日仲裁": "today_arbitration", "高效仲裁": "effective_arbitration",
+    "谷拦仲裁": "ceres_intercept_arbitration", "谷神星拦截": "ceres_intercept_arbitration",
+    "镜防仲裁": "mirror_defense_arbitration", "镜像防御仲裁": "mirror_defense_arbitration",
     "深层科研": "deep_research", "时光科研": "temporal_research",
     "科研": "research",
     "轮换": "rotation", "周轮换": "rotation", "每周轮换": "rotation",
@@ -574,6 +576,10 @@ class CommandRouter:
                 return [self._today_arbitration(argument, ctx)]
             if command == "effective_arbitration":
                 return [self._effective_arbitration(argument, ctx)]
+            if command == "ceres_intercept_arbitration":
+                return [self._filtered_arbitration("ceres_intercept", ctx)]
+            if command == "mirror_defense_arbitration":
+                return [self._filtered_arbitration("mirror_defense", ctx)]
             if command == "deep_research":
                 return [self._research("C T_ L A B", "深层科研")]
             if command == "temporal_research":
@@ -1109,8 +1115,28 @@ class CommandRouter:
             return present.error_reply("仲裁评级未启用。")
         entries = self.arbi.effective(hours=24)
         return present.arbitration_schedule_reply(
-            entries, "高效仲裁（未来 24 小时 S/A 级）",
-            empty="未来 24 小时没有 S/A 级仲裁。")
+            entries, "高效仲裁（未来 24 小时 S/A+ 级）",
+            empty="未来 24 小时没有 S/A+ 级仲裁。")
+
+    def _filtered_arbitration(self, kind: str, ctx: Context) -> Reply:
+        """仲裁表筛选：谷拦 / 镜防（高效仲裁沿用独立命令）。"""
+        if self.arbi is None:
+            return present.error_reply("仲裁评级未启用。")
+        titles = {
+            "ceres_intercept": "谷拦仲裁",
+            "mirror_defense": "镜防仲裁",
+            "effective": "高效仲裁",
+        }
+        empties = {
+            "ceres_intercept": "未来 7 天没有谷神星拦截仲裁。",
+            "mirror_defense": "未来 7 天没有火星 / 火卫二镜像防御仲裁。",
+            "effective": "未来 7 天没有 S/A+ 级仲裁。",
+        }
+        title = titles.get(kind, "仲裁表")
+        entries = self.arbi.filtered(kind, days=7)
+        return present.arbitration_week_reply(
+            entries, days=7, title=title,
+            empty=empties.get(kind, "未来 7 天没有匹配的仲裁。"))
 
     def _arbi_schedule(self, argument: str, ctx: Context) -> Reply:
         """仲裁表：未来 N 天（默认 7 天）的完整排期。"""

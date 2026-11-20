@@ -723,7 +723,7 @@ class CommandMenuTest(unittest.TestCase):
         self.assertEqual(rows["riven_market"]["label"], "紫卡市场")
         self.assertEqual(rows["world_invasions"]["label"], "入侵任务")
         self.assertTrue(rows["riven_market"]["description"])
-        self.assertEqual(len(rows), 62)
+        self.assertEqual(len(rows), 64)
 
     def test_alias_conflict_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -797,6 +797,20 @@ class FakeArbi:
         return [(base + i * 3600, base + (i + 1) * 3600,
                  self.everest, "A+") for i in range(int(days) * 24)]
 
+    def filtered(self, kind, days=7, now=None):
+        base = 1793116800.0
+        if kind == "ceres_intercept":
+            node = ArbiNode("SolNode147", "Cinxia", "谷神星", "拦截",
+                            "Corpus", 20, 25, "MT_TERRITORY")
+            return [(base + 3600, base + 7200, node, "S")]
+        if kind == "mirror_defense":
+            node = ArbiNode("SolNode719", "墓垒", "火卫二", "镜像防御",
+                            "Corpus", 20, 25, "MT_DEFENSE")
+            return [(base + 3600, base + 7200, node, "A+")]
+        if kind == "effective":
+            return [(base + 3600, base + 7200, self.callisto, "S")]
+        return []
+
 
 class FakeWorld:
     def arbitration(self):
@@ -864,6 +878,35 @@ class ArbitrationCommandTest(unittest.TestCase):
         router, _, _ = make_router(arbi=None)
         replies = router.handle("#仲裁表", self.ctx)
         self.assertIn("未启用", replies[0].text)
+
+    def test_filter_commands_parse(self):
+        router, _, _ = make_router()
+        self.assertEqual(router.parse("#谷拦仲裁"),
+                         ("ceres_intercept_arbitration", ""))
+        self.assertEqual(router.parse("#镜防仲裁"),
+                         ("mirror_defense_arbitration", ""))
+        self.assertEqual(router.parse("#高效仲裁"),
+                         ("effective_arbitration", ""))
+
+    def test_ceres_intercept_reply(self):
+        router, _, _ = make_router(arbi=FakeArbi())
+        replies = router.handle("#谷拦仲裁", self.ctx)
+        self.assertIn("谷拦仲裁", replies[0].text)
+        self.assertIn("Cinxia", replies[0].text)
+        self.assertIsNotNone(replies[0].image)
+        self.assertIn("快捷筛选", replies[0].text)
+
+    def test_mirror_defense_reply(self):
+        router, _, _ = make_router(arbi=FakeArbi())
+        replies = router.handle("#镜防仲裁", self.ctx)
+        self.assertIn("镜防仲裁", replies[0].text)
+        self.assertIn("墓垒", replies[0].text)
+        self.assertIsNotNone(replies[0].image)
+
+    def test_filter_disabled(self):
+        router, _, _ = make_router(arbi=None)
+        self.assertIn("未启用", router.handle("#谷拦仲裁", self.ctx)[0].text)
+        self.assertIn("未启用", router.handle("#镜防仲裁", self.ctx)[0].text)
 
 
 class FakeBoard:

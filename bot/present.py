@@ -1051,11 +1051,16 @@ def _arbi_day_label(start: float) -> str:
     return text
 
 
-def arbitration_week_reply(entries, days: int = 7) -> Reply:
-    """仲裁表：未来 N 天完整排期，按天分组、每天两列铺开。"""
+def arbitration_week_reply(entries, days: int = 7, title: str = "仲裁表",
+                           empty: str = "") -> Reply:
+    """仲裁表：未来 N 天完整排期，按天分组、每天两列铺开。
+
+    title 可用于筛选视图（谷拦仲裁 / 镜防仲裁 / 高效仲裁），沿用同一张
+    带底部按钮的表格，方便在各筛选间切换。
+    """
     entries = list(entries or [])
     if not entries:
-        return Reply(text="未来 %d 天没有可用的仲裁排期。" % days)
+        return Reply(text=empty or ("未来 %d 天没有可用的仲裁排期。" % days))
 
     buckets: List[Tuple[str, List]] = []
     index: Dict[str, List] = {}
@@ -1115,13 +1120,15 @@ def arbitration_week_reply(entries, days: int = 7) -> Reply:
             text_lines.append("  另有 %s，见图片" % "、".join(tail))
 
     subtitle = "未来 %d 天共 %d 场 · 每场 1 小时 · 按本机时区" % (days, total)
-    note = "S / A+ 级已标出；任务颜色与仲裁卡片、控制台配色一致。"
+    note = "S / A+ 级已标出；底部按钮为筛选提示，发对应命令查看。"
     return Reply(
-        text="【仲裁表】\n%s\n%s" % (subtitle, "\n".join(text_lines)),
+        text="【%s】\n%s\n%s\n\n快捷筛选：谷拦仲裁 / 镜防仲裁 / 高效仲裁"
+             % (title, subtitle, "\n".join(text_lines)),
         image=lambda: imagecard.schedule_table(
-            "仲裁表", subtitle, sections,
+            title, subtitle, sections,
             "数据 arbi.wf.wiki · 轮换表", accent=imagecard.GOLD,
-            chip="%d 天" % days, note=note))
+            chip="%d 天" % days, note=note,
+            buttons=imagecard.ARBITRATION_BUTTONS))
 
 
 def _conquest_entry(group: str, key: str, kind: str, raw) -> dict:

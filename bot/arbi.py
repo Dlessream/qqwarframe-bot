@@ -416,12 +416,37 @@ class ArbiClient:
 
     def effective(self, now: Optional[float] = None, hours: int = 24
                   ) -> List[Tuple[float, float, ArbiNode, str]]:
+        """高效仲裁：评级 S / A+ 的场次（按评级从高到低、时间从早到晚）。"""
         now = time.time() if now is None else now
-        rank = {"S": 0, "A+": 1, "A": 2, "A-": 3}
+        rank = {"S": 0, "A+": 1}
         entries = [entry for entry in self.schedule_entries(
             now, now + hours * 3600) if entry[3] in rank]
         entries.sort(key=lambda entry: (rank[entry[3]], entry[0]))
         return entries
+
+    def filtered(self, kind: str, days: int = 7, now: Optional[float] = None
+                 ) -> List[Tuple[float, float, ArbiNode, str]]:
+        """按预设条件筛选未来 N 天的仲裁排期。
+
+        kind:
+          - ``ceres_intercept`` 谷拦：谷神星 + 拦截
+          - ``mirror_defense`` 镜防：火星 / 火卫二的镜像防御
+          - ``effective``      高效：评级 S / A+
+        返回按时间升序的 (start, end, node, tier)。只读本地数据，无网络请求。
+        """
+        entries = self.upcoming(days, now=now)
+        if kind == "ceres_intercept":
+            return [entry for entry in entries
+                    if "谷神" in (entry[2].system or "")
+                    and "拦截" in (entry[2].mission or "")]
+        if kind == "mirror_defense":
+            return [entry for entry in entries
+                    if "镜像防御" in (entry[2].mission or "")
+                    and ("火星" in (entry[2].system or "")
+                         or "火卫二" in (entry[2].system or ""))]
+        if kind == "effective":
+            return [entry for entry in entries if entry[3] in ("S", "A+")]
+        return []
 
     # ------------------------------------------------------------------ 查找
     def find_node(self, text: str) -> Optional[ArbiNode]:

@@ -155,5 +155,70 @@ class ClientTest(unittest.TestCase):
         self.assertGreater(client.cache_age(), -1)
 
 
+class FilterTest(unittest.TestCase):
+    """谷拦 / 镜防 / 高效三个筛选方法。"""
+
+    def make_client(self):
+        nodes = {
+            "ceres": {"nameZh": "Cinxia", "systemNameZh": "谷神星",
+                      "missionNameZh": "拦截", "missionType": "MT_TERRITORY"},
+            "mars": {"nameZh": "Tyana Pass", "systemNameZh": "火星",
+                     "missionNameZh": "镜像防御", "missionType": "MT_DEFENSE"},
+            "deimos": {"nameZh": "墓垒", "systemNameZh": "火卫二",
+                       "missionNameZh": "镜像防御", "missionType": "MT_DEFENSE"},
+            "earth": {"nameZh": "Everest", "systemNameZh": "地球",
+                      "missionNameZh": "挖掘", "missionType": "MT_EXCAVATE"},
+            "void": {"nameZh": "Mithra", "systemNameZh": "虚空",
+                     "missionNameZh": "生存", "missionType": "MT_SURVIVAL"},
+        }
+        tiers = {"tiers": ["S", "A+", "A", "A-", "B", "C", "未评级"],
+                 "tierBuckets": {"S": ["ceres", "void"], "A+": ["mars", "deimos"],
+                                 "A": [], "A-": [], "B": [], "C": ["earth"],
+                                 "未评级": []}}
+        schedule = {"startTs": 0, "stepSec": 3600,
+                    "nodes": ["ceres", "mars", "deimos", "earth", "void"],
+                    "seq": [0, 1, 2, 3, 4]}
+
+        class Http:
+            def get_json(self, url, headers=None):
+                if url.endswith("tierlist.default.json"):
+                    return tiers
+                if url.endswith("arbys.nodes.zh.json"):
+                    return {"nodes": nodes}
+                if url.endswith("arbys.schedule.v2.json"):
+                    return schedule
+                raise AssertionError(url)
+
+        client = ArbiClient({"base_url": "https://arbi.wf.wiki",
+                             "proxy": "none", "cache_seconds": 3600},
+                            logger=logging.getLogger("test.arbi.filter"))
+        client.http = Http()
+        return client
+
+    def test_ceres_intercept(self):
+        entries = self.make_client().filtered("ceres_intercept", days=1, now=0)
+        self.assertTrue(entries)
+        self.assertTrue(all(entry[2].system == "谷神星"
+                            and entry[2].mission == "拦截" for entry in entries))
+
+    def test_mirror_defense(self):
+        entries = self.make_client().filtered("mirror_defense", days=1, now=0)
+        self.assertTrue(entries)
+        self.assertEqual(set(entry[2].system for entry in entries),
+                         {"火星", "火卫二"})
+        self.assertTrue(all(entry[2].mission == "镜像防御" for entry in entries))
+
+    def test_effective_only_s_ap(self):
+        entries = self.make_client().filtered("effective", days=1, now=0)
+        self.assertTrue(entries)
+        self.assertTrue(all(entry[3] in ("S", "A+") for entry in entries))
+        # 轮换表 5 个节点里 earth 是 C，其余 4 个是 S/A+，按比例被筛掉
+        self.assertEqual(len(entries), 19)
+
+    def test_unknown_kind_is_empty(self):
+        self.assertEqual(
+            self.make_client().filtered("nope", days=1, now=0), [])
+
+
 if __name__ == "__main__":
     unittest.main()
