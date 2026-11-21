@@ -62,9 +62,11 @@ class WorldPresentTest(unittest.TestCase):
             "syndicate": "Ostrons",
             "jobs": [
                 {"type": "Low", "enemyLevels": [5, 15], "expiry": "2030-01-01T00:00:00Z",
-                 "uniqueName": "TierATableBRewards"},
-                {"type": "Second", "enemyLevels": [10, 30], "expiry": "2030-01-01T00:00:00Z"},
-                {"type": "Mid", "enemyLevels": [20, 40], "expiry": "2030-01-01T00:00:00Z"},
+                 "standingStages": [460, 460, 460]},
+                {"type": "Second", "enemyLevels": [10, 30], "expiry": "2030-01-01T00:00:00Z",
+                 "standingStages": [610, 610, 610, 900]},
+                {"type": "Mid", "enemyLevels": [20, 40], "expiry": "2030-01-01T00:00:00Z",
+                 "standingStages": [760, 760]},
             ],
         }]
         reply = present.cetus_reply(
@@ -73,10 +75,30 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("白天", reply.text)
         self.assertIn("赏金一 / Low", reply.text)
         self.assertIn("赏金二 / Second", reply.text)
-        self.assertIn("奖池A", reply.text)
-        self.assertIn("奖池B", reply.text)
-        self.assertIn("奖池C", reply.text)
-        self.assertIn("【当前】", reply.text)
+        # 帐篷卡数量跟随当前 job 数，任务名取自实时数据，阶段数=standingStages 长度
+        self.assertIn("帐篷1 / Low", reply.text)
+        self.assertIn("帐篷2 / Second", reply.text)
+        self.assertIn("帐篷3 / Mid", reply.text)
+        self.assertIn("3 张帐篷卡", reply.text)
+        self.assertIn("阶段 3", reply.text)
+        self.assertIn("阶段 4", reply.text)
+        self.assertIn("阶段 2", reply.text)
+        self.assertNotIn("帐篷A", reply.text)
+
+    def test_cetus_tents_count_follows_jobs(self):
+        # 帐篷数量不是固定三个：job 增减时帐篷行同步增减
+        def make(n):
+            return [{"syndicate": "Ostrons", "jobs": [
+                {"type": "T%d" % i, "enemyLevels": [5, 15],
+                 "expiry": "2030-01-01T00:00:00Z",
+                 "standingStages": [100] * (i + 1)}
+                for i in range(n)]}]
+        r3 = present.cetus_reply({"state": "day"}, make(3))
+        r5 = present.cetus_reply({"state": "day"}, make(5))
+        self.assertIn("3 张帐篷卡", r3.text)
+        self.assertIn("5 张帐篷卡", r5.text)
+        self.assertIn("帐篷5 / T4", r5.text)
+        self.assertNotIn("帐篷5", r3.text)
 
     def test_storms(self):
         raw = [

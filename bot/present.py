@@ -6,9 +6,8 @@ import datetime
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import (autotrans, baronames, bounties, bountyrewards, bountyrotation,
-               bountystatic, conquest, imagecard, missioncolors, render,
-               subkind, terms)
+from . import (autotrans, baronames, bounties, bountyrewards, bountystatic,
+               conquest, imagecard, missioncolors, render, subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -1342,30 +1341,28 @@ def _bounty_key_rewards(job, limit: int = 2) -> str:
     return "、".join(values[:limit]) or "—"
 
 
-def _bounty_pool_rows(syndicate, levels=None, limit: int = 3) -> List[dict]:
-    """A/B/C 三个奖励池的行：当前池取自官方世界状态，其余为轮次预告。
+def _bounty_tent_rows(jobs) -> List[dict]:
+    """游戏里 Konzu 赏金板的一排帐篷卡片，逐张取自当前实时赏金。
 
-    奖励池每 150 分钟轮换一次（A→B→C→A）；池字母来自 job 的奖励表名，
-    不是 Wiki 的固定 UTC 时间表（那个只是参考，实际到期时间有偏移）。
+    卡片数量不固定（每批刷新的赏金档数不同），每张对应一个 job：
+    badge 为「帐篷N」，task 为该赏金目标，meta 里的菱形点数量等于
+    standingStages 的阶段数——与游戏内卡片下方的阶段标记一致。
     """
-    current = bountyrotation.current_pool(syndicate)
     rows = []
-    for index, pool in enumerate(bountyrotation.POOLS):
-        badge = "奖池%s" % pool
-        if current and pool == current:
-            mark = "【当前】"
-        elif current:
-            mark = "【+%d轮】" % index
-        else:
-            mark = ""
-        rewards = bountyrotation.signature_rewards(pool, levels=levels,
-                                                    limit=limit)
+    for index, job in enumerate(_as_list(jobs)):
+        raw_type = str(job.get("type") or job.get("jobType") or "赏金")
+        title = (bounties.objective_by_en(raw_type)
+                 or bounties.objective_zh(job.get("uniqueName") or "")
+                 or terms.localize_bounty(raw_type))
+        stages = len(_as_list(job.get("standingStages")))
+        level = _bounty_level(job)
+        left = countdown(parse_timestamp(job.get("expiry")))
         rows.append({
-            "badge": badge,
-            "task": mark + ("·".join(rewards) if rewards else "见官方掉落表"),
-            "level": "—",
-            "left": "—",
-            "meta": "",
+            "badge": "帐篷%s" % (index + 1),
+            "task": title,
+            "level": level,
+            "left": left,
+            "meta": "◆" * stages if stages else "",
             "rewards": [],
             "total": 0,
         })
@@ -1399,25 +1396,25 @@ def cetus_reply(cycle, raw) -> Reply:
                      _bounty_key_rewards(job),
                      countdown(parse_timestamp(job.get("expiry")))])
         text_lines.append("%s / %s / %s" % (label, title, _bounty_level(job)))
-    ostrons = next((item for item in _as_list(raw)
-                    if item.get("syndicate") == "Ostrons"), None)
-    current = bountyrotation.current_pool(ostrons)
-    rotation = _bounty_pool_rows(ostrons)
-    for row in rotation:
-        rows.append([row["badge"], row["task"], "—", "—", "—"])
-        text_lines.append("%s（奖励池轮换） / %s" % (row["badge"], row["task"]))
+    tent_jobs = [job for job, _ in jobs]
+    tents = _bounty_tent_rows(tent_jobs)
+    for row in tents:
+        rows.append([row["badge"], row["task"], row["level"],
+                     row["meta"], row["left"]])
+        text_lines.append("%s / %s / %s / 阶段 %s" % (
+            row["badge"], row["task"], row["level"],
+            len(row["meta"]) if row["meta"] else "—"))
 
     state = _state_label((cycle or {}).get("state"))
     time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
-    pool_note = ("当前 %s 池" % current) if current else "奖励池以游戏内为准"
     return _world_reply(
-        "希图斯赏金", "当前 %s · 剩余 %s ｜ 7 档官方实时 + A/B/C 奖励池轮换（%s）" % (
-            state, time_left, pool_note),
-        ["档位", "任务", "等级", "奖励", "剩余"], rows,
+        "希图斯赏金", "当前 %s · 剩余 %s ｜ %d 档官方实时 ｜ %d 张帐篷卡（◆阶段数）" % (
+            state, time_left, len(jobs), len(tents)),
+        ["档位", "任务", "等级", "阶段", "剩余"], rows,
         "数据 官方世界状态 · 希图斯", "希图斯",
-        text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 1.0, 0.8],
+        text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 0.8, 0.8],
         accent=imagecard.GREEN,
-        note="7 档赏金与 A/B/C 池均取自官方世界状态；奖励池每 2.5 小时轮换一次，以游戏内赏金板为准。")
+        note="赏金与帐篷卡均取自官方世界状态；帐篷卡数量与任务随每批赏金刷新，◆数=该赏金阶段数，以游戏内赏金板为准。")
 
 
 def translation_reply(query: str, zh: str, en: str,
@@ -1473,7 +1470,7 @@ def _cell_width(text: str) -> float:
 
 
 BOUNTY_GROUPS = (
-    ("Ostrons", "地球 · 希图斯", "7 档 + A/B/C 奖励池轮换"),
+    ("Ostrons", "地球 · 希图斯", "实时赏金 + 帐篷卡（数量随批次）"),
     ("Solaris United", "金星 · 福尔图娜", "7 档"),
     ("Entrati", "火卫二 · 坎比昂平原", "7 档"),
     ("The Holdfasts", "扎里曼 · 克莱萨里思", "固定 5 档"),
@@ -1559,12 +1556,7 @@ def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
                 "total": _reward_total(bountyrewards.for_tier(name, item["tier"])),
             })
     if with_tents and name == "Ostrons":
-        levels = []
-        for job in jobs:
-            value = bountyrotation.level_key(job.get("enemyLevels"))
-            if value and value not in levels:
-                levels.append(value)
-        rows.extend(_bounty_pool_rows(syndicate, levels=levels))
+        rows.extend(_bounty_tent_rows(jobs))
     return rows
 
 
@@ -1605,7 +1597,7 @@ def bounties_reply(raw, location: str = "") -> Reply:
             if row.get("total", 0) > 3:
                 short += "…共 %d 项" % row["total"]
             badge = str(row.get("badge") or "")
-            prefix = (badge + " ") if badge.startswith("奖池") else ""
+            prefix = (badge + " ") if badge.startswith("帐篷") else ""
             text_lines.append("%s · %s / %s%s / %s / %s / %s" % (
                 owner, place, prefix, row["task"], row["level"], short,
                 row["left"]))
