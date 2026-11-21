@@ -1341,35 +1341,33 @@ def _bounty_key_rewards(job, limit: int = 2) -> str:
     return "、".join(values[:limit]) or "—"
 
 
-TENT_COUNT = 3
+# 夜灵平原野外三个小帐篷的无线电接取点——每组是固定的三个任务目标。
+# 世界状态 API 只给赏金主题(jobType)与阶段声望数(xpAmounts)，并不提供每个
+# 阶段的具体任务名；游戏内这些任务名是在接取瞬间由客户端根据 jobType+Seed
+# 生成的，外部接口拿不到。因此这里按游戏内实际显示固定下来（与赏金板实时
+# 档位是两套独立内容，帐篷不随每批赏金刷新）。
+# 译名对照见 data/bounty_objectives.json。
+CETUS_TENTS = {
+    "A": ["破坏 Grineer 的补给线", "捕获 Grineer 特工", "搜索并救援"],
+    "B": ["破坏 Grineer 的补给线", "捕获 Grineer 特工", "找出遗失的器物"],
+    "C": ["刺杀指挥官", "捕获他们的领袖", "破坏原型机"],
+}
 
 
-def _bounty_tent_rows(jobs) -> List[dict]:
-    """夜灵平原野外小帐篷的无线电接取点：固定三个，任务取自当前实时赏金。
+def _bounty_tent_rows() -> List[dict]:
+    """夜灵平原野外小帐篷 A/B/C：固定三组、每组三个任务目标。
 
-    帐篷只存在于夜灵平原（希图斯/Ostrons），与 Konzu 主赏金板的档位是两套
-    独立显示。任务名随每批赏金刷新——按敌人等级从低到高取最低的三条，
-    帐篷1/2/3 一一对应；meta 的菱形点数量等于该赏金的阶段数。
+    帐篷只存在于夜灵平原（希图斯/Ostrons），与 Konzu 主赏金板是两套独立
+    内容；任务名固定、不随每批赏金刷新（接口无阶段任务明细，见 CETUS_TENTS）。
     """
-    tent_jobs = list(_as_list(jobs))
-    tent_jobs.sort(key=lambda job: (
-        (_as_list(job.get("enemyLevels")) or [999])[0],
-        str(job.get("type") or job.get("jobType") or "")))
     rows = []
-    for index, job in enumerate(tent_jobs[:TENT_COUNT]):
-        raw_type = str(job.get("type") or job.get("jobType") or "赏金")
-        title = (bounties.objective_by_en(raw_type)
-                 or bounties.objective_zh(job.get("uniqueName") or "")
-                 or terms.localize_bounty(raw_type))
-        stages = len(_as_list(job.get("standingStages")))
-        level = _bounty_level(job)
-        left = countdown(parse_timestamp(job.get("expiry")))
+    for key in ("A", "B", "C"):
         rows.append({
-            "badge": "帐篷%s" % (index + 1),
-            "task": title,
-            "level": level,
-            "left": left,
-            "meta": "◆" * stages if stages else "",
+            "badge": "帐篷%s" % key,
+            "task": " / ".join(CETUS_TENTS[key]),
+            "level": "—",
+            "left": "—",
+            "meta": "",
             "rewards": [],
             "total": 0,
         })
@@ -1403,25 +1401,22 @@ def cetus_reply(cycle, raw) -> Reply:
                      _bounty_key_rewards(job),
                      countdown(parse_timestamp(job.get("expiry")))])
         text_lines.append("%s / %s / %s" % (label, title, _bounty_level(job)))
-    tent_jobs = [job for job, _ in jobs]
-    tents = _bounty_tent_rows(tent_jobs)
+    tents = _bounty_tent_rows()
     for row in tents:
         rows.append([row["badge"], row["task"], row["level"],
                      row["meta"], row["left"]])
-        text_lines.append("%s / %s / %s / 阶段 %s" % (
-            row["badge"], row["task"], row["level"],
-            len(row["meta"]) if row["meta"] else "—"))
+        text_lines.append("%s / %s" % (row["badge"], row["task"]))
 
     state = _state_label((cycle or {}).get("state"))
     time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
     return _world_reply(
-        "希图斯赏金", "当前 %s · 剩余 %s ｜ %d 档赏金 + 夜灵平原小帐篷 ×%d（任务实时）" % (
-            state, time_left, len(jobs), len(tents)),
-        ["档位", "任务", "等级", "阶段/奖励", "剩余"], rows,
+        "希图斯赏金", "当前 %s · 剩余 %s ｜ %d 档实时赏金 + 夜灵平原小帐篷 A/B/C" % (
+            state, time_left, len(jobs)),
+        ["档位", "任务", "等级", "奖励", "剩余"], rows,
         "数据 官方世界状态 · 希图斯", "希图斯",
-        text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 0.8, 0.8],
+        text_lines=text_lines, ratios=[0.7, 4.0, 0.6, 0.7, 0.7],
         accent=imagecard.GREEN,
-        note="赏金为 Konzu 主赏金板全部档位；帐篷是夜灵平原野外独有的无线电接取点，仅此三处，任务取当前赏金中等级最低的三条并随每批刷新，◆数=阶段数。")
+        note="赏金为 Konzu 主赏金板全部档位，随每批刷新；帐篷是夜灵平原野外独有的三个无线电接取点 A/B/C，各有固定三个任务目标，与赏金板是两套独立内容。")
 
 
 def translation_reply(query: str, zh: str, en: str,
@@ -1563,7 +1558,7 @@ def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
                 "total": _reward_total(bountyrewards.for_tier(name, item["tier"])),
             })
     if with_tents and name == "Ostrons":
-        rows.extend(_bounty_tent_rows(jobs))
+        rows.extend(_bounty_tent_rows())
     return rows
 
 

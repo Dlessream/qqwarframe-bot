@@ -61,44 +61,42 @@ class WorldPresentTest(unittest.TestCase):
         raw = [{
             "syndicate": "Ostrons",
             "jobs": [
-                {"type": "Mid", "enemyLevels": [20, 40], "expiry": "2030-01-01T00:00:00Z",
-                 "standingStages": [760, 760]},
-                {"type": "Low", "enemyLevels": [5, 15], "expiry": "2030-01-01T00:00:00Z",
+                {"type": "Capture the New Grineer Commander",
+                 "enemyLevels": [5, 15], "expiry": "2030-01-01T00:00:00Z",
                  "standingStages": [460, 460, 460]},
-                {"type": "Second", "enemyLevels": [10, 30], "expiry": "2030-01-01T00:00:00Z",
-                 "standingStages": [610, 610, 610, 900]},
+                {"type": "Spy Catcher", "enemyLevels": [10, 30],
+                 "expiry": "2030-01-01T00:00:00Z", "standingStages": [610]},
             ],
         }]
         reply = present.cetus_reply(
             {"state": "day", "timeLeft": "1h 20m 0s"}, raw)
         self.assertIn("希图斯赏金", reply.text)
         self.assertIn("白天", reply.text)
-        # 帐篷固定三个，任务按敌人等级从低到高取当前赏金，与赏金区顺序无关
-        self.assertIn("帐篷1 / Low", reply.text)
-        self.assertIn("帐篷2 / Second", reply.text)
-        self.assertIn("帐篷3 / Mid", reply.text)
-        self.assertIn("小帐篷 ×3", reply.text)
-        self.assertIn("阶段 3", reply.text)
-        self.assertIn("阶段 4", reply.text)
-        self.assertIn("阶段 2", reply.text)
-        self.assertNotIn("帐篷A", reply.text)
-        self.assertNotIn("帐篷4", reply.text)
+        self.assertIn("赏金二 / 间谍捕手", reply.text)
+        # 帐篷 A/B/C 是固定三个任务模板，与实时赏金是两套独立内容
+        self.assertIn("帐篷A / 破坏 Grineer 的补给线 / 捕获 Grineer 特工 / 搜索并救援",
+                      reply.text)
+        self.assertIn("帐篷B / 破坏 Grineer 的补给线 / 捕获 Grineer 特工 / 找出遗失的器物",
+                      reply.text)
+        self.assertIn("帐篷C / 刺杀指挥官 / 捕获他们的领袖 / 破坏原型机",
+                      reply.text)
+        self.assertIn("小帐篷 A/B/C", reply.text)
+        self.assertNotIn("帐篷1", reply.text)
+        self.assertNotIn("帐篷D", reply.text)
 
-    def test_cetus_tents_fixed_three(self):
-        # 帐篷恒定三个：job 增加时只取等级最低的三条，不会随档位增加
-        def make(levels):
+    def test_cetus_tents_static_not_from_bounties(self):
+        # 帐篷是固定模板，不随当前赏金 job 变化（接口无阶段明细数据）
+        def make(types):
             return [{"syndicate": "Ostrons", "jobs": [
-                {"type": "L%s" % lv, "enemyLevels": [lv, lv + 10],
-                 "expiry": "2030-01-01T00:00:00Z",
-                 "standingStages": [100] * (i + 1)}
-                for i, lv in enumerate(levels)]}]
-        r5 = present.cetus_reply({"state": "day"}, make([5, 10, 20, 30, 40]))
-        self.assertIn("小帐篷 ×3", r5.text)
-        self.assertIn("帐篷1 / L5", r5.text)
-        self.assertIn("帐篷2 / L10", r5.text)
-        self.assertIn("帐篷3 / L20", r5.text)
-        self.assertNotIn("帐篷4", r5.text)
-        self.assertNotIn("帐篷5", r5.text)
+                {"type": t, "enemyLevels": [5, 15],
+                 "expiry": "2030-01-01T00:00:00Z", "standingStages": [100]}
+                for t in types]}]
+        r1 = present.cetus_reply({"state": "day"}, make(["Search and Rescue"]))
+        r2 = present.cetus_reply({"state": "day"}, make(["Sabotage Bounty", "Spy Catcher"]))
+        tents1 = [l for l in r1.text.splitlines() if l.startswith("帐篷")]
+        tents2 = [l for l in r2.text.splitlines() if l.startswith("帐篷")]
+        self.assertEqual(tents1, tents2)
+        self.assertEqual(len(tents1), 3)
 
     def test_tents_only_in_cetus(self):
         # 帐篷只存在夜灵平原：赏金总览里只有希图斯分组带帐篷行，其他据点没有
