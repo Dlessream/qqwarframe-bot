@@ -1604,8 +1604,11 @@ def bounties_reply(raw, location: str = "") -> Reply:
             short = "、".join(brief[:3]) or "—"
             if row.get("total", 0) > 3:
                 short += "…共 %d 项" % row["total"]
-            text_lines.append("%s · %s / %s / %s / %s / %s" % (
-                owner, place, row["task"], row["level"], short, row["left"]))
+            badge = str(row.get("badge") or "")
+            prefix = (badge + " ") if badge.startswith("奖池") else ""
+            text_lines.append("%s · %s / %s%s / %s / %s / %s" % (
+                owner, place, prefix, row["task"], row["level"], short,
+                row["left"]))
         groups.append({
             "label": "" if location else label,
             "note": "" if location else group_note,
