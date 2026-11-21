@@ -73,7 +73,8 @@ OFFICIAL_PAYLOAD = {
         "Tag": "CetusSyndicate", "Activation": ms(time.time() - 600),
         "Expiry": ms(time.time() + 4000),
         "Jobs": [{"jobType": "/Lotus/Types/Gameplay/Eidolon/Jobs/AttritionBountySab",
-                  "minEnemyLevel": 5, "maxEnemyLevel": 15}],
+                  "minEnemyLevel": 5, "maxEnemyLevel": 15,
+                  "xpAmounts": [460, 460, 460]}],
     }, {
         "Tag": "SolarisSyndicate", "Activation": ms(time.time() - 600),
         "Expiry": ms(time.time() + 3000),
@@ -196,6 +197,8 @@ class BuildStateTest(unittest.TestCase):
         self.assertEqual(names, ["Ostrons", "Solaris United"])
         self.assertEqual(rows[0]["jobs"][0]["type"], "破坏克隆尼的补给线")
         self.assertEqual(rows[0]["jobs"][0]["enemyLevels"], [5, 15])
+        # 官方 xpAmounts 透传为 standingStages，长度=帐篷卡阶段数
+        self.assertEqual(rows[0]["jobs"][0]["standingStages"], [460, 460, 460])
         # 福尔图娜这条 jobType 不在官方目标表里，只回退到任务类型
         self.assertEqual(rows[1]["jobs"][0]["type"], "捕获")
 

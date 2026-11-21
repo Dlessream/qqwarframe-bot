@@ -700,6 +700,10 @@ class OfficialWorldState:
                     "expiry": expiry,
                     "enemyLevels": [int(job.get("minEnemyLevel") or 0),
                                     int(job.get("maxEnemyLevel") or 0)],
+                    # 官方用 xpAmounts（每阶段声望），长度即赏金阶段数；
+                    # 中转源叫 standingStages，统一透传供帐篷卡显示阶段点
+                    "standingStages": [v for v in (job.get("xpAmounts") or [])
+                                       if isinstance(v, (int, float))],
                     "rewardPool": [],
                     "rewardPoolDrops": [],
                 })
