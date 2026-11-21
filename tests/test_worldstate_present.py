@@ -83,6 +83,32 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("小帐篷 A/B/C", reply.text)
         self.assertNotIn("帐篷1", reply.text)
         self.assertNotIn("帐篷D", reply.text)
+        # 帐篷行右侧显示本批赏金轮换的剩余时间，而不是「—」
+        left = present.countdown(present.parse_timestamp(
+            "2030-01-01T00:00:00Z"))
+        for key in ("A", "B", "C"):
+            self.assertIn("帐篷%s / " % key, reply.text)
+        self.assertTrue(all((" / 剩 %s" % left) in line
+                            for line in reply.text.splitlines()
+                            if line.startswith("帐篷")))
+        self.assertTrue(reply.image().startswith(b"\x89PNG"))
+
+    def test_tent_countdown_follows_bounty_rotation(self):
+        def make(expiry):
+            return [{"syndicate": "Ostrons", "jobs": [
+                {"type": "Spy Catcher", "enemyLevels": [10, 30],
+                 "expiry": expiry, "standingStages": [610]}]}]
+
+        def tents(reply):
+            return [line for line in reply.text.splitlines()
+                    if line.startswith("帐篷")]
+
+        r1 = present.cetus_reply({}, make("2030-01-01T00:00:00Z"))
+        r2 = present.cetus_reply({}, make("2030-01-02T00:00:00Z"))
+        self.assertEqual(len(tents(r1)), 3)
+        self.assertNotEqual(tents(r1), tents(r2))
+        self.assertIn("剩 %s" % present.countdown(present.parse_timestamp(
+            "2030-01-01T00:00:00Z")), tents(r1)[0])
 
     def test_cetus_tents_static_not_from_bounties(self):
         # 帐篷是固定模板，不随当前赏金 job 变化（接口无阶段明细数据）
@@ -113,6 +139,7 @@ class WorldPresentTest(unittest.TestCase):
         tent_lines = [line for line in reply.text.splitlines() if "帐篷" in line]
         self.assertEqual(len(tent_lines), 3)
         self.assertTrue(all("希图斯" in line for line in tent_lines))
+        self.assertTrue(all("剩 " in line for line in tent_lines))
 
     def test_storms(self):
         raw = [

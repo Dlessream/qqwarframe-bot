@@ -1354,11 +1354,26 @@ CETUS_TENTS = {
 }
 
 
-def _bounty_tent_rows() -> List[dict]:
+def _bounty_rotation_left(syndicate=None, jobs=None) -> str:
+    """赏金轮换倒计时。
+
+    夜灵平原野外帐篷的无线电赏金与 Konzu 主赏金板同属 Field Bounties，
+    每 2½ 小时同批刷新、帐篷任务在这批内保持不变，因此倒计时共用当前
+    赏金 job 的到期时间；拿不到 job 时才退回据点级 expiry。
+    """
+    expiries = [str(job.get("expiry") or "") for job in _as_list(jobs)
+                if isinstance(job, dict) and job.get("expiry")]
+    if not expiries and isinstance(syndicate, dict) and syndicate.get("expiry"):
+        expiries = [str(syndicate["expiry"])]
+    return countdown(parse_timestamp(expiries[0])) if expiries else "—"
+
+
+def _bounty_tent_rows(left: str = "—") -> List[dict]:
     """夜灵平原野外小帐篷 A/B/C：固定三组、每组三个任务目标。
 
     帐篷只存在于夜灵平原（希图斯/Ostrons），与 Konzu 主赏金板是两套独立
     内容；任务名固定、不随每批赏金刷新（接口无阶段任务明细，见 CETUS_TENTS）。
+    剩余时间跟随这批赏金的轮换，显示在帐篷行右侧。
     """
     rows = []
     for key in ("A", "B", "C"):
@@ -1366,8 +1381,8 @@ def _bounty_tent_rows() -> List[dict]:
             "badge": "帐篷%s" % key,
             "task": " / ".join(CETUS_TENTS[key]),
             "level": "—",
-            "left": "—",
-            "meta": "",
+            "left": left,
+            "meta": ("剩 %s" % left) if left and left != "—" else "",
             "rewards": [],
             "total": 0,
         })
@@ -1377,9 +1392,12 @@ def _bounty_tent_rows() -> List[dict]:
 def cetus_reply(cycle, raw) -> Reply:
     jobs = []
     seen = set()
+    ostrons = None
     for syndicate in _as_list(raw):
         if syndicate.get("syndicate") != "Ostrons":
             continue
+        if ostrons is None:
+            ostrons = syndicate
         for job in _as_list(syndicate.get("jobs")):
             title = terms.localize_bounty(
                 str(job.get("type") or job.get("jobType") or "赏金"))
@@ -1401,11 +1419,13 @@ def cetus_reply(cycle, raw) -> Reply:
                      _bounty_key_rewards(job),
                      countdown(parse_timestamp(job.get("expiry")))])
         text_lines.append("%s / %s / %s" % (label, title, _bounty_level(job)))
-    tents = _bounty_tent_rows()
+    tent_left = _bounty_rotation_left(ostrons, [job for job, _ in jobs])
+    tents = _bounty_tent_rows(tent_left)
     for row in tents:
-        rows.append([row["badge"], row["task"], row["level"],
-                     row["meta"], row["left"]])
-        text_lines.append("%s / %s" % (row["badge"], row["task"]))
+        # 帐篷没有奖励池：第四列留空，倒计时放在「剩余」列。
+        rows.append([row["badge"], row["task"], row["level"], "", row["left"]])
+        text_lines.append("%s / %s / 剩 %s" % (
+            row["badge"], row["task"], row["left"]))
 
     state = _state_label((cycle or {}).get("state"))
     time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
@@ -1414,9 +1434,9 @@ def cetus_reply(cycle, raw) -> Reply:
             state, time_left, len(jobs)),
         ["档位", "任务", "等级", "奖励", "剩余"], rows,
         "数据 官方世界状态 · 希图斯", "希图斯",
-        text_lines=text_lines, ratios=[0.7, 4.0, 0.6, 0.7, 0.7],
+        text_lines=text_lines, ratios=[0.7, 4.3, 0.7, 0.6, 1.05],
         accent=imagecard.GREEN,
-        note="赏金为 Konzu 主赏金板全部档位，随每批刷新；帐篷是夜灵平原野外独有的三个无线电接取点 A/B/C，各有固定三个任务目标，与赏金板是两套独立内容。")
+        note="赏金为 Konzu 主赏金板全部档位，随每批刷新；帐篷是夜灵平原野外独有的三个无线电接取点 A/B/C，各有固定三个任务目标，与赏金板是两套独立内容。帐篷剩余时间与本批赏金轮换同步（每 2½ 小时）。")
 
 
 def translation_reply(query: str, zh: str, en: str,
@@ -1558,7 +1578,8 @@ def _bounty_rows(name: str, syndicate, with_tents: bool = False) -> List[dict]:
                 "total": _reward_total(bountyrewards.for_tier(name, item["tier"])),
             })
     if with_tents and name == "Ostrons":
-        rows.extend(_bounty_tent_rows())
+        rows.extend(_bounty_tent_rows(
+            _bounty_rotation_left(syndicate, jobs)))
     return rows
 
 
@@ -1599,10 +1620,12 @@ def bounties_reply(raw, location: str = "") -> Reply:
             if row.get("total", 0) > 3:
                 short += "…共 %d 项" % row["total"]
             badge = str(row.get("badge") or "")
-            prefix = (badge + " ") if badge.startswith("帐篷") else ""
+            is_tent = badge.startswith("帐篷")
+            prefix = (badge + " ") if is_tent else ""
+            left = ("剩 %s" % row["left"]) if is_tent else row["left"]
             text_lines.append("%s · %s / %s%s / %s / %s / %s" % (
                 owner, place, prefix, row["task"], row["level"], short,
-                row["left"]))
+                left))
         groups.append({
             "label": "" if location else label,
             "note": "" if location else group_note,
