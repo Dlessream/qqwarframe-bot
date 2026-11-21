@@ -694,6 +694,9 @@ class OfficialWorldState:
                     continue
                 jobs.append({
                     "type": _bounty_label(job),
+                    # 官方的 rewards 路径形如 .../TierATableARewards，里面的
+                    # TableA/B/C 是当前奖励池；透传给轮换模块读取
+                    "uniqueName": str(job.get("rewards") or ""),
                     "expiry": expiry,
                     "enemyLevels": [int(job.get("minEnemyLevel") or 0),
                                     int(job.get("maxEnemyLevel") or 0)],

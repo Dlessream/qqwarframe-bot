@@ -61,7 +61,8 @@ class WorldPresentTest(unittest.TestCase):
         raw = [{
             "syndicate": "Ostrons",
             "jobs": [
-                {"type": "Low", "enemyLevels": [5, 15], "expiry": "2030-01-01T00:00:00Z"},
+                {"type": "Low", "enemyLevels": [5, 15], "expiry": "2030-01-01T00:00:00Z",
+                 "uniqueName": "TierATableBRewards"},
                 {"type": "Second", "enemyLevels": [10, 30], "expiry": "2030-01-01T00:00:00Z"},
                 {"type": "Mid", "enemyLevels": [20, 40], "expiry": "2030-01-01T00:00:00Z"},
             ],
@@ -72,9 +73,10 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("白天", reply.text)
         self.assertIn("赏金一 / Low", reply.text)
         self.assertIn("赏金二 / Second", reply.text)
-        self.assertIn("帐篷 A", reply.text)
-        self.assertIn("间谍捕手", reply.text)
-        self.assertIn("帐篷 C", reply.text)
+        self.assertIn("奖池A", reply.text)
+        self.assertIn("奖池B", reply.text)
+        self.assertIn("奖池C", reply.text)
+        self.assertIn("【当前】", reply.text)
 
     def test_storms(self):
         raw = [
