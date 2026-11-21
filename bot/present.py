@@ -1341,15 +1341,22 @@ def _bounty_key_rewards(job, limit: int = 2) -> str:
     return "、".join(values[:limit]) or "—"
 
 
-def _bounty_tent_rows(jobs) -> List[dict]:
-    """游戏里 Konzu 赏金板的一排帐篷卡片，逐张取自当前实时赏金。
+TENT_COUNT = 3
 
-    卡片数量不固定（每批刷新的赏金档数不同），每张对应一个 job：
-    badge 为「帐篷N」，task 为该赏金目标，meta 里的菱形点数量等于
-    standingStages 的阶段数——与游戏内卡片下方的阶段标记一致。
+
+def _bounty_tent_rows(jobs) -> List[dict]:
+    """夜灵平原野外小帐篷的无线电接取点：固定三个，任务取自当前实时赏金。
+
+    帐篷只存在于夜灵平原（希图斯/Ostrons），与 Konzu 主赏金板的档位是两套
+    独立显示。任务名随每批赏金刷新——按敌人等级从低到高取最低的三条，
+    帐篷1/2/3 一一对应；meta 的菱形点数量等于该赏金的阶段数。
     """
+    tent_jobs = list(_as_list(jobs))
+    tent_jobs.sort(key=lambda job: (
+        (_as_list(job.get("enemyLevels")) or [999])[0],
+        str(job.get("type") or job.get("jobType") or "")))
     rows = []
-    for index, job in enumerate(_as_list(jobs)):
+    for index, job in enumerate(tent_jobs[:TENT_COUNT]):
         raw_type = str(job.get("type") or job.get("jobType") or "赏金")
         title = (bounties.objective_by_en(raw_type)
                  or bounties.objective_zh(job.get("uniqueName") or "")
@@ -1408,13 +1415,13 @@ def cetus_reply(cycle, raw) -> Reply:
     state = _state_label((cycle or {}).get("state"))
     time_left = terms.localize_duration(str((cycle or {}).get("timeLeft") or "—"))
     return _world_reply(
-        "希图斯赏金", "当前 %s · 剩余 %s ｜ %d 档官方实时 ｜ %d 张帐篷卡（◆阶段数）" % (
+        "希图斯赏金", "当前 %s · 剩余 %s ｜ %d 档赏金 + 夜灵平原小帐篷 ×%d（任务实时）" % (
             state, time_left, len(jobs), len(tents)),
-        ["档位", "任务", "等级", "阶段", "剩余"], rows,
+        ["档位", "任务", "等级", "阶段/奖励", "剩余"], rows,
         "数据 官方世界状态 · 希图斯", "希图斯",
         text_lines=text_lines, ratios=[0.7, 2.8, 0.6, 0.8, 0.8],
         accent=imagecard.GREEN,
-        note="赏金与帐篷卡均取自官方世界状态；帐篷卡数量与任务随每批赏金刷新，◆数=该赏金阶段数，以游戏内赏金板为准。")
+        note="赏金为 Konzu 主赏金板全部档位；帐篷是夜灵平原野外独有的无线电接取点，仅此三处，任务取当前赏金中等级最低的三条并随每批刷新，◆数=阶段数。")
 
 
 def translation_reply(query: str, zh: str, en: str,
@@ -1470,7 +1477,7 @@ def _cell_width(text: str) -> float:
 
 
 BOUNTY_GROUPS = (
-    ("Ostrons", "地球 · 希图斯", "实时赏金 + 帐篷卡（数量随批次）"),
+    ("Ostrons", "地球 · 希图斯", "实时赏金 + 夜灵平原小帐篷 ×3"),
     ("Solaris United", "金星 · 福尔图娜", "7 档"),
     ("Entrati", "火卫二 · 坎比昂平原", "7 档"),
     ("The Holdfasts", "扎里曼 · 克莱萨里思", "固定 5 档"),
