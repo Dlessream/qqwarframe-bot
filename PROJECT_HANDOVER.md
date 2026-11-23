@@ -278,3 +278,41 @@ db/schema.sql / db/build.py  本次数据库建设产物
   网关仍 ONLINE。
 - 说明：背景图来自官方新闻 key art，游戏内新闻更新后随下一次 worldstate
   缓存刷新自动换图（缓存 key 变化触发重新下载），无需改代码或重启。
+
+## 10. 2026-11-23：启动器风格帮助 + 游戏场景推送背景 + 消息按钮（已部署，commit `7bef93c`）
+
+- 需求澄清：帮助菜单要的是 Warframe 客户端「开始游戏」界面那种启动器主视觉，
+  不是普通 key art 铺底；裂缝 / 九重天 / 仲裁 / 希图斯 / 夜灵等推送图改用
+  游戏内任务场景；仲裁其余功能、wm 的价格走势与对话文本改为按钮并反馈。
+- 帮助菜单：`bot/imagecard.py` 的 `help_card()` 重写为启动器风格——顶栏
+  （最新动态 / PRIME ACCESS / 版本说明 / 简体中文）、中央 Tenno 徽记 +
+  WARFRAME 大字 Logo + 中文新闻标题副标题、左下「检查新内容……」、
+  右下红色斜切「开始游戏」按钮，下半区才是指令面板（5 分组不变）。
+  `bot/helpbg.py` 新增从 news 的 `message` / `translations.zh` 提取中文标题
+  （优先含中文的那条），随新闻实时更新，仍沿用 URL 哈希缓存。
+- 场景背景：用图片渲染工具生成 5 张 Warframe 风格任务场景（裂缝 / 九重天 /
+  仲裁 / 希图斯 / 夜灵），**右下角 AI 水印已用同图上方区域羽化覆盖去除**，
+  以 JPEG 存在 `bot/assets/scenes/`（约 1.9MB）。`bot/scenebg.py` 负责读取缓存；
+  `imagecard._scene_canvas()` 给表格卡铺底 + 深色蒙版；`present.py` 给
+  `_world_reply` 加 `scene` 参数，并给裂缝 / 风暴 / 仲裁（含评级、排期、周表）/
+  希图斯 / 夜灵卡片接入对应场景。任何读取失败自动降级纯色渐变。
+- 消息按钮（QQ 官方 InlineKeyboard）：
+  - `bot/keyboards.py` 构造按钮 JSON；仲裁卡挂 6 个按钮（谷拦 / 镜防 / 高效 /
+    今日 / 仲裁表 / 仲裁评级），wm 卡挂 2 个按钮（价格走势 / 对话文本）。
+  - `bot/replies.py` 的 `Reply` 新增 `keyboard` 字段；`qqofficial.py` 支持
+    文本 / 富媒体带 keyboard 发送，并新增 `respond_interaction()`（PUT
+    `/interactions/{id}`，3 秒内回应避免客户端 loading）。
+  - `bot/qqevent.py` 把 `INTERACTION_CREATE`（type=11）归一化为 `post_type=interaction`；
+    `app.py` 先回应互动再执行 `router.handle_button()`，用 `event_id` 被动回复结果。
+  - `commands.py` 存 30 分钟有效的按钮上下文 token：`a:命令` 直接复用命令路由，
+    `wm:trend/desc:<token>` 返回 `present.price_trend_reply()` /
+    `item_desc_reply()`（对话文本卡参考 warframe.market 物品页说明）。
+  - **intents 必须含 `1<<26`**：默认与线上配置均为 `100663296`
+    （`1<<25 | 1<<26`），否则收不到按钮点击。
+- 线上已实测：文本+keyboard、图片+keyboard 两种消息官方均返回消息 ID（无 400）；
+  5 张场景图容器内均可加载；互动事件归一化正确；网关 ONLINE。
+- 测试：新增 `tests/test_buttons.py`（11 项），完整 pytest **916 passed**。
+  部署：`671077b` 主体 + `b268731` / `7bef93c` 两个标题修复，均 bundle 上传
+  合并后重建容器；GitHub 最终推送成功（`be87a0c..7bef93c`）。
+- 注意：去水印采用「同图上方画面羽化覆盖」而非 OpenCV（本机 pip 装不上 cv2），
+  放大检查右下角已无「AI生成 / WORKBUDDY」字样。
