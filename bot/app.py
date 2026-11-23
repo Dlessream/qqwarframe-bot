@@ -529,6 +529,16 @@ class BotApp:
             "is_group": event.get("message_type") == "group",
         }
 
+    @staticmethod
+    def _check_test_target(target: str, self_id: str) -> None:
+        """提前识别常见的错误目标，避免官方返回看不懂的 400。"""
+        if self_id and target == str(self_id):
+            raise ValueError("这是机器人自己的 ID，不是群 openid。请在群里 @机器人发一条消息，"
+                             "再到「群策略」的未通过列表里复制群 openid。")
+        if re.fullmatch(r"\d{5,12}", target):
+            raise ValueError("这看起来是旧的 QQ 群号，官方机器人需要 group_openid（不是 QQ 群号）。"
+                             "在群里 @机器人发一条消息后，控制台「群策略」会记录真实 openid。")
+
     def send_qqbot_test(self, target: str, is_group: bool, text: str) -> Dict[str, Any]:
         target = str(target or "").strip()
         text = str(text or "").strip()
@@ -536,6 +546,7 @@ class BotApp:
             raise ValueError("请填写目标群/用户 openid")
         if not text:
             raise ValueError("请填写测试文本")
+        self._check_test_target(target, str(self.self_id or ""))
         if is_group:
             return self.qqbot.send_group_text(target, text)
         return self.qqbot.send_private_text(target, text)

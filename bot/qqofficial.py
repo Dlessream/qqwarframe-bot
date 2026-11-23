@@ -39,6 +39,38 @@ class QQOfficialError(Exception):
     """调用 QQ 开放平台接口失败。"""
 
 
+def _api_error_message(path: str, exc: HttpError) -> str:
+    """把 HTTP 层响应体里的官方错误翻译成中文可读信息。
+
+    官方失败时返回 4xx/5xx 且 body 形如：
+        {"message":"请求的资源不存在(用户/群已注销)","code":11255,
+         "err_code":40011028,"trace_id":"..."}
+    HttpError 只带 ``HTTP 400 Bad Request``，真正的 ``message`` 在 ``exc.body``，
+    不解析出来控制台就只会显示“HTTP 400 Bad Request”，无法定位。
+    """
+    detail = ""
+    raw = str(getattr(exc, "body", "") or "").strip()
+    if raw:
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            detail = raw[:200]
+        else:
+            if isinstance(data, dict):
+                message = str(data.get("message") or data.get("msg") or "")
+                err_code = str(data.get("err_code") or data.get("code") or "")
+                parts = [item for item in (message, ("错误码 %s" % err_code)
+                                           if err_code and err_code != "0" else "")
+                         if item]
+                detail = " / ".join(parts)
+            else:
+                detail = raw[:200]
+    status = getattr(exc, "status", 0) or 0
+    if not detail:
+        return "%s 失败：HTTP %s %s" % (path, status, str(exc))
+    return "%s 失败：%s（HTTP %s）" % (path, detail, status)
+
+
 class _TokenManager:
     """Access Token 缓存：官方有效期 7200s，到期前 60s 刷新。"""
 
@@ -480,8 +512,11 @@ class QQOfficialClient:
 
     def _post(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
         url = self.api_base + path
-        raw = self.http.request(url, self._headers(), method="POST",
-                                body=json.dumps(body, ensure_ascii=False).encode("utf-8"))
+        try:
+            raw = self.http.request(url, self._headers(), method="POST",
+                                    body=json.dumps(body, ensure_ascii=False).encode("utf-8"))
+        except HttpError as exc:
+            raise QQOfficialError(_api_error_message(path, exc))
         if not raw:
             return {}
         try:
@@ -497,7 +532,10 @@ class QQOfficialClient:
         return data
 
     def _get(self, path: str) -> Dict[str, Any]:
-        raw = self.http.get_json(self.api_base + path, self._headers())
+        try:
+            raw = self.http.get_json(self.api_base + path, self._headers())
+        except HttpError as exc:
+            raise QQOfficialError(_api_error_message(path, exc))
         if not isinstance(raw, dict):
             return {}
         err = raw.get("err_code") or raw.get("code")

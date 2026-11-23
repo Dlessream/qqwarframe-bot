@@ -147,6 +147,45 @@ class GatewayClientTest(unittest.TestCase):
         self.assertEqual(client.handle_webhook({"op": 0, "d": {}}), {"op": 12})
 
 
+class ApiErrorDetailTest(unittest.TestCase):
+    def test_http_error_reveals_official_message(self):
+        """HTTP 400 必须把官方 message/err_code 带出来，不能只显示 HTTP 状态。"""
+        from bot.net import HttpError
+        from bot.qqofficial import _api_error_message
+
+        exc = HttpError(
+            "HTTP 400 Bad Request", status=400,
+            body=json.dumps({"message": "请求的资源不存在(用户/群已注销)",
+                             "code": 11255, "err_code": 40011028,
+                             "trace_id": "abc"}))
+        text = _api_error_message("/v2/groups/X/messages", exc)
+        self.assertIn("请求的资源不存在", text)
+        self.assertIn("40011028", text)
+        self.assertIn("HTTP 400", text)
+
+    def test_http_error_without_body_still_readable(self):
+        from bot.net import HttpError
+        from bot.qqofficial import _api_error_message
+
+        exc = HttpError("HTTP 502 Bad Gateway", status=502)
+        self.assertIn("HTTP 502", _api_error_message("/v2/users/X/messages", exc))
+
+
+class TestTargetCheckTest(unittest.TestCase):
+    def test_reject_bot_self_id_and_old_qq_number(self):
+        from bot.app import BotApp
+
+        check = BotApp._check_test_target
+        with self.assertRaises(ValueError) as ctx:
+            check("12396883208788349398", "12396883208788349398")
+        self.assertIn("机器人自己的 ID", str(ctx.exception))
+        with self.assertRaises(ValueError) as ctx:
+            check("1105800953", "12396883208788349398")
+        self.assertIn("旧的 QQ 群号", str(ctx.exception))
+        # 合法的 openid 不拦
+        check("c5f9a1b2d3e4f5a6", "12396883208788349398")
+
+
 class ConfigTest(unittest.TestCase):
     def test_example_config_has_qqbot(self):
         path = os.path.join(os.path.dirname(os.path.dirname(__file__)),

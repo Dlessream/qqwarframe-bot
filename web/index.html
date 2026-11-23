@@ -221,7 +221,7 @@
         <div class="panel-head">
           <div>
             <span class="card-label">发送测试</span>
-            <span class="panel-sub">向指定群或用户发送一条测试消息</span>
+            <span class="panel-sub">填群 / 用户 openid，不是 QQ 群号，也不是机器人自己的 ID</span>
           </div>
           <button id="qqbotTestSend" class="btn btn-primary btn-sm" type="button">发送测试</button>
         </div>
@@ -235,7 +235,7 @@
           </label>
           <label class="field">
             <span>目标 openid</span>
-            <input id="qqbotTestTarget" class="input" type="text" autocomplete="off" placeholder="群 / 用户 openid">
+            <input id="qqbotTestTarget" class="input" type="text" autocomplete="off" placeholder="群 / 用户 openid（在群里 @机器人后从群策略复制）">
           </label>
           <label class="field" style="grid-column:1 / -1;">
             <span>测试消息</span>
@@ -547,6 +547,6 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=10"></script>
 </body>
 </html>
