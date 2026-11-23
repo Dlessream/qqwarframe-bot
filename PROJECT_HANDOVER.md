@@ -251,3 +251,30 @@ db/schema.sql / db/build.py  本次数据库建设产物
 - 服务器到 GitHub 一度不稳定，改用本地 `git bundle` 上传合并；合并前必须重放 4 处
   服务器独有修改（aliases「猴」、市场/仲裁代理 none、db 8090 对外、entrypoint 可执行位），
   备份在 `/root/qqwf-backup-20261123*`。
+
+## 9. 2026-11-23：帮助菜单重排 + 实时动态背景（已部署，commit `c3ad406`）
+
+- 需求：帮助菜单太单调，重做排版并加「像 Warframe 开始游戏界面」的背景，
+  且随游戏内变化实时更新。
+- 实现：
+  - `bot/helpbg.py`（新增）：从世界状态 news 的 `imageLink` 取官方 key art
+    （`www-static.warframe.com` 等白名单域名），经 worldstate 的代理下载，
+    缩放后按首图 URL 哈希做缓存 key —— 新闻一变 key 就变，背景自动更换。
+    磁盘缓存 `data/helpbg/`（最多 8 张），失败静默降级。
+  - `bot/imagecard.py` 重写 `help_card`：分 5 组（市场行情 / 紫卡与遗物 /
+    世界状态 / 仲裁排期 / 订阅与工具），命令金色 + 说明浅色，半透明行。
+    背景铺底 + 上暗下亮的深色蒙版（`_help_canvas`），半透明元素先画到
+    overlay 再 `alpha_composite`（避开低版 Pillow RGBA 不混合的问题），
+    文字最后画保证最上层。无背景时降级为纯色渐变。
+  - `bot/present.py` `help_reply()` 加可选 `bg_provider`；
+    `bot/commands.py` 构造 `HelpBackground`（复用 worldstate.http），
+    help 分支注入 `_help_bg_provider`（先 fetch news，回退 supplement 文件）。
+  - `bot/config.py` 加 `helpbg` 默认段；`.gitignore` 忽略 `data/helpbg/`。
+- 测试：新增 `tests/test_helpbg.py`（8 项）；完整 `pytest` 905 passed。
+- 部署：本地→GitHub 用 `http.proxy=127.0.0.1:10808` 推送成功；
+  服务器到 GitHub 不稳定，用 bundle `9c874cd..c3ad406` 上传合并，
+  重放 4 处独有修改后重建 bot。线上实测：7 条 news→6 张 key art→
+  下载 1000x562→生成 1.24MB 带背景卡片，缓存落盘 `/app/data/helpbg`。
+  网关仍 ONLINE。
+- 说明：背景图来自官方新闻 key art，游戏内新闻更新后随下一次 worldstate
+  缓存刷新自动换图（缓存 key 变化触发重新下载），无需改代码或重启。
