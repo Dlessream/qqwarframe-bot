@@ -217,7 +217,7 @@ class HelpBackground:
             message = str(item.get("title") or item.get("message") or "").strip()
             if not fallback:
                 fallback = message
-            if zh:
+            if zh and re.search(r"[\u4e00-\u9fff]", zh):
                 fallback = zh
                 break
         if fallback:
