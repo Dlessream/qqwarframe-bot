@@ -24,6 +24,15 @@ class NodeboardTest(unittest.TestCase):
         self.assertEqual(nodeboard.emblem_key("Sentient"), "sentient")
         self.assertEqual(nodeboard.emblem_key("未知"), "orokin")
 
+    def test_faction_en(self):
+        # 英文原样透传，中文映射到游戏英文名
+        self.assertEqual(nodeboard.faction_en({"faction": "Orokin"}), "Orokin")
+        self.assertEqual(nodeboard.faction_en({"faction": "奥罗金"}), "Orokin")
+        self.assertEqual(nodeboard.faction_en({"faction_cn": "克隆尼"}), "Grineer")
+        self.assertEqual(nodeboard.faction_en({"faction": "Corpus"}), "Corpus")
+        self.assertEqual(nodeboard.faction_en({"faction": "Infested"}), "Infested")
+        self.assertEqual(nodeboard.faction_en({}), "")
+
     def test_emblem_assets_are_transparent_png(self):
         if not nodeboard.PIL_AVAILABLE:
             self.skipTest("no Pillow")

@@ -58,6 +58,25 @@ def emblem_key(faction: str) -> str:
     return _FACTION_MAP.get(raw, "orokin")
 
 
+# 派系 → 游戏内英文原名（卡片"敌人"项按用户要求显示英文）
+_FACTION_EN = {
+    "奥罗金": "Orokin", "堕落者": "Corrupted",
+    "克隆尼": "Grineer", "科普斯": "Corpus", "科波斯": "Corpus",
+    "感染者": "Infested", "感染体": "Infested", "infection": "Infested",
+    "感知者": "Sentient", "天诺": "Tenno",
+}
+
+
+def faction_en(entry: dict) -> str:
+    """返回派系英文原名：优先用原始英文字段，中文则映射，未知原样返回。"""
+    raw = str(entry.get("faction") or "").strip()
+    if not raw:
+        raw = str(entry.get("faction_cn") or "").strip()
+    if not raw:
+        return ""
+    return _FACTION_EN.get(raw, _FACTION_EN.get(raw.lower(), raw))
+
+
 def _emblem(key: str):
     key = emblem_key(key)
     if key in _EMBLEM_CACHE:
@@ -123,7 +142,7 @@ def _draw_board(canvas, top: int, entry: dict) -> None:
     mission = str(entry.get("mission") or "—")
     tier = str(entry.get("tier") or "").strip()
     level = str(entry.get("level") or "").strip()
-    faction_cn = str(entry.get("faction_cn") or entry.get("faction") or "").strip()
+    enemy = faction_en(entry)
     remaining = str(entry.get("remaining") or "").strip()
 
     header = ("钢铁裂缝 · " if steel else "") + node
@@ -143,7 +162,7 @@ def _draw_board(canvas, top: int, entry: dict) -> None:
         d.text((CX - tw // 2 - b[0], ty - b[1]), tier, font=tf,
                fill=(158, 236, 240))
 
-    meta_parts = [p for p in (("敌人：" + faction_cn if faction_cn else ""),
+    meta_parts = [p for p in ((enemy if enemy else ""),
                               ("等级 " + level if level else "")) if p]
     if meta_parts:
         _center_text(d, " · ".join(meta_parts), top + 316, _font(21),
