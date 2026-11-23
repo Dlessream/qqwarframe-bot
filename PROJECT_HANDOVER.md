@@ -223,7 +223,15 @@ db/schema.sql / db/build.py  本次数据库建设产物
   `install.sh` 与 `deploy/install_napcat.sh`（标为历史脚本）同步。
 - 验证：`pytest -q` 894 passed（6 条既有 DeprecationWarning）、`bash -n` 四个脚本通过、
   `node --check web/app.js` 通过。
-- 上线的客观前置：凭证为空（`config.json` 与环境变量都没有 AppID/AppSecret），
-  且 transport 尚未选定。在 `.env` 或 Web 控制台填入后，`websocket` 模式重启 bot 即可；
-  `webhook` 模式还需公网 HTTPS 回调（端口 80/443/8080/8443）和 443→8080 反代。
-  凭证为空时部署会使线上机器人失去消息通道，因此服务器保持上一版本，本次只提交代码。
+- 2026-11-23 已部署到服务器（commit `c6f7219`）：备份旧状态到
+  `/root/qqwf-backup-20261123`，快进合并后重放服务器独有修改（aliases「猴」、
+  市场/仲裁代理 none、db 8090 对外、entrypoint 可执行位），写入空值官方环境变量，
+  用 `docker-compose.full.yml` 重建 bot 容器。napcat 容器保留未删（回滚余地）。
+- 部署后验证：`/api/status`、`/api/qqbot/{status,config,events}` 带令牌返回正常；
+  容器内 `qqofficial.py` 存在、`onebot.py` 已删、「猴」别名在；回调 `/qq/callback` 返回
+  `{"op":12}`（签名缺失，符合预期）；bot 启动日志与物品索引正常。
+- **当前线上状态**：AppID/AppSecret 仍为空，官方通道未连接，机器人不收发消息。
+  这是唯一剩余前置。在 Web 控制台「QQ 官方机器人」面板填入即可即时生效（无需重启），
+  或写入服务器 `.env` 后 `docker compose -f docker-compose.full.yml up -d bot`。
+  websocket 模式不需要公网回调；webhook 模式另需公网 HTTPS（80/443/8080/8443）
+  与 443→8080 反代。凭证到位前不要删 napcat 回滚容器。
