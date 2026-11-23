@@ -235,3 +235,19 @@ db/schema.sql / db/build.py  本次数据库建设产物
   或写入服务器 `.env` 后 `docker compose -f docker-compose.full.yml up -d bot`。
   websocket 模式不需要公网回调；webhook 模式另需公网 HTTPS（80/443/8080/8443）
   与 443→8080 反代。凭证到位前不要删 napcat 回滚容器。
+- 2026-11-23 用户已在控制台填入凭证（AppID `1905720698`），网关 ONLINE。
+
+## 8. 2026-11-23 补记：发送测试 HTTP 400 修复（已部署，commit `9c874cd`）
+
+- 现象：控制台填好凭证、网关 ONLINE，但「发送测试」报 `HTTP 400 Bad Request`。
+- 根因：官方返回体 `{"message":"请求的资源不存在(用户/群已注销)","err_code":40011028}`
+  被本地错误层丢弃；用户填的 `12396883208788349398` 是机器人自身 ID 不是群 openid；
+  订阅/白名单仍是旧数字 QQ 群号。
+- 修复：`bot/qqofficial.py` 加 `_api_error_message()` 解析 body；`bot/app.py` 加
+  `_check_test_target()` 拦截自身 ID/旧群号；前端提示文案同步。测试 897 passed。
+- 关键：官方机器人只认 `group_openid`。让用户在群里 @机器人，网关事件带 group_openid，
+  被白名单拦下后记录到控制台「群策略」blocked 列表，一键加白并复制作为发送目标。
+  旧数字群号不会自动迁移。
+- 服务器到 GitHub 一度不稳定，改用本地 `git bundle` 上传合并；合并前必须重放 4 处
+  服务器独有修改（aliases「猴」、市场/仲裁代理 none、db 8090 对外、entrypoint 可执行位），
+  备份在 `/root/qqwf-backup-20261123*`。
