@@ -31,6 +31,10 @@ class NodeboardTest(unittest.TestCase):
         self.assertEqual(nodeboard.faction_en({"faction_cn": "克隆尼"}), "Grineer")
         self.assertEqual(nodeboard.faction_en({"faction": "Corpus"}), "Corpus")
         self.assertEqual(nodeboard.faction_en({"faction": "Infested"}), "Infested")
+        # 全部本地化派系（含新派系）都要映射回英文
+        self.assertEqual(nodeboard.faction_en({"faction": "低语者"}), "Murmur")
+        self.assertEqual(nodeboard.faction_en({"faction": "灵煞"}), "Sentient")
+        self.assertEqual(nodeboard.faction_en({"faction": "堕落者"}), "Corrupted")
         self.assertEqual(nodeboard.faction_en({}), "")
 
     def test_emblem_assets_are_transparent_png(self):

@@ -59,12 +59,19 @@ def emblem_key(faction: str) -> str:
 
 
 # 派系 → 游戏内英文原名（卡片"敌人"项按用户要求显示英文）
+# 基础手工项 + 由 terms.FACTIONS 反向生成，覆盖所有本地化派系名
 _FACTION_EN = {
     "奥罗金": "Orokin", "堕落者": "Corrupted",
     "克隆尼": "Grineer", "科普斯": "Corpus", "科波斯": "Corpus",
     "感染者": "Infested", "感染体": "Infested", "infection": "Infested",
-    "感知者": "Sentient", "天诺": "Tenno",
+    "感知者": "Sentient", "灵煞": "Sentient", "天诺": "Tenno",
 }
+try:
+    from . import terms as _terms
+    for _en, _cn in _terms.FACTIONS.items():
+        _FACTION_EN.setdefault(_cn, _en)
+except Exception:  # pragma: no cover
+    pass
 
 
 def faction_en(entry: dict) -> str:
