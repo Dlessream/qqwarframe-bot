@@ -1060,7 +1060,10 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 �
         highlights.append([None, None, None, None, color])
         faction_cn = terms.localize_faction(str(getattr(node, "faction", "") or ""))
         node_entries.append({
-            "node": node.display_name, "mission": mission_cn,
+            "node": node.display_name,
+            "node_raw": ("%s（%s）" % (node.name, node.system)
+                         if getattr(node, "system", "") else str(node.name)),
+            "mission": mission_cn,
             "tier": "评级 %s" % tier if tier else "",
             "faction": str(getattr(node, "faction", "") or ""),
             "faction_cn": faction_cn,
@@ -1298,7 +1301,8 @@ def storms_reply(raw) -> Reply:
                       if tier_num and tier and tier != "—"
                       else ("%s遗物" % tier if tier and tier != "—" else ""))
         node_entries.append({
-            "node": node, "mission": mission, "tier": tier_label,
+            "node": node, "node_raw": str(item.get("node") or ""),
+            "mission": mission, "tier": tier_label,
             "faction": str(item.get("enemy") or ""), "faction_cn": enemy,
             "remaining": remain,
         })
@@ -1342,6 +1346,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
                                         if tier_cn and tier_cn != "—" else ""))
         node_entries.append({
             "node": node_cn,
+            "node_raw": str(row.get("node") or ""),
             "mission": mission_cn,
             "tier": tier_label,
             "faction": enemy_raw,

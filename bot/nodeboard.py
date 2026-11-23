@@ -24,7 +24,7 @@ except Exception:  # pragma: no cover
     ImageFont = None  # type: ignore
     PIL_AVAILABLE = False
 
-from . import scenebg
+from . import scenebg, tilesets
 
 WIDTH = 860
 BOARD_H = 400          # 单节点背景板高度
@@ -111,13 +111,47 @@ def _center_text(draw, text, cy, fnt, fill) -> None:
     draw.text((x, y), text, font=fnt, fill=fill)
 
 
-def _board_canvas(scene: str, height: int):
-    """场景铺底 + 上浅下深蒙版；无场景时降级为深色渐变。"""
+def _scene_tile(bg, top: int, height: int, tile_h: int):
+    """把一张场景图按 cover 方式裁成 (WIDTH, tile_h) 贴到 canvas 的 top 处。"""
+    bw, bh = bg.size
+    scale = max(WIDTH / float(bw), tile_h / float(bh))
+    nw, nh = max(WIDTH, int(bw * scale)), max(tile_h, int(bh * scale))
+    scaled = bg.resize((nw, nh), Image.LANCZOS).convert("RGBA")
+    left = (nw - WIDTH) // 2
+    off = (nh - tile_h) // 2
+    # 限制在目标板高度内，避免溢出到相邻节点
+    tile = scaled.crop((left, off, left + WIDTH, off + tile_h))
+    veil = Image.new("RGBA", (WIDTH, tile_h), (0, 0, 0, 0))
+    vd = ImageDraw.Draw(veil, "RGBA")
+    for y in range(tile_h):
+        a = int(112 + 72 * (y / max(1, tile_h - 1)))
+        vd.line([(0, y), (WIDTH, y)], fill=(6, 10, 17, a))
+    return Image.alpha_composite(tile, veil)
+
+
+def _board_canvas(scene: str, height: int, entries=None):
+    """每块板按自己节点的星球+派系铺对应场景图；无条目时回退整卡场景。
+
+    entries 提供时，逐块用 tilesets.scene_image() 选图并贴到对应板区；
+    否则（兼容旧调用）用 scenebg 的整卡场景。
+    """
     from . import imagecard
+    canvas = imagecard._gradient(WIDTH, height, imagecard.BG_TOP,
+                                 imagecard.BG_BOTTOM).convert("RGBA")
+    if entries:
+        for i, entry in enumerate(entries):
+            # 优先用原始英文名（含星球括号）提取星球，回退到中文显示名
+            name = str(entry.get("node_raw") or "") or str(entry.get("node") or "")
+            key = tilesets.scene_key(name, str(entry.get("faction") or ""))
+            bg = tilesets.scene_image(key)
+            if bg is not None and PIL_AVAILABLE:
+                tile = _scene_tile(bg, i * BOARD_H, height, BOARD_H)
+                canvas.alpha_composite(tile, (0, i * BOARD_H))
+        return canvas
+    # 兼容旧调用：整卡一张场景
     bg = scenebg.scene_image(scene) if scene else None
     if bg is None:
-        return imagecard._gradient(WIDTH, height, imagecard.BG_TOP,
-                                   imagecard.BG_BOTTOM).convert("RGBA")
+        return canvas
     bw, bh = bg.size
     scale = max(WIDTH / float(bw), height / float(bh))
     nw, nh = max(WIDTH, int(bw * scale)), max(height, int(bh * scale))
@@ -187,7 +221,7 @@ def render(entries: Sequence[Dict], scene: str = "fissure") -> Optional[bytes]:
 
     items = list(entries)[:MAX_BOARDS]
     height = BOARD_H * len(items)
-    canvas = _board_canvas(scene, height).convert("RGBA")
+    canvas = _board_canvas(scene, height, entries=items).convert("RGBA")
     for i, entry in enumerate(items):
         if i:
             d = ImageDraw.Draw(canvas)

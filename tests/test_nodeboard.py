@@ -73,3 +73,49 @@ class NodeboardTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TilesetMappingTest(unittest.TestCase):
+    """节点按星球+派系映射到不同 tile set 场景图。"""
+
+    def test_distinct_planets_get_distinct_scenes(self):
+        from bot import tilesets
+        cases = [
+            ("Aphrodite (Venus)", "Corpus", "venus_corpus"),
+            ("Casta (Ceres)", "Grineer", "ceres_grineer"),
+            ("Galatea (Neptune)", "Corpus", "neptune_corpus"),
+            ("Hades (Pluto)", "Corpus", "pluto_corpus"),
+            ("Void Node (Void)", "Orokin", "void_orokin"),
+            ("Eris Node (Eris)", "Infested", "eris_infested"),
+        ]
+        keys = set()
+        for name, fac, expect in cases:
+            key = tilesets.scene_key(name, fac)
+            self.assertEqual(key, expect, (name, fac, key))
+            keys.add(key)
+        self.assertEqual(len(keys), len(cases))
+
+    def test_chinese_planet_name(self):
+        from bot import tilesets
+        self.assertEqual(tilesets.planet_of("Galatea（海王星）"), "neptune")
+        self.assertEqual(tilesets.scene_key("卡斯塔（谷神星）", "Grineer"),
+                         "ceres_grineer")
+
+    def test_all_scene_images_exist(self):
+        from bot import tilesets
+        keys = tilesets.all_keys()
+        self.assertGreaterEqual(len(keys), 20)
+        for key in keys:
+            self.assertIsNotNone(tilesets.scene_image(key), key)
+
+    def test_board_uses_per_node_scene(self):
+        from bot import nodeboard
+        entries = [
+            {"node": "阿佛洛狄忒（金星）", "node_raw": "Aphrodite (Venus)",
+             "mission": "捕获", "faction": "Corpus", "remaining": "12:34"},
+            {"node": "卡斯塔（谷神星）", "node_raw": "Casta (Ceres)",
+             "mission": "防御", "faction": "Grineer", "remaining": "08:12"},
+        ]
+        png = nodeboard.render(entries, "fissure")
+        self.assertIsNotNone(png)
+        self.assertTrue(png.startswith(b"\x89PNG"))
