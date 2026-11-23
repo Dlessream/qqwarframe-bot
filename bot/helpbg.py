@@ -104,6 +104,7 @@ class HelpBackground:
         self.timeout = float(cfg.get("timeout_seconds", 12))
         self._cache: Dict[str, Any] = {}  # key -> PIL.Image（已缩放）
         self._current_key: Optional[str] = None
+        self.latest_title: str = ""  # 当前新闻标题，用于启动器主视觉副标题
         self._cache_dir = os.path.join(
             datafiles.ROOT, CACHE_DIR) if getattr(datafiles, "ROOT", "") else CACHE_DIR
 
@@ -208,6 +209,12 @@ class HelpBackground:
         """返回当前新闻对应的背景 PIL.Image；拿不到时返回 None。"""
         if not self.enabled or not PIL_AVAILABLE:
             return None
+        for item in _as_list(news):
+            if isinstance(item, dict):
+                title = str(item.get("title") or "").strip()
+                if title:
+                    self.latest_title = title
+                    break
         key = background_key(news)
         if not key:
             return None

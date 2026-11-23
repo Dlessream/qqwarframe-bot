@@ -29,7 +29,7 @@ DEFAULTS: Dict[str, Any] = {
         "gateway_url": "",
         "callback_path": "/qq/callback",
         "self_id": "",
-        "intents": 33554432,  # 1 << 25, GROUP_AND_C2C_EVENT
+        "intents": 100663296,  # 1<<25 群/私聊消息 + 1<<26 互动按钮
         "shard": [0, 1],
         "proxy": "none",
         "api_timeout_seconds": 15,

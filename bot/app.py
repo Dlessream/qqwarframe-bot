@@ -643,6 +643,9 @@ class BotApp:
 
     # ------------------------------------------------------------------ 事件
     def on_event(self, event: Dict[str, Any]) -> None:
+        if event.get("post_type") == "interaction":
+            self._on_interaction(event)
+            return
         if event.get("post_type") != "message":
             return
         message_type = str(event.get("message_type") or "")
@@ -710,6 +713,37 @@ class BotApp:
 
         if replies:
             self._reply(replies, is_group, group_id, user_id, reply_ctx)
+
+    def _on_interaction(self, event: Dict[str, Any]) -> None:
+        """消息按钮点击：先回应互动（3 秒内），再执行命令反馈结果。"""
+        interaction_id = str(event.get("qq_interaction_id") or "")
+        if interaction_id:
+            try:
+                self.qqbot.respond_interaction(interaction_id, 0)
+            except Exception as exc:
+                self.log.warning("回应按钮互动失败：%s", exc)
+        is_group = str(event.get("message_type") or "") == "group"
+        group_id = str(event.get("group_id") or "")
+        user_id = str(event.get("user_id") or "")
+        if is_group and not self._group_allowed(group_id):
+            return
+        data = str(event.get("button_data") or "")
+        if not data:
+            return
+        self.self_id = str(event.get("self_id") or self.self_id)
+        context = Context(
+            user_id=user_id, group_id=group_id, is_group=is_group,
+            self_id=self.self_id, prefix=self.prefixes[0], image=None,
+            allow_bare=True)
+        try:
+            replies = self.router.handle_button(data, context)
+        except Exception as exc:
+            self.log.exception("按钮命令处理失败：%s", exc)
+            replies = [present.error_reply("按钮操作失败，请重新发送命令。")]
+        if replies:
+            reply_ctx = {"event_id": interaction_id}
+            self._reply(replies, is_group,
+                        group_id if is_group else user_id, user_id, reply_ctx)
 
     def _group_lists(self) -> Tuple[set, set]:
         whitelist = {str(item).strip() for item in
@@ -1639,14 +1673,38 @@ class BotApp:
                 self.log.warning("图片生成失败，回退文字：%s", exc)
                 png = None
             if png:
+                keyboard = reply.keyboard
+                kb_kw = {"keyboard": keyboard} if keyboard else {}
                 try:
                     if is_group:
-                        self.qqbot.send_group_image(chat_id, png, prefix, reply_ctx)
+                        self.qqbot.send_group_image(chat_id, png, prefix,
+                                                    reply_ctx, **kb_kw)
                     else:
-                        self.qqbot.send_private_image(chat_id, png, prefix, reply_ctx)
+                        self.qqbot.send_private_image(chat_id, png, prefix,
+                                                      reply_ctx, **kb_kw)
                     return True
                 except QQOfficialError as exc:
-                    self.log.warning("图片发送失败，回退文字：%s", exc)
+                    self.log.warning("图片发送失败（含按钮时）：%s", exc)
+                    if keyboard:
+                        # 富媒体可能不接受 keyboard：去掉按钮重发图片，
+                        # 再补一条带按钮的提示文本。
+                        try:
+                            if is_group:
+                                self.qqbot.send_group_image(chat_id, png,
+                                                            prefix, reply_ctx)
+                            else:
+                                self.qqbot.send_private_image(chat_id, png,
+                                                              prefix, reply_ctx)
+                            hint = "点击下方按钮继续查询"
+                            if is_group:
+                                self.qqbot.send_group_text(chat_id, hint,
+                                                           reply_ctx, keyboard=keyboard)
+                            else:
+                                self.qqbot.send_private_text(chat_id, hint,
+                                                             reply_ctx, keyboard=keyboard)
+                            return True
+                        except QQOfficialError as exc2:
+                            self.log.warning("图片/按钮补发失败，回退文字：%s", exc2)
 
         if not reply.text:
             return False
@@ -1661,10 +1719,12 @@ class BotApp:
             if prefix and index == 0:
                 text = prefix + text
             try:
+                chunk_keyboard = reply.keyboard if index == len(chunks) - 1 else None
+                kb_kw = {"keyboard": chunk_keyboard} if chunk_keyboard else {}
                 if is_group:
-                    self.qqbot.send_group_text(chat_id, text, reply_ctx)
+                    self.qqbot.send_group_text(chat_id, text, reply_ctx, **kb_kw)
                 else:
-                    self.qqbot.send_private_text(chat_id, text, reply_ctx)
+                    self.qqbot.send_private_text(chat_id, text, reply_ctx, **kb_kw)
             except QQOfficialError as exc:
                 self.log.warning("发送消息失败：%s", exc)
                 return False

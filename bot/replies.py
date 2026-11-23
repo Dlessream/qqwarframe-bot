@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 
 @dataclass
 class Reply:
     text: str = ""
     image: Optional[Callable[[], bytes]] = field(default=None)
+    # QQ 官方消息按钮（InlineKeyboard）；None 表示不挂载按钮
+    keyboard: Optional[Dict[str, Any]] = field(default=None)
 
     @property
     def has_image(self) -> bool:

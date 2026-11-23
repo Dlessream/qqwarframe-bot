@@ -7,7 +7,8 @@ import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import (autotrans, baronames, bounties, bountyrewards, bountystatic,
-               conquest, imagecard, missioncolors, render, subkind, terms)
+               conquest, imagecard, keyboards, missioncolors, render, scenebg,
+               subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -37,13 +38,30 @@ def platform_label(platform: Optional[str]) -> str:
 # ---------------------------------------------------------------------- 市场
 def item_reply(item: Item, sell: Sequence[Order], buy: Sequence[Order],
                stats: Optional[MarketStats], platform: str,
-               price_only: bool = False) -> Reply:
+               price_only: bool = False, keyboard=None) -> Reply:
     label = platform_label(platform)
     text = (render.render_price(item, sell, buy, stats, order_limit=8)
             if price_only else render.render_item(item, sell, buy, stats,
                                                   order_limit=7))
-    return Reply(text=text, image=lambda: imagecard.item_card(
-        item, sell, buy, stats, label, price_only=price_only))
+    return Reply(text=text, keyboard=keyboard,
+                 image=lambda: imagecard.item_card(
+                     item, sell, buy, stats, label, price_only=price_only))
+
+
+def price_trend_reply(item: Item, stats: Optional[MarketStats],
+                      platform: str = "pc") -> Reply:
+    """按钮「价格走势」：单独给出近 15 天走势卡。"""
+    label = platform_label(platform)
+    return Reply(text="【%s】价格走势 · %s" % (item.name, label),
+                 image=lambda: imagecard.price_trend_card(item, stats, label))
+
+
+def item_desc_reply(item: Item, platform: str = "pc") -> Reply:
+    """按钮「对话文本」：warframe.market 物品说明的对话式卡片。"""
+    label = platform_label(platform)
+    return Reply(text="【%s】对话文本\n%s" % (
+        item.name, str(getattr(item, "description", "") or "").strip()[:500]),
+        image=lambda: imagecard.item_desc_card(item, label))
 
 
 def candidates_reply(query: str, hits: Sequence[SearchHit]) -> Reply:
@@ -457,6 +475,7 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
         footer += " + arbi.wf.wiki"
     return Reply(
         text="\n".join(lines),
+        keyboard=keyboards.arbitration_keyboard(),
         image=lambda: imagecard.table_card(
             "仲裁任务", subtitle,
             [("节点", 2.0), ("星球", 0.8), ("类型", 1.0), ("敌人", 1.0),
@@ -464,7 +483,7 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
             rows, footer, accent=accent,
             chip=("%s · %s" % (mission, tier) if tier else mission)
             if known_mission else ("仲裁 %s" % tier if tier else "仲裁"),
-            note=note))
+            note=note, background=scenebg.scene_image("arbitration")))
 
 
 def arbitration_tiers_reply(data, current_key: str = "",
@@ -534,12 +553,14 @@ def arbitration_tiers_reply(data, current_key: str = "",
     footer = "数据 arbi.wf.wiki · 本地推算取自任务类型与敌人等级"
     return Reply(
         text="\n".join(lines),
+        keyboard=keyboards.arbitration_keyboard(),
         image=lambda: imagecard.build_table(
             "仲裁评级", subtitle,
             ["梯队", "节点", "星球", "任务", "等级", "来源"], rows,
             footer, accent=imagecard.GOLD, chip="评级",
             ratios=[0.5, 1.6, 0.7, 1.0, 0.8, 0.6],
-            highlights=highlights))
+            highlights=highlights,
+            background=scenebg.scene_image("arbitration")))
 
 
 # ---------------------------------------------------------------------- 世界状态
@@ -574,7 +595,8 @@ def _format_int(value) -> str:
 
 def _world_reply(title: str, subtitle: str, headers, rows,
                  footer: str, chip: str, text_lines=None,
-                 ratios=None, accent=None, note: str = "") -> Reply:
+                 ratios=None, accent=None, note: str = "",
+                 scene: str = "") -> Reply:
     if text_lines is None:
         text_lines = [" / ".join(str(cell) for cell in row) for row in rows]
     text = "【%s】\n%s" % (title, subtitle)
@@ -587,7 +609,8 @@ def _world_reply(title: str, subtitle: str, headers, rows,
         image=lambda: imagecard.build_table(
             title, subtitle, list(headers), rows, footer,
             accent=accent or imagecard.GREEN, chip=chip, note=note,
-            ratios=ratios or [max(1.0, 6.0 / len(headers))] * len(headers)))
+            ratios=ratios or [max(1.0, 6.0 / len(headers))] * len(headers),
+            background=scenebg.scene_image(scene) if scene else None))
 
 
 def alerts_reply(raw) -> Reply:
@@ -775,7 +798,8 @@ def eidolon_reply(cycle, speed: bool = False) -> Reply:
             title, subtitle, ["项目", "时间", "剩余"], rows,
             "数据 Warframe 世界状态 · 希图斯", accent=imagecard.PURPLE,
             chip="夜灵", ratios=[0.8, 1.2, 1.0],
-            aligns=["left", "left", "right"]))
+            aligns=["left", "left", "right"],
+            background=scenebg.scene_image("eidolon")))
 
 
 def _safe_int(value) -> int:
@@ -1028,12 +1052,14 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 �
         highlights.append([None, None, None, None, color])
     if not rows:
         return Reply(text=empty or "未来 24 小时没有仲裁。")
-    return _world_reply(
+    reply = _world_reply(
         title, "按 arbi.wf.wiki 轮换表 · 已过时的不列出",
         ["时间", "剩余", "节点", "任务", "评级"], rows,
         "数据 arbi.wf.wiki · 轮换表", "仲裁",
         text_lines=lines, ratios=[1.0, 0.8, 1.6, 0.9, 0.5],
-        accent=imagecard.GOLD, note="时间按本机时区显示。")
+        accent=imagecard.GOLD, note="时间按本机时区显示。", scene="arbitration")
+    reply.keyboard = keyboards.arbitration_keyboard()
+    return reply
 
 
 def _arbi_day_label(start: float) -> str:
@@ -1124,11 +1150,13 @@ def arbitration_week_reply(entries, days: int = 7, title: str = "仲裁表",
     return Reply(
         text="【%s】\n%s\n%s\n\n快捷筛选：谷拦仲裁 / 镜防仲裁 / 高效仲裁"
              % (title, subtitle, "\n".join(text_lines)),
+        keyboard=keyboards.arbitration_keyboard(),
         image=lambda: imagecard.schedule_table(
             title, subtitle, sections,
             "数据 arbi.wf.wiki · 轮换表", accent=imagecard.GOLD,
             chip="%d 天" % days, note=note,
-            buttons=imagecard.ARBITRATION_BUTTONS))
+            buttons=imagecard.ARBITRATION_BUTTONS,
+            background=scenebg.scene_image("arbitration")))
 
 
 def _conquest_entry(group: str, key: str, kind: str, raw) -> dict:
@@ -1254,7 +1282,7 @@ def storms_reply(raw) -> Reply:
         ["遗物", "任务", "节点", "敌人", "剩余"], rows,
         "数据 世界状态聚合源 · 虚空风暴", "风暴",
         text_lines=lines, ratios=[0.7, 0.8, 2.8, 0.6, 0.8],
-        accent=imagecard.CYAN)
+        accent=imagecard.CYAN, scene="railjack")
 
 
 def fissures_reply(raw, hard: bool = False) -> Reply:
@@ -1285,7 +1313,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
             len(items), "钢铁之路" if hard else ""),
         ["节点", "任务", "等级", "敌人", "剩余"], rows,
         source, title,
-        ratios=[1.7, 1.0, 0.7, 0.9, 0.9])
+        ratios=[1.7, 1.0, 0.7, 0.9, 0.9], scene="fissure")
 
 
 BOUNTY_LOCATIONS = {
@@ -1436,7 +1464,8 @@ def cetus_reply(cycle, raw) -> Reply:
         "数据 官方世界状态 · 希图斯", "希图斯",
         text_lines=text_lines, ratios=[0.7, 4.3, 0.7, 0.6, 1.05],
         accent=imagecard.GREEN,
-        note="赏金为 Konzu 主赏金板全部档位，随每批刷新；帐篷是夜灵平原野外独有的三个无线电接取点 A/B/C，各有固定三个任务目标，与赏金板是两套独立内容。帐篷剩余时间与本批赏金轮换同步（每 2½ 小时）。")
+        note="赏金为 Konzu 主赏金板全部档位，随每批刷新；帐篷是夜灵平原野外独有的三个无线电接取点 A/B/C，各有固定三个任务目标，与赏金板是两套独立内容。帐篷剩余时间与本批赏金轮换同步（每 2½ 小时）。",
+        scene="cetus")
 
 
 def translation_reply(query: str, zh: str, en: str,
@@ -2263,8 +2292,9 @@ def eleanor_reply(view: dict) -> Reply:
             aligns=["left", "left", "right"]))
 
 
-def help_reply(prefix: str, disabled=(), bg_provider=None) -> Reply:
-    """帮助菜单。bg_provider 可选：返回 PIL.Image 官方 key art 作背景。"""
+def help_reply(prefix: str, disabled=(), bg_provider=None,
+               title_provider=None) -> Reply:
+    """帮助菜单。bg_provider 返回官方 key art；title_provider 返回启动器副标题。"""
     def _image():
         background = None
         if bg_provider is not None:
@@ -2272,7 +2302,14 @@ def help_reply(prefix: str, disabled=(), bg_provider=None) -> Reply:
                 background = bg_provider()
             except Exception:
                 background = None
-        return imagecard.help_card(prefix, disabled, background=background)
+        hero_title = ""
+        if title_provider is not None:
+            try:
+                hero_title = str(title_provider() or "")
+            except Exception:
+                hero_title = ""
+        return imagecard.help_card(prefix, disabled, background=background,
+                                   hero_title=hero_title)
 
     return Reply(text=render.render_help(prefix, disabled), image=_image)
 

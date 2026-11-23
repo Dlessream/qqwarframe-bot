@@ -22,7 +22,7 @@ class ConfigTest(unittest.TestCase):
     def test_load_example(self):
         config = load_config(EXAMPLE)
         self.assertEqual(config["qqbot"]["transport"], "websocket")
-        self.assertEqual(config["qqbot"]["intents"], 1 << 25)
+        self.assertEqual(config["qqbot"]["intents"], (1 << 25) | (1 << 26))
         self.assertEqual(config["warframe_market"]["language"], "zh-hans")
         self.assertTrue(config["image"]["enabled"])
         self.assertEqual(config["alerts"]["check_seconds"], 300)

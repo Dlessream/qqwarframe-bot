@@ -10,7 +10,7 @@
     "gateway_url": "",
     "callback_path": "/qq/callback",
     "self_id": "",
-    "intents": 33554432,
+    "intents": 100663296,
     "shard": [0, 1],
     "proxy": "none",
     "api_timeout_seconds": 15,

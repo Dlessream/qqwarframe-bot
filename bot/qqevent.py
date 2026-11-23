@@ -22,6 +22,38 @@ MESSAGE_EVENTS = {
 _MENTION_RE = re.compile(r"<@([^>]+)>")
 
 
+def interaction_event(payload: Dict[str, Any], self_id: str = "",
+                      bot_id: str = "") -> Optional[Dict[str, Any]]:
+    """INTERACTION_CREATE -> 内部事件（按钮点击回调）。"""
+    data = payload.get("d") if isinstance(payload.get("d"), dict) else {}
+    if int(data.get("type") or 0) != 11:
+        return None
+    resolved = data.get("data") if isinstance(data.get("data"), dict) else {}
+    resolved = resolved.get("resolved") if isinstance(
+        resolved.get("resolved"), dict) else {}
+    scene = _text_of(data.get("scene"))
+    is_group = scene == "group"
+    group_id = _text_of(data.get("group_openid")) if is_group else ""
+    user_id = (_text_of(data.get("group_member_openid"))
+               if is_group else _text_of(data.get("user_openid")))
+    event_id = _text_of(payload.get("id"))
+    if not event_id or not user_id:
+        return None
+    return {
+        "post_type": "interaction",
+        "message_type": "group" if is_group else "private",
+        "sub_type": "interaction_create",
+        "self_id": _text_of(data.get("application_id")) or self_id or bot_id,
+        "user_id": user_id,
+        "group_id": group_id,
+        "button_data": _text_of(resolved.get("button_data")),
+        "button_id": _text_of(resolved.get("button_id")),
+        "qq_event": "INTERACTION_CREATE",
+        "qq_event_id": event_id,
+        "qq_interaction_id": event_id,
+    }
+
+
 def _text_of(value: Any) -> str:
     return "" if value is None else str(value)
 
@@ -64,6 +96,8 @@ def to_onebot_event(payload: Dict[str, Any], self_id: str = "",
     if not isinstance(payload, dict):
         return None
     name = str(payload.get("t") or "")
+    if name == "INTERACTION_CREATE":
+        return interaction_event(payload, self_id, bot_id)
     kind = MESSAGE_EVENTS.get(name)
     if not kind:
         return None

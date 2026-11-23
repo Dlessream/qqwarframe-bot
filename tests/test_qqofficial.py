@@ -192,7 +192,7 @@ class ConfigTest(unittest.TestCase):
                             "config.example.json")
         cfg = config_module.load_config(path)
         self.assertEqual(cfg["qqbot"]["transport"], "websocket")
-        self.assertEqual(cfg["qqbot"]["intents"], 1 << 25)
+        self.assertEqual(cfg["qqbot"]["intents"], (1 << 25) | (1 << 26))
         self.assertNotIn("onebot", cfg)
 
 

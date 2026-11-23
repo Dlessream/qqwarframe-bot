@@ -576,6 +576,53 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
+def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
+    """按钮触发：单独的近 15 天价格走势卡。"""
+    points = list(getattr(stats, "history", None) or [])[-15:]
+    height = max(620, 250 + len(points) * 23 + 140)
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    y = _header(draw, item.name or item.slug, "价格走势 · %s" % platform_label,
+                "TREND", GOLD)
+    y += 18
+    if len(points) < 2:
+        draw.text((PAD, y + 10), "暂无足够的价格历史数据。",
+                  font=_font(16), fill=MUTED)
+        y += 50
+    else:
+        y = _trend_table(draw, y, stats)
+    left = "数据 warframe market · %s · %s" % (
+        platform_label, time.strftime("%m-%d %H:%M"))
+    y = _footer(draw, y + 10, left)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
+def item_desc_card(item, platform_label: str = "PC") -> bytes:
+    """按钮触发：参考 warframe.market 物品页的对话式说明卡。"""
+    desc = str(getattr(item, "description", "") or "").replace("\n", " ").strip()
+    if not desc:
+        desc = "该物品在 warframe.market 暂无说明文本。"
+    height = 700
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    y = _header(draw, item.name or item.slug,
+                "物品说明 · warframe.market 风格", "DESC", CYAN)
+    y += 30
+    draw.text((PAD, y), "TENNO", font=_font(13, bold=True), fill=GOLD)
+    y += 26
+    font = _font(16)
+    lines = _wrap(draw, desc, font, WIDTH - 2 * PAD - 60, max_lines=10)
+    box = (PAD, y - 8, WIDTH - PAD, y + len(lines) * 27 + 18)
+    _rrect(draw, box, 12, fill=PANEL_LIGHT, outline=(70, 84, 106), width=1)
+    for index, line in enumerate(lines):
+        draw.text((PAD + 22, y + index * 27), line, font=font, fill=TEXT)
+    y = box[3] + 26
+    draw.text((PAD, y), "来源：warframe.market 物品页说明文本",
+              font=_font(13), fill=DIM)
+    y = _footer(draw, y + 40, "平台：%s" % platform_label)
+    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+
+
 # ---------------------------------------------------------------------- 紫卡范围
 def _analysis_section(draw, y: int, title: str, hint: str = "") -> int:
     draw.text((PAD, y), title, font=_font(18, bold=True), fill=TEXT)
@@ -732,7 +779,8 @@ class Cell:
 def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
                rows: Sequence[Sequence[Cell]], footer: str,
                accent=GOLD, chip: str = "", note: str = "",
-               aligns: Optional[Sequence[str]] = None) -> bytes:
+               aligns: Optional[Sequence[str]] = None,
+               background=None) -> bytes:
     """通用表格卡。
 
     columns: [(表头, 宽度比例), ...]
@@ -740,7 +788,7 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
     aligns: 每列 "left" / "right"
     """
     height = max(700, 260 + len(rows) * 42 + (40 if note else 0) + 120)
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    image = _scene_canvas(background, height)
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
     y += 16
@@ -921,7 +969,8 @@ def _draw_buttons(draw, y: int, buttons: Sequence[Dict]) -> int:
 
 def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                    footer: str, accent=GOLD, chip: str = "",
-                   note: str = "", buttons: Optional[Sequence[Dict]] = None) -> bytes:
+                   note: str = "", buttons: Optional[Sequence[Dict]] = None,
+                   background=None) -> bytes:
     """按天分组的排期表：每天一节，条目分左右两列铺开。
 
     days: [{"label": "10-28 周三", "badge": "24 场 · S×1",
@@ -936,7 +985,7 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
     height = max(700, 300 + len(days) * (62 + per_col * 32) + 120)
     if buttons:
         height += 84
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    image = _scene_canvas(background, height)
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
     y += 12
@@ -1570,10 +1619,37 @@ def _help_groups(prefix: str):
     ]
 
 
-def _help_canvas(background, height: int) -> "Image.Image":
-    """铺背景并叠暗色蒙版；无背景时用纯色渐变。始终返回 RGBA。"""
+def _help_canvas(background, height: int, hero_h: int) -> "Image.Image":
+    """启动器风格底图：上半区放官方 key art，下半区为深色命令面板。"""
+    canvas = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay, "RGBA")
+    if background is not None:
+        try:
+            bw, bh = background.size
+            scale = max(WIDTH / float(bw), hero_h / float(bh))
+            nw, nh = max(WIDTH, int(bw * scale)), max(hero_h, int(bh * scale))
+            scaled = background.resize((nw, nh), Image.LANCZOS).convert("RGBA")
+            left = (nw - WIDTH) // 2
+            top = (nh - hero_h) // 2
+            hero = scaled.crop((left, top, left + WIDTH, top + hero_h))
+            canvas.paste(hero, (0, 0))
+        except Exception:
+            pass
+    # 启动器 key art 只做轻蒙版，让画面清晰可见；底部渐暗融入命令面板
+    for y in range(hero_h):
+        alpha = int(46 + 56 * (y / max(1, hero_h - 1)))
+        od.line([(0, y), (WIDTH, y)], fill=(6, 10, 18, alpha))
+    od.rectangle([0, hero_h, WIDTH, height], fill=(10, 13, 20, 238))
+    canvas = Image.alpha_composite(canvas, overlay)
+    return canvas
+
+
+def _scene_canvas(background, height: int) -> "Image.Image":
+    """游戏任务场景铺底 + 深色蒙版，保证表格文字清晰。"""
+    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     if background is None:
-        return _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+        return image
     try:
         bw, bh = background.size
         scale = max(WIDTH / float(bw), height / float(bh))
@@ -1581,27 +1657,33 @@ def _help_canvas(background, height: int) -> "Image.Image":
         scaled = background.resize((nw, nh), Image.LANCZOS).convert("RGBA")
         left = (nw - WIDTH) // 2
         top = (nh - height) // 2
-        canvas = scaled.crop((left, top, left + WIDTH, top + height))
+        image = scaled.crop((left, top, left + WIDTH, top + height))
     except Exception:
         return _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    # 上暗下稍亮的深色蒙版，保证文字对比度同时隐约透出游戏 key art
     veil = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
-    vd = ImageDraw.Draw(veil)
+    vd = ImageDraw.Draw(veil, "RGBA")
     for y in range(height):
-        alpha = int(178 - 52 * (y / max(1, height - 1)))
-        vd.line([(0, y), (WIDTH, y)], fill=(9, 12, 20, alpha))
-    canvas.alpha_composite(veil)
-    return canvas
+        alpha = int(168 - 28 * (y / max(1, height - 1)))
+        vd.line([(0, y), (WIDTH, y)], fill=(8, 11, 18, alpha))
+    return Image.alpha_composite(image, veil)
 
 
-def help_card(prefix: str = "#", disabled=(), background=None) -> bytes:
-    """帮助菜单卡片。
+def _help_emblem(draw, cx: int, cy: int, color) -> None:
+    """启动器中央的简化 Tenno 徽记（三层折线）。"""
+    for index, (half, rise) in enumerate(((44, 34), (30, 24), (17, 14))):
+        points = [(cx - half, cy - rise // 2), (cx, cy + rise),
+                  (cx + half, cy - rise // 2), (cx + half - 9, cy - rise // 2 - 8),
+                  (cx, cy + rise - 15), (cx - half + 9, cy - rise // 2 - 8)]
+        shade = tuple(int(c * (0.9 - index * 0.08)) for c in color) + (230,)
+        draw.polygon(points, fill=shade)
 
-    background: PIL.Image 官方 key art（可选）。传入时铺底并叠暗色蒙版；
-    未传入或渲染失败时降级为纯色渐变卡片。
 
-    半透明元素先画到独立 overlay，再 alpha_composite 到底图，最后画文字——
-    避免低版本 Pillow 在 RGBA 画布上直接写半透明色导致不混合的问题。
+def help_card(prefix: str = "#", disabled=(), background=None,
+              hero_title: str = "") -> bytes:
+    """Warframe 启动器风格的帮助菜单卡片。
+
+    background: 官方 key art（可选），铺在启动器主视觉区；
+    hero_title: 启动器主视觉副标题，通常取当前新闻标题，随游戏更新变化。
     """
     groups = _help_groups(prefix)
     disabled = set(disabled or ())
@@ -1622,35 +1704,83 @@ def help_card(prefix: str = "#", disabled=(), background=None) -> bytes:
         if kept:
             filtered.append((name, color, kept))
 
-    HEADER_H = 118
+    HERO_H = 420
+    PANEL_HEAD = 100
     SECTION_H = 40
     ROW_H = 36
     GROUP_GAP = 14
     content_h = sum(SECTION_H + len(rows) * ROW_H + GROUP_GAP
                     for _, _, rows in filtered)
-    height = max(700, HEADER_H + content_h + 76)
+    height = HERO_H + PANEL_HEAD + content_h + 76
 
-    canvas = _help_canvas(background, height)
-    draw = ImageDraw.Draw(canvas)
+    canvas = _help_canvas(background, height, HERO_H)
     overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay, "RGBA")
 
-    draw.rectangle([0, 0, WIDTH, 5], fill=GOLD)
-    title_font = _font(34, bold=True)
-    draw.text((PAD, 22), "Warframe 查询机器人", font=title_font, fill=TEXT)
-    draw.text((PAD, 68), "命令可直接发送，不需要 # 前缀或 @ 机器人",
-              font=_font(15), fill=MUTED)
+    # ---- 启动器顶栏 ----
+    od.rectangle([0, 0, WIDTH, 40], fill=(7, 9, 14, 226))
+    od.line([(0, 40), (WIDTH, 40)], fill=(255, 255, 255, 34), width=1)
+    tab_font = _font(14)
+    tabs = ["最新动态", "PRIME ACCESS", "版本说明"]
+    tab_x = [WIDTH // 2 - 205, WIDTH // 2 - 68, WIDTH // 2 + 140]
+    tab_layout = []
+    for index, tab in enumerate(tabs):
+        od.polygon([(tab_x[index] - 14, 0), (tab_x[index] + 112, 0),
+                    (tab_x[index] + 100, 40), (tab_x[index] - 26, 40)],
+                   fill=(255, 255, 255, 24) if index == 0 else (0, 0, 0, 0))
+        tab_layout.append((tab_x[index], tab, index == 0))
+    od.line([(tab_x[0] - 20, 39), (tab_x[0] + 104, 39)],
+            fill=(255, 255, 255, 220), width=2)
 
+    # ---- 启动器主视觉 ----
+    draw = ImageDraw.Draw(canvas)
+    for tx, tab, active in tab_layout:
+        draw.text((tx, 11), tab, font=tab_font,
+                  fill=(236, 240, 248) if active else (168, 180, 198))
+    draw.text((WIDTH - PAD - 86, 12), "简体中文 ▾", font=_font(13),
+              fill=(186, 198, 214))
+    _help_emblem(draw, WIDTH // 2, 116, (226, 238, 250))
+    logo_font = _font(58, bold=True)
+    logo = "WARFRAME"
+    lw, _ = _tsize(draw, logo, logo_font)
+    draw.text(((WIDTH - lw) // 2, 154), logo, font=logo_font,
+              fill=(245, 248, 253))
+    theme = (hero_title or "帮助中心").strip()
+    subtitle_font = _font(19)
+    tw, _ = _tsize(draw, theme, subtitle_font)
+    draw.text(((WIDTH - tw) // 2, 234), theme, font=subtitle_font,
+              fill=(218, 228, 240))
+    draw.line([(WIDTH // 2 - 150, 272), (WIDTH // 2 + 150, 272)],
+              fill=(255, 255, 255, 120), width=1)
+    draw.text((PAD, HERO_H - 52), "检查新内容……", font=_font(14),
+              fill=(220, 228, 238))
+    # 开始游戏按钮：启动器标志性红色斜切按钮
+    bx, by, bw, bh = WIDTH - PAD - 178, HERO_H - 66, 178, 50
+    od.polygon([(bx + 16, by), (bx + bw, by), (bx + bw - 16, by + bh), (bx, by + bh)],
+               fill=(190, 58, 55, 232))
+    btn_font = _font(19, bold=True)
+    btxt = "开始游戏"
+    btw, bth = _tsize(draw, btxt, btn_font)
+    draw.text((bx + (bw - btw) // 2, by + (bh - bth) // 2 - 2), btxt,
+              font=btn_font, fill=(255, 255, 255))
+
+    # ---- 命令面板 ----
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle([PAD, HERO_H + 22, PAD + 5, HERO_H + 48], fill=GOLD)
+    draw.text((PAD + 18, HERO_H + 18), "命令一览", font=_font(22, bold=True),
+              fill=TEXT)
+    draw.text((PAD + 18, HERO_H + 52), "命令可直接发送，不需要 # 前缀或 @ 机器人",
+              font=_font(14), fill=MUTED)
     chip_text = "HELP"
     chip_font = _font(14, bold=True)
     cw, ch = _tsize(draw, chip_text, chip_font)
-    _rrect(od, (WIDTH - PAD - cw - 24, 28, WIDTH - PAD, 28 + ch + 14), 8,
-           fill=(235, 188, 96, 46), outline=GOLD + (210,), width=1)
-    draw.text((WIDTH - PAD - cw - 12, 33), chip_text,
+    _rrect(od, (WIDTH - PAD - cw - 24, HERO_H + 20, WIDTH - PAD,
+                HERO_H + 52 + ch), 8, fill=(235, 188, 96, 46),
+           outline=GOLD + (210,), width=1)
+    draw.text((WIDTH - PAD - cw - 12, HERO_H + 25), chip_text,
               font=chip_font, fill=GOLD)
-    draw.line([(PAD, 100), (WIDTH - PAD, 100)], fill=(150, 112, 44), width=1)
 
-    y = HEADER_H
+    y = HERO_H + PANEL_HEAD
     cmd_font = _font(17, bold=True)
     desc_font = _font(15)
     section_font = _font(16, bold=True)
@@ -1658,7 +1788,6 @@ def help_card(prefix: str = "#", disabled=(), background=None) -> bytes:
     cmd_w = int(usable * 1.1 / 3.25)
     desc_x = PAD + cmd_w
 
-    # 先记录所有行位置，画到 overlay；文字位置留到合成后画
     row_layout = []
     for name, color, rows in filtered:
         draw.rectangle([PAD, y, PAD + 5, y + 24], fill=color)
@@ -1667,7 +1796,6 @@ def help_card(prefix: str = "#", disabled=(), background=None) -> bytes:
         draw.line([(PAD + 24 + tw, y + 12), (WIDTH - PAD, y + 12)],
                   fill=tuple(int(c * 0.42) for c in color), width=1)
         y += SECTION_H
-
         for index, (cmd, desc) in enumerate(rows):
             if index % 2 == 0:
                 _rrect(od, (PAD - 8, y - 4, WIDTH - PAD + 8, y + ROW_H - 6), 7,
@@ -1676,7 +1804,6 @@ def help_card(prefix: str = "#", disabled=(), background=None) -> bytes:
             y += ROW_H
         y += GROUP_GAP
 
-    # overlay 合成到底图，再画所有文字，保证文字永远在最上层
     canvas = Image.alpha_composite(canvas, overlay)
     draw = ImageDraw.Draw(canvas)
     for y, cmd, desc in row_layout:
@@ -1827,7 +1954,8 @@ def build_table(title: str, subtitle: str, headers: Sequence[str],
                 highlights: Optional[Sequence[Sequence[Optional[tuple]]]] = None,
                 bold_last_row: bool = False,
                 ratios: Optional[Sequence[float]] = None,
-                aligns: Optional[Sequence[str]] = None) -> bytes:
+                aligns: Optional[Sequence[str]] = None,
+                background=None) -> bytes:
     """简化接口：rows 为纯字符串，highlights 可指定每格颜色。"""
     if ratios:
         column_ratios = list(ratios)
@@ -1846,7 +1974,8 @@ def build_table(title: str, subtitle: str, headers: Sequence[str],
             cells.append(Cell(text, color=color, bold=bold))
         cells_rows.append(cells)
     return table_card(title, subtitle, list(zip(headers, column_ratios)), cells_rows,
-                      footer, accent=accent, chip=chip, note=note, aligns=aligns)
+                      footer, accent=accent, chip=chip, note=note, aligns=aligns,
+                      background=background)
 
 
 def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],

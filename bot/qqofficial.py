@@ -531,6 +531,35 @@ class QQOfficialClient:
                 path, err, data.get("message") or ""))
         return data
 
+    def _request_json(self, path: str, method: str,
+                      body: Dict[str, Any]) -> Dict[str, Any]:
+        url = self.api_base + path
+        try:
+            raw = self.http.request(
+                url, self._headers(), method=method,
+                body=json.dumps(body, ensure_ascii=False).encode("utf-8"))
+        except HttpError as exc:
+            raise QQOfficialError(_api_error_message(path, exc))
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw.decode("utf-8", "replace"))
+        except ValueError:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        err = data.get("err_code") or data.get("code")
+        if err and str(err) != "0":
+            raise QQOfficialError("%s 失败：%s %s" % (
+                path, err, data.get("message") or ""))
+        return data
+
+    def respond_interaction(self, interaction_id: str,
+                            code: int = 0) -> Dict[str, Any]:
+        """回应按钮点击，避免客户端一直 loading（3 秒内必须调用）。"""
+        path = "/interactions/%s" % quote(str(interaction_id), safe="")
+        return self._request_json(path, "PUT", {"code": int(code)})
+
     def _get(self, path: str) -> Dict[str, Any]:
         try:
             raw = self.http.get_json(self.api_base + path, self._headers())
@@ -550,22 +579,30 @@ class QQOfficialClient:
         return _CQ_AT_RE.sub(lambda m: "<@%s>" % m.group(1), str(message or ""))
 
     def send_group_text(self, group_id: Any, message: str,
-                        reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                        reply_ctx: Optional[Dict[str, Any]] = None,
+                        keyboard: Optional[Dict[str, Any]] = None
+                        ) -> Dict[str, Any]:
         body: Dict[str, Any] = {
             "msg_type": 0,
             "content": self._mentions(message),
         }
+        if keyboard:
+            body["keyboard"] = keyboard
         body.update(self._reply_fields(group_id, reply_ctx))
         result = self._post("/v2/groups/%s/messages" % quote(str(group_id), safe=""), body)
         self._log_event("out", "群 %s 文本：%s" % (group_id, str(message)[:50]))
         return result
 
     def send_private_text(self, user_id: Any, message: str,
-                          reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                          reply_ctx: Optional[Dict[str, Any]] = None,
+                          keyboard: Optional[Dict[str, Any]] = None
+                          ) -> Dict[str, Any]:
         body: Dict[str, Any] = {
             "msg_type": 0,
             "content": self._mentions(message),
         }
+        if keyboard:
+            body["keyboard"] = keyboard
         body.update(self._reply_fields(user_id, reply_ctx))
         result = self._post("/v2/users/%s/messages" % quote(str(user_id), safe=""), body)
         self._log_event("out", "私聊 %s 文本：%s" % (user_id, str(message)[:50]))
@@ -590,7 +627,8 @@ class QQOfficialClient:
 
     def _send_image(self, kind: str, chat_id: Any, png: bytes,
                     prefix: str = "",
-                    reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                    reply_ctx: Optional[Dict[str, Any]] = None,
+                    keyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         mention = self._mentions(prefix).strip()
         if mention:
             self.send_group_text(chat_id, mention, reply_ctx) if kind == "group" \
@@ -600,6 +638,8 @@ class QQOfficialClient:
             "msg_type": 7,
             "media": {"file_info": info},
         }
+        if keyboard:
+            body["keyboard"] = keyboard
         body.update(self._reply_fields(chat_id, reply_ctx))
         if kind == "group":
             path = "/v2/groups/%s/messages" % quote(str(chat_id), safe="")
@@ -611,13 +651,15 @@ class QQOfficialClient:
 
     def send_group_image(self, group_id: Any, png: bytes,
                          prefix: str = "",
-                         reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return self._send_image("group", group_id, png, prefix, reply_ctx)
+                         reply_ctx: Optional[Dict[str, Any]] = None,
+                         keyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        return self._send_image("group", group_id, png, prefix, reply_ctx, keyboard)
 
     def send_private_image(self, user_id: Any, png: bytes,
                            prefix: str = "",
-                           reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return self._send_image("private", user_id, png, prefix, reply_ctx)
+                           reply_ctx: Optional[Dict[str, Any]] = None,
+                           keyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        return self._send_image("private", user_id, png, prefix, reply_ctx, keyboard)
 
     def get_login_info(self) -> Dict[str, Any]:
         return self._get("/users/@me")

@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import helpbg
 from . import imagecard
+from . import keyboards
 from . import names
 from . import present
 from . import zh2en
@@ -305,6 +306,10 @@ class CommandRouter:
         self.help_background = helpbg.HelpBackground(
             config.get("helpbg", {}), http=ws_http, logger=self.log)
 
+        # wm 卡片按钮的临时上下文：只存 item/stats，30 分钟内有效
+        self._button_contexts: Dict[str, Dict] = {}
+        self._button_lock = __import__("threading").Lock()
+
     def _reload_commands(self) -> None:
         aliases = self.command_store.aliases()
         self.commands = dict(COMMANDS)
@@ -471,7 +476,9 @@ class CommandRouter:
             if command == "help":
                 return [present.help_reply(
                     ctx.prefix, self.disabled_commands,
-                    bg_provider=self._help_bg_provider)]
+                    bg_provider=self._help_bg_provider,
+                    title_provider=lambda: getattr(
+                        self.help_background, "latest_title", ""))]
             if command == "wiki":
                 return [self._wiki(argument, ctx)]
             if command == "translate":
@@ -700,8 +707,52 @@ class CommandRouter:
         except Exception as exc:  # pragma: no cover - 防御
             self.log.exception("行情查询异常 %s：%s", item.slug, exc)
 
+        token = self._store_button_context({
+            "item": item, "stats": stats, "platform": platform,
+            "price_only": price_only,
+        })
         return present.item_reply(item, sell, buy, stats, platform,
-                                  price_only=price_only)
+                                  price_only=price_only,
+                                  keyboard=keyboards.wm_keyboard(token))
+
+    def _store_button_context(self, payload: Dict) -> str:
+        token = __import__("uuid").uuid4().hex[:10]
+        with self._button_lock:
+            self._button_contexts[token] = {
+                "payload": payload, "at": time.time()}
+            if len(self._button_contexts) > 200:
+                cutoff = time.time() - 1800
+                for key in list(self._button_contexts):
+                    if self._button_contexts[key]["at"] < cutoff:
+                        self._button_contexts.pop(key, None)
+        return token
+
+    def _get_button_context(self, token: str) -> Optional[Dict]:
+        with self._button_lock:
+            entry = self._button_contexts.get(token)
+            if not entry or time.time() - entry["at"] > 1800:
+                return None
+            return dict(entry["payload"])
+
+    def handle_button(self, data: str, ctx) -> List[Reply]:
+        """处理消息按钮回调。data: a:命令 / wm:trend:token / wm:desc:token。"""
+        data = str(data or "")
+        if data.startswith("a:"):
+            command = data[2:].strip()
+            if not command:
+                return []
+            return self.handle(self.prefixes[0] + command, ctx)
+        if data.startswith("wm:trend:") or data.startswith("wm:desc:"):
+            kind, token = data.split(":", 2)[1], data.split(":", 2)[2]
+            payload = self._get_button_context(token)
+            if not payload:
+                return [present.error_reply("按钮已过期，请重新发送 wm 查询。")]
+            item = payload.get("item")
+            platform = payload.get("platform", "pc")
+            if kind == "trend":
+                return [present.price_trend_reply(item, payload.get("stats"), platform)]
+            return [present.item_desc_reply(item, platform)]
+        return []
 
     def _detail(self, item: Item) -> Item:
         try:
