@@ -546,7 +546,10 @@ class BotApp:
             raise ValueError("请填写目标群/用户 openid")
         if not text:
             raise ValueError("请填写测试文本")
-        self._check_test_target(target, str(self.self_id or ""))
+        # 机器人自身 ID 由网关鉴权后写入 qqbot.self_id，应用层 self_id 重启后可能为空
+        self_id = (str((self.qqbot.status().get("self_id") or "")) or
+                   str(self.self_id or ""))
+        self._check_test_target(target, self_id)
         if is_group:
             return self.qqbot.send_group_text(target, text)
         return self.qqbot.send_private_text(target, text)
