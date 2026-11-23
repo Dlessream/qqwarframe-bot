@@ -1620,7 +1620,7 @@ def _help_groups(prefix: str):
 
 
 def _help_canvas(background, height: int, hero_h: int) -> "Image.Image":
-    """启动器风格底图：上半区放官方 key art，下半区为深色命令面板。"""
+    """上半区只放官方 key art 原图（不加任何叠加元素），下半区为命令面板。"""
     canvas = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay, "RGBA")
@@ -1636,10 +1636,11 @@ def _help_canvas(background, height: int, hero_h: int) -> "Image.Image":
             canvas.paste(hero, (0, 0))
         except Exception:
             pass
-    # 启动器 key art 只做轻蒙版，让画面清晰可见；底部渐暗融入命令面板
-    for y in range(hero_h):
-        alpha = int(46 + 56 * (y / max(1, hero_h - 1)))
-        od.line([(0, y), (WIDTH, y)], fill=(6, 10, 18, alpha))
+    # 仅底部一条极淡渐变融入面板，主画面保持原图无遮挡
+    fade_start = max(0, hero_h - 28)
+    for y in range(fade_start, hero_h):
+        alpha = int(60 * (y - fade_start) / max(1, hero_h - fade_start - 1))
+        od.line([(0, y), (WIDTH, y)], fill=(8, 11, 18, alpha))
     od.rectangle([0, hero_h, WIDTH, height], fill=(10, 13, 20, 238))
     canvas = Image.alpha_composite(canvas, overlay)
     return canvas
@@ -1717,52 +1718,8 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay, "RGBA")
 
-    # ---- 启动器顶栏 ----
-    od.rectangle([0, 0, WIDTH, 40], fill=(7, 9, 14, 226))
-    od.line([(0, 40), (WIDTH, 40)], fill=(255, 255, 255, 34), width=1)
-    tab_font = _font(14)
-    tabs = ["最新动态", "PRIME ACCESS", "版本说明"]
-    tab_x = [WIDTH // 2 - 205, WIDTH // 2 - 68, WIDTH // 2 + 140]
-    tab_layout = []
-    for index, tab in enumerate(tabs):
-        od.polygon([(tab_x[index] - 14, 0), (tab_x[index] + 112, 0),
-                    (tab_x[index] + 100, 40), (tab_x[index] - 26, 40)],
-                   fill=(255, 255, 255, 24) if index == 0 else (0, 0, 0, 0))
-        tab_layout.append((tab_x[index], tab, index == 0))
-    od.line([(tab_x[0] - 20, 39), (tab_x[0] + 104, 39)],
-            fill=(255, 255, 255, 220), width=2)
-
-    # ---- 启动器主视觉 ----
+    # ---- 顶部只保留官方 key art 原图，不叠加任何启动器元素 ----
     draw = ImageDraw.Draw(canvas)
-    for tx, tab, active in tab_layout:
-        draw.text((tx, 11), tab, font=tab_font,
-                  fill=(236, 240, 248) if active else (168, 180, 198))
-    draw.text((WIDTH - PAD - 86, 12), "简体中文 ▾", font=_font(13),
-              fill=(186, 198, 214))
-    _help_emblem(draw, WIDTH // 2, 116, (226, 238, 250))
-    logo_font = _font(58, bold=True)
-    logo = "WARFRAME"
-    lw, _ = _tsize(draw, logo, logo_font)
-    draw.text(((WIDTH - lw) // 2, 154), logo, font=logo_font,
-              fill=(245, 248, 253))
-    theme = (hero_title or "帮助中心").strip()
-    subtitle_font = _font(19)
-    tw, _ = _tsize(draw, theme, subtitle_font)
-    draw.text(((WIDTH - tw) // 2, 234), theme, font=subtitle_font,
-              fill=(218, 228, 240))
-    draw.line([(WIDTH // 2 - 150, 272), (WIDTH // 2 + 150, 272)],
-              fill=(255, 255, 255, 120), width=1)
-    draw.text((PAD, HERO_H - 52), "检查新内容……", font=_font(14),
-              fill=(220, 228, 238))
-    # 开始游戏按钮：启动器标志性红色斜切按钮
-    bx, by, bw, bh = WIDTH - PAD - 178, HERO_H - 66, 178, 50
-    od.polygon([(bx + 16, by), (bx + bw, by), (bx + bw - 16, by + bh), (bx, by + bh)],
-               fill=(190, 58, 55, 232))
-    btn_font = _font(19, bold=True)
-    btxt = "开始游戏"
-    btw, bth = _tsize(draw, btxt, btn_font)
-    draw.text((bx + (bw - btw) // 2, by + (bh - bth) // 2 - 2), btxt,
-              font=btn_font, fill=(255, 255, 255))
 
     # ---- 命令面板 ----
     draw = ImageDraw.Draw(canvas)

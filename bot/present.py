@@ -7,8 +7,8 @@ import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import (autotrans, baronames, bounties, bountyrewards, bountystatic,
-               conquest, imagecard, keyboards, missioncolors, render, scenebg,
-               subkind, terms)
+               conquest, imagecard, keyboards, missioncolors, nodeboard, render,
+               scenebg, subkind, terms)
 from . import names as names_db
 from .alerts import Alert
 from .market import Item, MarketStats, Order, PartQuote, SearchHit
@@ -596,7 +596,7 @@ def _format_int(value) -> str:
 def _world_reply(title: str, subtitle: str, headers, rows,
                  footer: str, chip: str, text_lines=None,
                  ratios=None, accent=None, note: str = "",
-                 scene: str = "") -> Reply:
+                 scene: str = "", node_entries=None) -> Reply:
     if text_lines is None:
         text_lines = [" / ".join(str(cell) for cell in row) for row in rows]
     text = "【%s】\n%s" % (title, subtitle)
@@ -604,13 +604,20 @@ def _world_reply(title: str, subtitle: str, headers, rows,
         text += "\n" + "\n".join(text_lines)
     if note:
         text += "\n" + note
-    return Reply(
-        text=text,
-        image=lambda: imagecard.build_table(
+    entries = list(node_entries) if node_entries else None
+
+    def _image():
+        if entries:
+            board = nodeboard.render(entries, scene or "fissure")
+            if board:
+                return board
+        return imagecard.build_table(
             title, subtitle, list(headers), rows, footer,
             accent=accent or imagecard.GREEN, chip=chip, note=note,
             ratios=ratios or [max(1.0, 6.0 / len(headers))] * len(headers),
-            background=scenebg.scene_image(scene) if scene else None))
+            background=scenebg.scene_image(scene) if scene else None)
+
+    return Reply(text=text, image=_image)
 
 
 def alerts_reply(raw) -> Reply:
@@ -1041,15 +1048,25 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 �
     rows = []
     highlights = []
     lines = []
+    node_entries = []
     for start, end, node, tier in entries[:24]:
         when = time.strftime("%m-%d %H:%M", time.localtime(start))
         left = countdown(end)
-        rows.append([when, left, node.display_name,
-                     _arbi_mission(node.mission), tier])
+        mission_cn = _arbi_mission(node.mission)
+        rows.append([when, left, node.display_name, mission_cn, tier])
         lines.append("%s（%s）%s · %s · %s" % (
-            when, left, node.display_name, _arbi_mission(node.mission), tier))
+            when, left, node.display_name, mission_cn, tier))
         color = _rating_color(tier)
         highlights.append([None, None, None, None, color])
+        faction_cn = terms.localize_faction(str(getattr(node, "faction", "") or ""))
+        node_entries.append({
+            "node": node.display_name, "mission": mission_cn,
+            "tier": "评级 %s" % tier if tier else "",
+            "faction": str(getattr(node, "faction", "") or ""),
+            "faction_cn": faction_cn,
+            "level": str(getattr(node, "level_text", "") or ""),
+            "remaining": left,
+        })
     if not rows:
         return Reply(text=empty or "未来 24 小时没有仲裁。")
     reply = _world_reply(
@@ -1057,7 +1074,8 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 �
         ["时间", "剩余", "节点", "任务", "评级"], rows,
         "数据 arbi.wf.wiki · 轮换表", "仲裁",
         text_lines=lines, ratios=[1.0, 0.8, 1.6, 0.9, 0.5],
-        accent=imagecard.GOLD, note="时间按本机时区显示。", scene="arbitration")
+        accent=imagecard.GOLD, note="时间按本机时区显示。", scene="arbitration",
+        node_entries=node_entries)
     reply.keyboard = keyboards.arbitration_keyboard()
     return reply
 
@@ -1265,15 +1283,25 @@ def storms_reply(raw) -> Reply:
         parse_timestamp(item.get("expiry"))))
     rows = []
     lines = []
+    node_entries = []
     for item in items:
         tier = terms.localize_relic_tier(str(item.get("tier") or "—"))
         mission = terms.localize_storm_mission(
             str(item.get("missionType") or "—"))
         node = terms.localize_storm_node(str(item.get("node") or "—"))
         enemy = terms.localize_storm_enemy(str(item.get("enemy") or "—"))
-        rows.append([tier, mission, node, enemy,
-                     countdown(parse_timestamp(item.get("expiry")))])
+        remain = countdown(parse_timestamp(item.get("expiry")))
+        rows.append([tier, mission, node, enemy, remain])
         lines.append("%s / %s / %s / %s" % (tier, mission, node, enemy))
+        tier_num = str(item.get("tierNum") or "")
+        tier_label = ("%s遗物 · T%s" % (tier, tier_num)
+                      if tier_num and tier and tier != "—"
+                      else ("%s遗物" % tier if tier and tier != "—" else ""))
+        node_entries.append({
+            "node": node, "mission": mission, "tier": tier_label,
+            "faction": str(item.get("enemy") or ""), "faction_cn": enemy,
+            "remaining": remain,
+        })
     if not rows:
         return _world_reply("虚空风暴", "当前没有活跃的风暴裂缝", [], [],
                             "数据 世界状态聚合源", "风暴")
@@ -1282,7 +1310,8 @@ def storms_reply(raw) -> Reply:
         ["遗物", "任务", "节点", "敌人", "剩余"], rows,
         "数据 世界状态聚合源 · 虚空风暴", "风暴",
         text_lines=lines, ratios=[0.7, 0.8, 2.8, 0.6, 0.8],
-        accent=imagecard.CYAN, scene="railjack")
+        accent=imagecard.CYAN, scene="railjack",
+        node_entries=node_entries)
 
 
 def fissures_reply(raw, hard: bool = False) -> Reply:
@@ -1296,14 +1325,30 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
         items = [item for item in _as_list(raw)
                  if not item.get("isHard") and not item.get("isStorm")
                  and parse_timestamp(item.get("expiry")) > now]
+    node_entries = []
     for row in items:
-        rows.append([
-            terms.localize_node(str(row.get("node") or "—")),
-            terms.localize_mission(str(row.get("missionType") or "—")),
-            terms.localize_relic_tier(str(row.get("tier") or "—")),
-            terms.localize_faction(str(row.get("enemy") or "—")),
-            countdown(parse_timestamp(row.get("expiry"))),
-        ])
+        enemy_raw = str(row.get("enemy") or "—")
+        node_cn = terms.localize_node(str(row.get("node") or "—"))
+        mission_cn = terms.localize_mission(str(row.get("missionType") or "—"))
+        tier_cn = terms.localize_relic_tier(str(row.get("tier") or "—"))
+        faction_cn = terms.localize_faction(enemy_raw)
+        remain = countdown(parse_timestamp(row.get("expiry")))
+        rows.append([node_cn, mission_cn, tier_cn, faction_cn, remain])
+        # 遗物等级带 T 编号：古纪T1 / 前纪T2 / 中纪T3 / 后纪T4
+        tier_num = {"古纪": "T1", "前纪": "T2", "中纪": "T3", "后纪": "T4",
+                    "安魂": "T5", "全能": "T6"}.get(tier_cn, "")
+        tier_label = ("%s遗物 · %s" % (tier_cn, tier_num)
+                      if tier_num else ("%s遗物" % tier_cn
+                                        if tier_cn and tier_cn != "—" else ""))
+        node_entries.append({
+            "node": node_cn,
+            "mission": mission_cn,
+            "tier": tier_label,
+            "faction": enemy_raw,
+            "faction_cn": faction_cn,
+            "remaining": remain,
+            "steel": hard,
+        })
     title = "钢铁裂缝" if hard else "裂缝"
     source = ("数据 Warframe 官方 · 世界状态"
               if any(row.get("source") == "official" for row in items)
@@ -1313,7 +1358,8 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
             len(items), "钢铁之路" if hard else ""),
         ["节点", "任务", "等级", "敌人", "剩余"], rows,
         source, title,
-        ratios=[1.7, 1.0, 0.7, 0.9, 0.9], scene="fissure")
+        ratios=[1.7, 1.0, 0.7, 0.9, 0.9], scene="fissure",
+        node_entries=node_entries)
 
 
 BOUNTY_LOCATIONS = {
