@@ -207,14 +207,23 @@ class HelpBackground:
     # ------------------------------------------------------------------ 对外
     def get(self, news: Any) -> Optional[Any]:
         """返回当前新闻对应的背景 PIL.Image；拿不到时返回 None。"""
+        fallback = ""
+        for item in _as_list(news):
+            if not isinstance(item, dict):
+                continue
+            translations = item.get("translations") or {}
+            zh = str(translations.get("zh") or "").strip() \
+                if isinstance(translations, dict) else ""
+            message = str(item.get("title") or item.get("message") or "").strip()
+            if not fallback:
+                fallback = message
+            if zh:
+                fallback = zh
+                break
+        if fallback:
+            self.latest_title = fallback
         if not self.enabled or not PIL_AVAILABLE:
             return None
-        for item in _as_list(news):
-            if isinstance(item, dict):
-                title = str(item.get("title") or "").strip()
-                if title:
-                    self.latest_title = title
-                    break
         key = background_key(news)
         if not key:
             return None
