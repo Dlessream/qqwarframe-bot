@@ -55,8 +55,8 @@
           <div class="metric"><span id="uptime">—</span><small>运行时长</small></div>
           <div class="metric"><span id="version">—</span><small>版本</small></div>
         </div>
-        <div class="kv"><span>OneBot</span><b id="wsState">—</b></div>
-        <div class="kv"><span>服务地址</span><b id="wsUrl" class="mono">—</b></div>
+        <div class="kv"><span>官方机器人</span><b id="wsState">—</b></div>
+        <div class="kv"><span>AppID / 连接方式</span><b id="wsUrl" class="mono">—</b></div>
       </article>
 
       <article class="card">
@@ -111,6 +111,149 @@
         <div class="kv"><span>上次检查</span><b id="lastChecked">—</b></div>
         <div class="kv"><span>状态</span><b id="updateState">—</b></div>
       </article>
+    </section>
+
+    <section class="panel qqbot-panel">
+      <div class="panel-head">
+        <div>
+          <span class="card-label">QQ 官方机器人</span>
+          <span class="panel-sub">群聊默认只收 @ 消息；若要裸词唤醒需群主开启「接收全部消息」。主动推送需群主开启「允许主动发送」。</span>
+        </div>
+        <div class="panel-actions">
+          <button id="qqbotConfigRefresh" class="btn btn-ghost btn-sm" type="button">刷新配置</button>
+          <button id="qqbotConfigSave" class="btn btn-primary btn-sm" type="button">保存配置</button>
+        </div>
+      </div>
+
+      <div class="source-strip">
+        <span id="qqbotConfigInfo">正在读取官方机器人配置…</span>
+        <span id="qqbotStatusChip" class="source-count"></span>
+      </div>
+      <div class="groups-grid">
+        <div class="kv"><span>连接方式</span><b id="qqbotStatusTransport">—</b></div>
+        <div class="kv"><span>连接状态</span><b id="qqbotStatusConnected">—</b></div>
+        <div class="kv"><span>AppID</span><b id="qqbotStatusAppId">—</b></div>
+        <div class="kv"><span>机器人 ID</span><b id="qqbotStatusSelfId">—</b></div>
+        <div class="kv"><span>回调地址</span><b id="qqbotStatusCallback" class="mono">—</b></div>
+        <div class="kv"><span>最近错误</span><b id="qqbotStatusLastError">—</b></div>
+      </div>
+
+      <div class="groups-grid qqbot-config-form">
+        <label class="field">
+          <span>连接方式</span>
+          <select id="qqbotTransport" class="input">
+            <option value="websocket">WebSocket 反向连接</option>
+            <option value="webhook">Webhook 正向回调</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>环境</span>
+          <select id="qqbotEnv" class="input">
+            <option value="prod">正式</option>
+            <option value="sandbox">沙箱</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>AppID</span>
+          <input id="qqbotAppId" class="input" type="text" autocomplete="off" placeholder="1020000000">
+        </label>
+        <label class="field">
+          <span>AppSecret <small>留空表示不修改</small></span>
+          <input id="qqbotAppSecret" class="input" type="password" autocomplete="new-password" placeholder="留空表示不修改">
+        </label>
+        <label class="field">
+          <span>回调路径</span>
+          <input id="qqbotCallbackPath" class="input" type="text" autocomplete="off" placeholder="/qq/callback">
+        </label>
+        <label class="field">
+          <span>机器人自身 ID <small>可选，留空自动获取</small></span>
+          <input id="qqbotSelfId" class="input" type="text" autocomplete="off" placeholder="留空自动获取">
+        </label>
+        <label class="field">
+          <span>Intents</span>
+          <input id="qqbotIntents" class="input" type="number" min="0" step="1" placeholder="33554432">
+        </label>
+        <label class="field">
+          <span>代理</span>
+          <input id="qqbotProxy" class="input" type="text" autocomplete="off" placeholder="none">
+        </label>
+        <label class="field">
+          <span>重连最小秒数</span>
+          <input id="qqbotReconnectMin" class="input" type="number" min="1" step="1" placeholder="1">
+        </label>
+        <label class="field">
+          <span>重连最大秒数</span>
+          <input id="qqbotReconnectMax" class="input" type="number" min="1" step="1" placeholder="60">
+        </label>
+        <label class="field">
+          <span>启用</span>
+          <input id="qqbotEnabled" type="checkbox" checked style="margin-top:6px;">
+        </label>
+      </div>
+
+      <div class="qqbot-tools">
+        <div class="panel-head">
+          <div>
+            <span class="card-label">回调调试</span>
+            <span class="panel-sub">粘贴官方事件 JSON，解析归一化结果与识别到的命令</span>
+          </div>
+          <button id="qqbotDebugBtn" class="btn btn-ghost btn-sm" type="button">解析事件</button>
+        </div>
+        <div class="groups-grid" style="padding-bottom:14px;">
+          <label class="field" style="grid-column:1 / -1;">
+            <span>官方事件 JSON</span>
+            <textarea id="qqbotDebugPayload" class="textarea" rows="8" spellcheck="false">{
+  "id": "EVENT_ID",
+  "type": "GROUP_AT_MESSAGE_CREATE",
+  "author": {
+    "id": "123456789",
+    "username": "测试用户"
+  },
+  "group_openid": "GROUP_OPENID",
+  "content": "@机器人 查价 战甲"
+}</textarea>
+          </label>
+        </div>
+        <pre id="qqbotDebugResult" class="logs" style="min-height:120px;">（解析结果会显示在这里）</pre>
+      </div>
+
+      <div class="qqbot-tools">
+        <div class="panel-head">
+          <div>
+            <span class="card-label">发送测试</span>
+            <span class="panel-sub">向指定群或用户发送一条测试消息</span>
+          </div>
+          <button id="qqbotTestSend" class="btn btn-primary btn-sm" type="button">发送测试</button>
+        </div>
+        <div class="groups-grid" style="padding-bottom:18px;">
+          <label class="field">
+            <span>目标类型</span>
+            <select id="qqbotTestTargetType" class="input">
+              <option value="group">群聊</option>
+              <option value="private">私聊</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>目标 openid</span>
+            <input id="qqbotTestTarget" class="input" type="text" autocomplete="off" placeholder="群 / 用户 openid">
+          </label>
+          <label class="field" style="grid-column:1 / -1;">
+            <span>测试消息</span>
+            <input id="qqbotTestText" class="input" type="text" autocomplete="off" placeholder="测试消息">
+          </label>
+        </div>
+      </div>
+
+      <div class="qqbot-tools">
+        <div class="panel-head">
+          <div>
+            <span class="card-label">事件日志</span>
+            <span class="panel-sub">最近事件（倒序）· 点「刷新事件」更新</span>
+          </div>
+          <button id="qqbotEventsRefresh" class="btn btn-ghost btn-sm" type="button">刷新事件</button>
+        </div>
+        <pre id="qqbotEvents" class="logs" style="min-height:120px;">正在读取事件…</pre>
+      </div>
     </section>
 
     <section class="panel groups-panel">
@@ -404,6 +547,6 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

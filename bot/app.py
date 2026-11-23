@@ -27,7 +27,8 @@ from .database import DatabaseService
 from .market import COMPONENT_LABELS, Item, MarketClient, MarketError
 from . import mod_names_zh
 from .net import HttpClient, HttpError
-from .onebot import OneBotClient, OneBotError, escape_cq
+from .qqevent import to_onebot_event
+from .qqofficial import QQOfficialClient, QQOfficialError
 from .replies import Reply
 from .render import chunk_text
 from .riven import RivenClient
@@ -45,6 +46,9 @@ LOGGER = logging.getLogger("qqwarframe.app")
 # 群策略模式：whitelist = 只服务白名单（白名单为空则谁都不服务，默认）
 #             blacklist = 除黑名单外都服务
 GROUP_POLICY_MODES = ("whitelist", "blacklist")
+
+# 官方机器人拿到的是 group_openid（十六进制串），旧的个人号群号仍兼容
+GROUP_ID_RE = r"(?:\d{5,20}|[0-9A-Fa-f]{16,64})"
 
 GROUP_POLICY_REASONS = {
     "blacklist": "在黑名单里",
@@ -124,7 +128,9 @@ class BotApp:
         self.behavior = config.get("behavior", {})
         self.allow_bare = not bool(self.behavior.get("require_prefix", False))
         self.prefixes: List[str] = list(self.behavior.get("prefixes") or ["#"])
-        self.self_id = ""
+        # 官方 bot 的「群号 / 用户号」都是 openid，self_id 由配置或 READY 事件给出
+        self.self_id = str(config.get("qqbot", {}).get("self_id") or "")
+        self._qq_events: Deque[Dict[str, Any]] = collections.deque(maxlen=100)
         self._stop = threading.Event()
         self.reply_timeout = max(3.0, min(15.0, float(
             self.behavior.get("response_timeout_seconds", 9) or 9)))
@@ -227,7 +233,9 @@ class BotApp:
                 local_file=config.get("relics", {}).get(
                     "local_file", "data/relics_local.json"),
                 logger=self.log))
-        self.onebot = OneBotClient(config.get("onebot", {}), self.on_event, logger=self.log)
+        self.qqbot = QQOfficialClient(config.get("qqbot", {}), self.on_event,
+                                      logger=self.log)
+        self.qqbot.event_log = self._qqbot_event
         self.image_http = HttpClient(timeout=15, retries=0, proxy="none",
                                      logger=self.log)
         self.image_proxy_http = HttpClient(
@@ -294,7 +302,7 @@ class BotApp:
     def run(self) -> None:
         self.start()
         try:
-            self.onebot.run_forever(self._stop)
+            self.qqbot.run_forever(self._stop)
         finally:
             self.stop()
 
@@ -308,7 +316,7 @@ class BotApp:
             self.board.stop()
         if self.rotation is not None:
             self.rotation.stop()
-        self.onebot.close()
+        self.qqbot.close()
         self._command_pool.shutdown(wait=False)
         self.log.info("机器人已停止")
 
@@ -339,10 +347,7 @@ class BotApp:
         return {
             "version": __version__,
             "uptime": max(0.0, time.time() - self.started_at),
-            "onebot": {
-                "connected": self.onebot.connected,
-                "url": getattr(self.onebot, "url", ""),
-            },
+            "qqbot": self.qqbot.status(),
             "image": self.image_enabled,
             "font": imagecard.available(),
             "market": {
@@ -375,6 +380,165 @@ class BotApp:
                 "port": self.web_server.actual_port,
             },
         }
+
+    # ------------------------------------------------------------------ QQ 官方机器人
+    def _qqbot_event(self, kind: str, summary: str, ok: bool = True,
+                     error: str = "") -> None:
+        self._qq_events.appendleft({
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "type": kind,
+            "summary": str(summary or "")[:300],
+            "ok": bool(ok),
+            "error": str(error or "")[:300],
+        })
+
+    def qqbot_events(self) -> List[Dict[str, Any]]:
+        return list(self._qq_events)
+
+    def qqbot_snapshot(self) -> Dict[str, Any]:
+        result = self.qqbot.status()
+        result["callback_url"] = self._web_url().rstrip("/") + self.qqbot.callback_path
+        return result
+
+    def qqbot_config_snapshot(self) -> Dict[str, Any]:
+        cfg = dict(self.cfg.get("qqbot", {}))
+        return {
+            "transport": cfg.get("transport", "websocket"),
+            "app_id": str(cfg.get("app_id") or ""),
+            "app_secret_masked": ("(已设置)" if cfg.get("app_secret") else ""),
+            "app_token": str(cfg.get("app_token") or ""),
+            "env": cfg.get("env", "prod"),
+            "api_base": str(cfg.get("api_base") or ""),
+            "gateway_url": str(cfg.get("gateway_url") or ""),
+            "callback_path": cfg.get("callback_path", "/qq/callback"),
+            "callback_url": self._web_url().rstrip("/") + str(
+                cfg.get("callback_path") or "/qq/callback"),
+            "self_id": str(cfg.get("self_id") or ""),
+            "intents": cfg.get("intents", 1 << 25),
+            "shard": cfg.get("shard") or [0, 1],
+            "proxy": cfg.get("proxy", "none"),
+            "enabled": bool(cfg.get("enabled", True)),
+            "reconnect_min_seconds": cfg.get("reconnect_min_seconds", 1),
+            "reconnect_max_seconds": cfg.get("reconnect_max_seconds", 60),
+        }
+
+    def save_qqbot_config(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """保存官方 bot 配置。AppSecret 传空字符串表示不修改。"""
+        if not isinstance(updates, dict):
+            raise ValueError("配置必须是 JSON 对象")
+        allowed = {
+            "enabled", "transport", "app_id", "app_secret", "app_token", "env",
+            "api_base", "gateway_url", "callback_path", "self_id", "intents",
+            "shard", "proxy", "api_timeout_seconds", "reconnect_min_seconds",
+            "reconnect_max_seconds", "heartbeat_timeout_seconds",
+            "signature_tolerance_seconds", "ws_token_template",
+        }
+        clean = {key: value for key, value in updates.items() if key in allowed}
+        if "app_secret" in clean and not str(clean["app_secret"] or "").strip():
+            clean.pop("app_secret")
+        if "app_id" in clean:
+            clean["app_id"] = str(clean["app_id"] or "").strip()
+        if "env" in clean and str(clean["env"]).lower() not in ("prod", "sandbox"):
+            raise ValueError("env 只能是 prod 或 sandbox")
+        if "transport" in clean and str(clean["transport"]).lower() not in (
+                "websocket", "webhook"):
+            raise ValueError("transport 只能是 websocket 或 webhook")
+        if "callback_path" in clean:
+            path = str(clean["callback_path"] or "").strip()
+            if not path.startswith("/"):
+                path = "/" + path
+            clean["callback_path"] = path
+        if "gateway_url" in clean:
+            url = str(clean["gateway_url"] or "").strip()
+            if url and not (url.startswith("ws://") or url.startswith("wss://")):
+                raise ValueError("gateway_url 必须以 ws:// 或 wss:// 开头")
+            clean["gateway_url"] = url
+        if "intents" in clean:
+            clean["intents"] = int(clean["intents"])
+        if not self.config_path:
+            raise ValueError("当前启动方式没有配置文件路径，无法保存配置。")
+        path = os.path.abspath(self.config_path)
+        if not os.path.isfile(path):
+            raise ValueError("找不到配置文件：%s" % path)
+        with self._config_lock:
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    data = json.load(handle)
+                if not isinstance(data, dict):
+                    raise ValueError("配置文件根节点不是 JSON 对象")
+                section = data.setdefault("qqbot", {})
+                section.update(clean)
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as handle:
+                    json.dump(data, handle, ensure_ascii=False, indent=2)
+                    handle.write("\n")
+                try:
+                    shutil.copymode(path, tmp)
+                except OSError:
+                    pass
+                os.replace(tmp, path)
+            except Exception as exc:
+                try:
+                    os.remove(path + ".tmp")
+                except OSError:
+                    pass
+                raise ValueError("保存配置失败：%s" % exc)
+
+        current = self.cfg.setdefault("qqbot", {})
+        current.update(clean)
+        # 不改连接方式的字段立即生效，避免每次改个 AppID 都要重启
+        live = self.qqbot
+        live.cfg.update(clean)
+        for key in ("app_id", "app_secret", "app_token"):
+            if key in clean:
+                setattr(live, key, str(clean[key] or ""))
+        live.tokens.app_id = live.app_id
+        live.tokens.app_secret = live.app_secret
+        if "self_id" in clean:
+            live.self_id = str(clean["self_id"] or live.app_id)
+            self.self_id = live.self_id
+        if "callback_path" in clean:
+            live.callback_path = str(clean["callback_path"])
+        if "env" in clean:
+            live.env = str(clean["env"])
+            if not str(current.get("api_base") or ""):
+                from .qqofficial import PROD_API, SANDBOX_API
+                live.api_base = SANDBOX_API if live.env == "sandbox" else PROD_API
+        if "intents" in clean:
+            live.intents = int(clean["intents"])
+        if "enabled" in clean:
+            live.enabled = bool(clean["enabled"])
+        self._qqbot_event("system", "QQ 官方机器人配置已保存")
+        return self.qqbot_config_snapshot()
+
+    def qqbot_debug(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """只做事件归一化与命令解析，不真的执行命令（网页调试用）。"""
+        if not isinstance(payload, dict):
+            raise ValueError("事件必须是 JSON 对象")
+        event = to_onebot_event(payload, self.self_id,
+                                str(self.cfg.get("qqbot", {}).get("app_id") or ""))
+        if event is None:
+            raise ValueError("不是支持的消息事件：%s" % payload.get("t") or "未知")
+        text = str(event.get("raw_message") or "").strip()
+        parsed = self.router.parse(text, allow_bare=self.allow_bare)
+        return {
+            "normalized": event,
+            "text": text,
+            "command": parsed[0] if parsed else "",
+            "argument": parsed[1] if parsed else "",
+            "is_group": event.get("message_type") == "group",
+        }
+
+    def send_qqbot_test(self, target: str, is_group: bool, text: str) -> Dict[str, Any]:
+        target = str(target or "").strip()
+        text = str(text or "").strip()
+        if not target:
+            raise ValueError("请填写目标群/用户 openid")
+        if not text:
+            raise ValueError("请填写测试文本")
+        if is_group:
+            return self.qqbot.send_group_text(target, text)
+        return self.qqbot.send_private_text(target, text)
 
     def _network_status(self) -> Dict[str, Any]:
         """各数据源当前实际在用哪条链路（控制台看网络适配结果）。"""
@@ -457,9 +621,9 @@ class BotApp:
                 if not self._group_allowed(target_group):
                     self.log.info("更新提示目标群 %s 被群策略拒绝，跳过", target_group)
                     return
-                self.onebot.send_group_text(target_group, text)
+                self.qqbot.send_group_text(target_group, text)
             elif target_user:
-                self.onebot.send_private_text(target_user, text)
+                self.qqbot.send_private_text(target_user, text)
         except Exception as exc:
             self.log.warning("发送更新提示失败：%s", exc)
 
@@ -472,6 +636,8 @@ class BotApp:
             return
 
         self.self_id = str(event.get("self_id") or self.self_id)
+        self.qqbot.remember_reply_context(event)
+        reply_ctx = self.qqbot.reply_context(event)
         user_id = str(event.get("user_id") or "")
         group_id = str(event.get("group_id") or "")
         if not user_id or (self.self_id and user_id == self.self_id):
@@ -529,7 +695,7 @@ class BotApp:
                 "查询出错了，请稍后再试。若持续失败，请运行 python selftest.py 自检。")]
 
         if replies:
-            self._reply(replies, is_group, group_id, user_id)
+            self._reply(replies, is_group, group_id, user_id, reply_ctx)
 
     def _group_lists(self) -> Tuple[set, set]:
         whitelist = {str(item).strip() for item in
@@ -650,7 +816,7 @@ class BotApp:
     def allow_group(self, group_id: str) -> Dict[str, Any]:
         """把一个群加进白名单（并从黑名单移除），用于控制台一键放行。"""
         group_id = str(group_id or "").strip()
-        if not re.fullmatch(r"\d{5,20}", group_id):
+        if not re.fullmatch(GROUP_ID_RE, group_id):
             raise ValueError("群号格式不对：%s" % group_id)
         whitelist, blacklist = self._group_lists()
         whitelist.add(group_id)
@@ -667,7 +833,7 @@ class BotApp:
     def deny_group(self, group_id: str) -> Dict[str, Any]:
         """把一个群踢进黑名单（同时从白名单移除）。"""
         group_id = str(group_id or "").strip()
-        if not re.fullmatch(r"\d{5,20}", group_id):
+        if not re.fullmatch(GROUP_ID_RE, group_id):
             raise ValueError("群号格式不对：%s" % group_id)
         whitelist, blacklist = self._group_lists()
         blacklist.add(group_id)
@@ -697,8 +863,8 @@ class BotApp:
             for item in re.split(r"[\s,，;；]+", str(raw or "").strip()):
                 if not item:
                     continue
-                if not re.fullmatch(r"\d{5,20}", item):
-                    raise ValueError("%s 含非法群号：%s" % (label, item))
+                if not re.fullmatch(GROUP_ID_RE, item):
+                    raise ValueError("%s 含非法群号/群 openid：%s" % (label, item))
                 if item not in result:
                     result.append(item)
         return sorted(result)
@@ -896,8 +1062,8 @@ class BotApp:
         if chat_type not in ("group", "private"):
             chat_type = "group"
         chat_id = str(chat_id or "").strip()
-        if not re.fullmatch(r"\d{5,20}", chat_id):
-            raise ValueError("会话号不对：%s（5–20 位数字）" % (chat_id or "空"))
+        if not re.fullmatch(GROUP_ID_RE, chat_id):
+            raise ValueError("会话号不对：%s（数字群号或 16–64 位 openid）" % (chat_id or "空"))
         return chat_type, chat_id
 
     def add_subscription(self, chat_type: str, chat_id: str, user: str,
@@ -1436,19 +1602,21 @@ class BotApp:
 
     # ------------------------------------------------------------------ 发送
     def _reply(self, replies: List[Reply], is_group: bool,
-               group_id: str, user_id: str) -> None:
+               group_id: str, user_id: str,
+               reply_ctx: Optional[Dict[str, Any]] = None) -> None:
         first = True
         for reply in replies:
             # 默认不 @ 提问的人（群里刷屏太吵），要打开就配 at_sender = true
             at_user = user_id if (is_group and first
                                   and self.behavior.get("at_sender", False)) else ""
             sent = self._deliver(is_group, group_id if is_group else user_id,
-                                 reply, at_user=at_user)
+                                 reply, at_user=at_user, reply_ctx=reply_ctx)
             if sent:
                 first = False
 
     def _deliver(self, is_group: bool, chat_id: str, reply: Reply,
-                 at_user: str = "") -> bool:
+                 at_user: str = "",
+                 reply_ctx: Optional[Dict[str, Any]] = None) -> bool:
         prefix = "[CQ:at,qq=%s] " % at_user if at_user else ""
         if self.image_enabled and reply.image is not None:
             try:
@@ -1459,11 +1627,11 @@ class BotApp:
             if png:
                 try:
                     if is_group:
-                        self.onebot.send_group_image(chat_id, png, prefix)
+                        self.qqbot.send_group_image(chat_id, png, prefix, reply_ctx)
                     else:
-                        self.onebot.send_private_image(chat_id, png, prefix)
+                        self.qqbot.send_private_image(chat_id, png, prefix, reply_ctx)
                     return True
-                except OneBotError as exc:
+                except QQOfficialError as exc:
                     self.log.warning("图片发送失败，回退文字：%s", exc)
 
         if not reply.text:
@@ -1472,17 +1640,18 @@ class BotApp:
         max_chars = int(self.behavior.get("max_reply_chars", 1200))
         chunks = chunk_text(reply.text, max_chars)
         for index, chunk in enumerate(chunks):
-            text = escape_cq(chunk)
+            # 官方 API 直接吃原文；CQ 码 at 由 qqofficial 层翻译成 <@openid>
+            text = chunk
             if len(chunks) > 1:
                 text = "(%d/%d) %s" % (index + 1, len(chunks), text)
             if prefix and index == 0:
                 text = prefix + text
             try:
                 if is_group:
-                    self.onebot.send_group_text(chat_id, text)
+                    self.qqbot.send_group_text(chat_id, text, reply_ctx)
                 else:
-                    self.onebot.send_private_text(chat_id, text)
-            except OneBotError as exc:
+                    self.qqbot.send_private_text(chat_id, text, reply_ctx)
+            except QQOfficialError as exc:
                 self.log.warning("发送消息失败：%s", exc)
                 return False
             if len(chunks) > 1:

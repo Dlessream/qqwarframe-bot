@@ -1,6 +1,6 @@
 # qqwarframe-db
 
-独立的只读 SQLite HTTP 服务，不依赖 QQ、OneBot 或 bot 运行时。
+独立的只读 SQLite HTTP 服务，不依赖 QQ 机器人或 bot 运行时。
 
 ```text
 QQ Warframe Bot / SQLite
@@ -109,7 +109,7 @@ sudo systemctl enable --now qqwarframe-db
 
 - 服务只 import 标准库 + `db/query.py`
 - 不 import `bot/*`
-- 不启动 OneBot、不需要 QQ
+- 不启动 QQ 机器人、不需要 OpenID
 - 数据库是只读打开；写操作只能通过 `db/build.py` 重建
 - 可以单独部署到另一台机器，只要把 `data/warframe.db` 放过去
 

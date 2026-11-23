@@ -56,7 +56,7 @@ def run_selftest(config_path: str = "config.json") -> int:
 
     if not os.path.isfile(config_path):
         if ensure_config(config_path, os.path.join(BASE_DIR, "config.example.json")):
-            print("已生成配置文件 config.json，请填写 OneBot 信息后重新运行自检。")
+            print("已生成配置文件 config.json，请填写 QQ 官方机器人的 app_id / app_secret 后重新运行自检。")
             return 2
 
     setup_logging("INFO", "")

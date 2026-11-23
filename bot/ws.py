@@ -1,10 +1,10 @@
 """最小可用的 RFC6455 WebSocket 客户端（仅标准库）。
 
-只为 OneBot 11 连接 NapCat / LLOneBot / Lagrange 等服务端而实现：
+现在用于连接 QQ 开放平台官方网关（qqofficial.py）：
 握手、掩码、分片重组、ping/pong、close。不包含扩展（permessage-deflate）。
 
 另外提供一个 `accept` 辅助函数，把已建立的 TCP 连接变成服务端 WebSocket，
-仅用于本项目的自动化测试（mock OneBot 服务端）。
+仅用于自动化测试里的 mock WebSocket 服务端。
 """
 
 from __future__ import annotations

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 【历史脚本，当前不需要】本项目已切换到 QQ 开放平台官方机器人，
+# 官方 WebSocket / Webhook 通道不依赖 NapCat。保留此脚本只为旧部署留档。
 # 安装 NapCat（QQ 协议端）的 Shell 版 —— 不需要 Docker。
 # 官方文档：https://napneko.github.io/guide/boot/Shell
 #

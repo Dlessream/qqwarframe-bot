@@ -28,8 +28,8 @@ from bot.log import setup_logging  # noqa: E402
 
 BANNER = """============================================
  QQ Warframe 查询机器人 v{version}
- OneBot : {ws_url}
- Token  : {token}
+ QQ官方 : {transport} | AppID {app_id}
+ 密钥   : {token}
  平台   : {platform} | 语言 {language}
  代理   : {proxy}
  图片   : {image}
@@ -80,13 +80,17 @@ def _print_netcheck(config: Dict[str, Any], apply_changes: bool) -> int:
 
 def _print_config_hint(path: str) -> None:
     print("已生成配置文件：%s" % path)
-    print("请先用记事本打开它，确认 OneBot 的 WebSocket 地址和 token，然后重新运行：")
+    print("请到 QQ 开放平台 (https://q.qq.com/) 创建机器人，拿到 AppID 和 AppSecret，")
+    print("填进 config.json 的 qqbot.app_id / qqbot.app_secret，然后重新运行：")
     print("    python run.py")
     print("")
-    print("如果还没有 QQ 机器人框架，推荐 NapCatQQ：")
-    print("    1. 安装并登录 NapCat（QQ 机器人框架）")
-    print("    2. 打开「网络配置」，新增 WebSocket 服务器，端口 3001")
-    print("    3. 把上面的 ws_url / access_token 填进 config.json")
+    print("连接方式二选一：")
+    print("  1. websocket（默认）：开放平台「事件订阅与回调地址」选 WebSocket，")
+    print("     机器人主动连官方网关，不需要公网回调地址。")
+    print("  2. webhook：在平台填 HTTPS 回调地址，并把 web.host 设为 0.0.0.0、")
+    print("     web.token 设为强口令；端口仅支持 80/443/8080/8443。")
+    print("")
+    print("也可以在网页控制台的「QQ 官方机器人」面板里直接填写配置。")
 
 
 def main(argv=None) -> int:
@@ -152,8 +156,9 @@ def main(argv=None) -> int:
         proxy = "%s（已按本机网络自动适配）" % proxy
     print(BANNER.format(
         version=__version__,
-        ws_url=config["onebot"]["ws_url"],
-        token=redact(config["onebot"]["access_token"]),
+        transport=config["qqbot"]["transport"],
+        app_id=config["qqbot"]["app_id"] or "(未设置)",
+        token=redact(config["qqbot"]["app_secret"]),
         platform=config["warframe_market"]["platform"],
         language=config["warframe_market"]["language"],
         proxy=proxy,

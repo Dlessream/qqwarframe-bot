@@ -104,7 +104,7 @@ sudo cp deploy/qqwarframe-db.service /etc/systemd/system/
 sudo systemctl enable --now qqwarframe-db
 ```
 
-服务只依赖 `db/query.py`，不 import `bot/*`，也不启动 QQ/OneBot。
+服务只依赖 `db/query.py`，不 import `bot/*`，也不启动 QQ 机器人。
 详见 [db/README.md](../db/README.md)。
 
 ## 表结构

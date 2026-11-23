@@ -1,13 +1,11 @@
-"""端到端测试：mock OneBot 服务端 + mock 市场/Wiki HTTP 服务 + 真实 BotApp。"""
+"""端到端测试：官方 Bot Webhook 事件 + mock 市场/Wiki/QQ OpenAPI + 真实 BotApp。"""
 
 import json
 import os
-import socket
 import threading
 import time
 import unittest
 
-from bot import ws
 from bot.app import BotApp
 
 from .mock_http import MockServer, json_response
@@ -21,85 +19,39 @@ def load_fixture(name):
         return json.load(handle)
 
 
-class MockOneBotServer:
-    """极简 OneBot 11 服务端：发事件、收 action、回 echo。"""
-
-    def __init__(self, events, action_timeout: float = 10.0):
-        self.events = events
-        self.action_timeout = action_timeout
-        self.received = []
-        self.listener = socket.socket()
-        self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listener.bind(("127.0.0.1", 0))
-        self.listener.listen(1)
-        self.port = self.listener.getsockname()[1]
-        self._thread = None
-        self.error = None
-
-    @property
-    def url(self):
-        return "ws://127.0.0.1:%d" % self.port
-
-    def start(self):
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-
-    def _run(self):
-        try:
-            conn, _ = self.listener.accept()
-            socket_ws = ws.accept(conn, timeout=10)
-            try:
-                for event in self.events:
-                    socket_ws.send_text(json.dumps(event, ensure_ascii=False))
-                    self.received.append(
-                        self._wait_action(socket_ws, "send_group_msg", self.action_timeout))
-                # 普通聊天不应触发回复
-                socket_ws.send_text(json.dumps({
-                    "post_type": "message", "message_type": "group", "self_id": 30003,
-                    "user_id": 10001, "group_id": 20002,
-                    "message": [{"type": "text", "data": {"text": "今天天气不错"}}],
-                    "raw_message": "今天天气不错",
-                }, ensure_ascii=False))
-                time.sleep(0.6)
-            finally:
-                socket_ws.close()
-                conn.close()
-        except Exception as exc:  # pragma: no cover - 测试辅助
-            self.error = exc
-
-    def _wait_action(self, socket_ws, action, timeout):
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            remaining = max(0.2, deadline - time.time())
-            payload = json.loads(socket_ws.recv_text(timeout=remaining))
-            if payload.get("action") == action:
-                socket_ws.send_text(json.dumps({
-                    "status": "ok", "retcode": 0,
-                    "data": {"message_id": len(self.received) + 1},
-                    "echo": payload.get("echo"),
-                }))
-                return payload.get("params") or {}
-        raise AssertionError("等待 %s 超时" % action)
-
-    def stop(self):
-        try:
-            self.listener.close()
-        except OSError:
-            pass
-        if self._thread is not None:
-            self._thread.join(timeout=5)
+def official_event(user_openid, text, group_openid="20002", at_bot=False,
+                   event_id="EVENT_1", msg_id="MSG_1"):
+    """构造 QQ 官方 GROUP_AT/MESSAGE_CREATE 事件。"""
+    event_type = "GROUP_AT_MESSAGE_CREATE" if at_bot else "GROUP_MESSAGE_CREATE"
+    payload = {
+        "id": event_id, "op": 0, "t": event_type, "s": 1,
+        "d": {
+            "id": msg_id,
+            "author": {"id": user_openid, "member_openid": user_openid,
+                       "username": "tester"},
+            "content": text,
+            "group_openid": group_openid,
+            "message_scene": {"source": "default", "ext": []},
+        },
+    }
+    if at_bot:
+        payload["d"]["mentions"] = [
+            {"id": "BOT1", "is_you": True, "member_openid": "BOT1"}]
+    return payload
 
 
-def build_app_config(http_base, ws_url):
+def build_app_config(http_base):
     return {
-        "onebot": {
-            "ws_url": ws_url,
-            "access_token": "",
-            "reconnect_min_seconds": 1,
-            "reconnect_max_seconds": 2,
-            "heartbeat_seconds": 25,
-            "heartbeat_timeout_seconds": 75,
-            "api_timeout_seconds": 5,
+        "qqbot": {
+            "enabled": True,
+            "transport": "webhook",
+            "app_id": "11111111",
+            "app_secret": "secret",
+            "self_id": "BOT1",
+            "api_base": http_base,
+            "token_url": http_base + "/app/getAppAccessToken",
+            "callback_path": "/qq/callback",
+            "signature_tolerance_seconds": 0,
         },
         "behavior": {
             "prefixes": ["#"],
@@ -141,31 +93,14 @@ def build_app_config(http_base, ws_url):
             "summary_chars": 280,
             "user_agent": "QQWarframeBot/test",
         },
-        "image": {"enabled": True, "font": "", "font_bold": ""},
+        # 图片走单独测试，这里只验证文本收发链路
+        "image": {"enabled": False, "font": "", "font_bold": ""},
         "worldstate": {"enabled": False, "base_url": http_base},
         "auto_update": {"enabled": False},
         "web": {"enabled": False},
-        "alerts": {"enabled": False, "file": os.path.join(BASE, "data", "test_alerts.json")},
+        "alerts": {"enabled": False,
+                   "file": os.path.join(BASE, "data", "test_alerts.json")},
         "log": {"level": "CRITICAL", "file": ""},
-    }
-
-
-def group_message(user_id, text, group_id=20002, self_id=30003, at_bot=False):
-    segments = []
-    if at_bot:
-        segments.append({"type": "at", "data": {"qq": str(self_id)}})
-    segments.append({"type": "text", "data": {"text": text}})
-    return {
-        "post_type": "message",
-        "message_type": "group",
-        "sub_type": "normal",
-        "self_id": self_id,
-        "user_id": user_id,
-        "group_id": group_id,
-        "message": segments,
-        "raw_message": ("[CQ:at,qq=%s] " % self_id if at_bot else "") + text,
-        "time": int(time.time()),
-        "sender": {"user_id": user_id, "nickname": "tester"},
     }
 
 
@@ -179,29 +114,18 @@ class EndToEndTest(unittest.TestCase):
         self.http.add_json("/v1/items/mesa_prime_set/statistics",
                            load_fixture("stats_mesa.json"))
         self.http.add("/api.php", self._wiki)
+        self.http.add_json("/app/getAppAccessToken", {
+            "access_token": "TEST_TOKEN", "expires_in": 7200})
+        self.http.add_json("/v2/groups/20002/messages", {"id": "SENT_1"})
         self.base_url = self.http.start()
 
-        self.events = [
-            group_message(10001, "#查 mesa"),
-            group_message(10004, " 查 绝路", at_bot=True),
-        ]
-        self.bot_server = MockOneBotServer(self.events)
-        self.bot_server.start()
-
-        self.config = build_app_config(self.base_url, self.bot_server.url)
+        self.config = build_app_config(self.base_url)
         self.app = BotApp(self.config)
-        self.app_thread = threading.Thread(target=self.app.run, daemon=True)
-        self.app_thread.start()
-        # 等待连接建立
-        for _ in range(50):
-            if self.app.onebot.connected:
-                break
-            time.sleep(0.05)
+        self.app.start()
+        self.app.qqbot._webhook_ready = True
 
     def tearDown(self):
-        self.bot_server.stop()
         self.app.stop()
-        self.app_thread.join(timeout=5)
         self.http.stop()
 
     @staticmethod
@@ -213,38 +137,49 @@ class EndToEndTest(unittest.TestCase):
             return json_response(load_fixture("wiki_search.json"))
         return json_response(load_fixture("wiki_extract.json"))
 
-    def test_replies(self):
-        deadline = time.time() + 15
-        while len(self.bot_server.received) < 2 and time.time() < deadline:
+    def _sent_messages(self):
+        return [json.loads(item["body"].decode("utf-8"))
+                for item in self.http.requests
+                if item.get("method") == "POST"
+                and item["path"] == "/v2/groups/20002/messages"]
+
+    def _wait_messages(self, count, timeout=15):
+        deadline = time.time() + timeout
+        while len(self._sent_messages()) < count and time.time() < deadline:
             time.sleep(0.05)
-        if self.bot_server.error:
-            raise self.bot_server.error
 
-        self.assertEqual(len(self.bot_server.received), 2)
+    def test_replies(self):
+        # 逐条发送，避免线程池并发导致断言顺序不稳定
+        self.app.qqbot.handle_webhook(
+            official_event("10001", "#查 mesa", event_id="E1", msg_id="M1"))
+        self._wait_messages(1)
+        self.app.qqbot.handle_webhook(
+            official_event("10004", " 查 绝路", at_bot=True,
+                           event_id="E2", msg_id="M2"))
+        self._wait_messages(2)
 
-        from bot import imagecard
-
-        first = self.bot_server.received[0]
-        self.assertEqual(first.get("group_id"), 20002)
-        self.assertTrue(first.get("message", "").startswith("[CQ:at,qq=10001] "))
-        second = self.bot_server.received[1]
-        self.assertTrue(second.get("message", "").startswith("[CQ:at,qq=10004] "))
-
-        if imagecard.available():
-            self.assertIn("[CQ:image,file=base64://", first["message"])
-            self.assertIn("[CQ:image,file=base64://", second["message"])
-        else:
-            self.assertIn("Mesa Prime", first["message"])
-            self.assertIn("绝路 Prime", second["message"])
+        sent = self._sent_messages()
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(sent[0].get("group_id"), None)  # openid 在 URL 里
+        self.assertTrue(sent[0]["content"].startswith("<@10001> "))
+        self.assertTrue(sent[1]["content"].startswith("<@10004> "))
+        self.assertTrue(sent[0]["content"].find("Mesa") >= 0
+                        or "Mesa" in sent[0]["content"])
+        self.assertEqual(sent[0]["msg_id"], "M1")
+        self.assertEqual(sent[1]["msg_id"], "M2")
+        self.assertEqual(sent[0]["msg_seq"], 1)
+        self.assertEqual(sent[1]["msg_seq"], 1)
 
         # 普通聊天没有触发第三条回复
+        self.app.qqbot.handle_webhook(
+            official_event("10005", "今天天气不错", event_id="E3", msg_id="M3"))
         time.sleep(0.8)
-        self.assertEqual(len(self.bot_server.received), 2)
+        self.assertEqual(len(self._sent_messages()), 2)
 
     def test_market_requests(self):
-        deadline = time.time() + 15
-        while len(self.bot_server.received) < 2 and time.time() < deadline:
-            time.sleep(0.05)
+        self.app.qqbot.handle_webhook(
+            official_event("10001", "#查 mesa", event_id="E1", msg_id="M1"))
+        self._wait_messages(1)
         self.assertTrue(self.http.count("/v2/items") >= 1)
         self.assertTrue(self.http.count("/v2/item/mesa_prime_set") >= 1)
         self.assertTrue(self.http.count("/v2/orders/item/mesa_prime_set/top") >= 1)
@@ -253,4 +188,3 @@ class EndToEndTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

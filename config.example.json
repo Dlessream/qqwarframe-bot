@@ -1,12 +1,24 @@
 {
-  "onebot": {
-    "ws_url": "ws://127.0.0.1:3001",
-    "access_token": "",
+  "qqbot": {
+    "enabled": true,
+    "transport": "websocket",
+    "app_id": "",
+    "app_secret": "",
+    "app_token": "",
+    "env": "prod",
+    "api_base": "",
+    "gateway_url": "",
+    "callback_path": "/qq/callback",
+    "self_id": "",
+    "intents": 33554432,
+    "shard": [0, 1],
+    "proxy": "none",
+    "api_timeout_seconds": 15,
     "reconnect_min_seconds": 1,
     "reconnect_max_seconds": 60,
-    "heartbeat_seconds": 25,
-    "heartbeat_timeout_seconds": 75,
-    "api_timeout_seconds": 15
+    "heartbeat_timeout_seconds": 90,
+    "signature_tolerance_seconds": 300,
+    "ws_token_template": "QQBot {token}"
   },
   "behavior": {
     "prefixes": [

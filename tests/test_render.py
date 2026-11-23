@@ -172,15 +172,15 @@ class ChunkTest(unittest.TestCase):
         self.assertEqual("".join(chunks), text)
 
 
-class CqEscapeTest(unittest.TestCase):
-    def test_escape(self):
-        from bot.onebot import escape_cq
-        self.assertEqual(escape_cq("a[b]&c"), "a&#91;b&#93;&amp;c")
+class MentionTest(unittest.TestCase):
+    def test_cq_at_becomes_official_mention(self):
+        from bot.qqofficial import QQOfficialClient
 
-    def test_id_value(self):
-        from bot.onebot import _id_value
-        self.assertEqual(_id_value("12345"), 12345)
-        self.assertEqual(_id_value("abc"), "abc")
+        client = QQOfficialClient({}, lambda event: None)
+        self.addCleanup(client.close)
+        self.assertEqual(client._mentions("[CQ:at,qq=ABC123] 你好"),
+                         "<@ABC123> 你好")
+        self.assertEqual(client._mentions("a[b]&c"), "a[b]&c")
 
 
 if __name__ == "__main__":

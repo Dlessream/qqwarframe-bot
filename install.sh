@@ -35,11 +35,11 @@ fi
 
 if [ ! -f "config.json" ]; then
     cp config.example.json config.json
-    echo "已生成 config.json，请先填写 OneBot 的 ws_url / access_token。"
+    echo "已生成 config.json，请先填写 qqbot.app_id / qqbot.app_secret。"
 fi
 
 echo ""
 echo "安装完成。下一步："
-echo "  1. 编辑 config.json（ws_url、access_token、proxy）"
+echo "  1. 编辑 config.json（qqbot.app_id、qqbot.app_secret、proxy）"
 echo "  2. ./check.sh    # 联网自检"
 echo "  3. ./start.sh    # 启动机器人"

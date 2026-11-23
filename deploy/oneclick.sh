@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 一键部署：Xray（你的 VLESS 节点）+ NapCat + 机器人
+# 一键部署：Xray（你的 VLESS 节点）+ QQ 官方机器人
 # 用法：
-#   sudo ./deploy/oneclick.sh                 # Docker 方式（napcat + xray + bot）
+#   sudo ./deploy/oneclick.sh                 # Docker 方式（官方机器人 + xray）
 #   sudo ./deploy/oneclick.sh --bare          # 裸机方式（不用 Docker，也不用 screen）
 # 装不上 Docker 时会自动降级为裸机方式。
 set -euo pipefail
@@ -74,27 +74,30 @@ else
 fi
 
 # ------------------------------------------------------------------ 目录
-mkdir -p config data logs napcat/qq napcat/config napcat/plugins xray
+mkdir -p config data logs xray
 
 # ------------------------------------------------------------------ .env
 if [ ! -f .env ]; then
-    echo "[2/5] 生成 .env（WebUI 密码等）"
+    echo "[2/5] 生成 .env（官方机器人票据与 Web 控制台令牌）"
     if command -v openssl >/dev/null 2>&1; then
-        WEBUI_TOKEN="$(openssl rand -hex 12)"
         WEB_ADMIN_TOKEN="$(openssl rand -hex 12)"
     else
-        WEBUI_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
         WEB_ADMIN_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
     fi
     BUILD_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
     cat > .env <<EOF
-NAPCAT_WEBUI_TOKEN=$WEBUI_TOKEN
-NAPCAT_WS_TOKEN=
+# QQ 开放平台机器人：在 q.qq.com 创建机器人后填入 AppID / AppSecret
+QQWF_APP_ID=
+QQWF_APP_SECRET=
+# websocket = 我方主动连官方网关（默认）；webhook = 官方推送到我方可信 HTTPS 回调
+QQWF_TRANSPORT=websocket
+QQWF_QQBOT_ENV=prod
+QQWF_CALLBACK_PATH=/qq/callback
+QQWF_SELF_ID=
 WEB_ADMIN_TOKEN=${WEB_ADMIN_TOKEN:-}
 WEB_ADMIN_BIND=${WEB_ADMIN_BIND:-127.0.0.1}
 WEB_ADMIN_PORT=${WEB_ADMIN_PORT:-8080}
 BUILD_COMMIT=${BUILD_COMMIT:-}
-WEBUI_BIND=${WEBUI_BIND:-127.0.0.1}
 PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
 DOCKER_MIRRORS=${DOCKER_MIRRORS:-https://docker.m.daocloud.io,https://docker.1ms.run}
 APT_MIRROR=${APT_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
@@ -107,7 +110,13 @@ fi
 # shellcheck disable=SC1091
 . ./.env
 
-: "${NAPCAT_WEBUI_TOKEN:? .env 缺少 NAPCAT_WEBUI_TOKEN，请删除 .env 后重新运行}"
+if [ -z "${WEB_ADMIN_TOKEN:-}" ]; then
+    echo "警告：.env 未设置 WEB_ADMIN_TOKEN，Web 控制台的管理接口将拒绝访问。" >&2
+fi
+if [ -z "${QQWF_APP_ID:-}" ] || [ -z "${QQWF_APP_SECRET:-}" ]; then
+    echo "警告：.env 未设置 QQWF_APP_ID / QQWF_APP_SECRET，机器人不会连接 QQ 官方网关。" >&2
+    echo "      可现在编辑 .env 后重新运行本脚本，或部署后在 Web 控制台填写。" >&2
+fi
 
 # ------------------------------------------------------------------ Docker 国内镜像
 configure_docker_mirror() {
@@ -186,25 +195,30 @@ cat <<EOF
 ==============================================
  部署完成
 ==============================================
- 1) 打开 NapCat WebUI：
-    本机浏览器： http://127.0.0.1:6099/webui
-    远程服务器： ssh -L 6099:127.0.0.1:6099 root@$IP
-                然后浏览器打开 http://127.0.0.1:6099/webui
-
-    WebUI 密码（Token）：$NAPCAT_WEBUI_TOKEN
-
- 2) 扫码登录 QQ 小号。
-
- 3) 确认 NapCat 的 WebSocket 服务器已监听 3001。
-    如果 WebUI 里设置了 WS Token，把它填到 .env：
-        NAPCAT_WS_TOKEN=你的token
-    然后重启机器人：
+ 1) 在 QQ 开放平台（https://q.qq.com/）创建机器人，拿到 AppID / AppSecret。
+    写入 .env：
+        QQWF_APP_ID=你的AppID
+        QQWF_APP_SECRET=你的AppSecret
+    默认走 WebSocket 反向连接（QQWF_TRANSPORT=websocket），无需公网回调地址。
+    改完重启：
         ${COMPOSE[*]} -f docker-compose.full.yml up -d bot
+
+ 2) Webhook 模式（可选）：
+    .env 里设 QQWF_TRANSPORT=webhook，回调地址为
+        https://你的域名:443\${QQWF_CALLBACK_PATH:-/qq/callback}
+    官方回调端口只接受 80/443/8080/8443；用反代把 443 转到本机
+    \${WEB_ADMIN_PORT:-8080}，并把 WEB_ADMIN_BIND 调整为 0.0.0.0 或反代来源。
+
+ 3) 打开 Web 控制台：
+    远程服务器：ssh -L 8080:127.0.0.1:8080 root@$IP
+    然后浏览器打开 http://127.0.0.1:8080，令牌为 .env 的 WEB_ADMIN_TOKEN。
+    「QQ 官方机器人」面板可改票据、看事件日志、调试回调、发测试消息。
 
  4) 查看机器人日志：
         ${COMPOSE[*]} -f docker-compose.full.yml logs -f bot
 
- 5) 在群里发 #帮助 测试。
+ 5) 在群里 @机器人发 #帮助 测试（群聊默认只处理 @机器人的消息）。
+    群主需开启「接收全部消息」才能裸词唤醒，开启「允许主动发送」才能主动推送。
 
  代理：xray 容器使用你的 VLESS 节点，机器人通过 http://xray:10809 访问市场/维基。
  节点配置在 xray/config.json（权限 600），请勿把整个目录分享给别人。

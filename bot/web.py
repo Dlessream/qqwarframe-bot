@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
+from . import qqsignature
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(ROOT, "web")
 
@@ -113,6 +115,25 @@ class AdminServer:
                         self._unauthorized()
                         return
                     self._json({"ok": True, **server.app.status_snapshot()})
+                    return
+                if path == "/api/qqbot/status":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, "status": server.app.qqbot_snapshot()})
+                    return
+                if path == "/api/qqbot/config":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True,
+                                "config": server.app.qqbot_config_snapshot()})
+                    return
+                if path == "/api/qqbot/events":
+                    if not self._authorized():
+                        self._unauthorized()
+                        return
+                    self._json({"ok": True, "events": server.app.qqbot_events()})
                     return
                 if path == "/api/database":
                     if not self._authorized():
@@ -350,11 +371,72 @@ class AdminServer:
                 self._json({"ok": False, "message": "Not found"},
                            HTTPStatus.NOT_FOUND)
 
+            def _qq_callback(self, path: str) -> bool:
+                """QQ 官方 Webhook 回调：必须在 admin token 鉴权之前处理。"""
+                client = getattr(server.app, "qqbot", None)
+                if client is None:
+                    return False
+                if path != client.callback_path:
+                    return False
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = 0
+                if length > 1024 * 1024:
+                    self._json({"op": 12}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+                    return True
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    payload = json.loads(raw.decode("utf-8"))
+                except Exception:
+                    self._json({"op": 12}, HTTPStatus.BAD_REQUEST)
+                    return True
+                if not isinstance(payload, dict):
+                    self._json({"op": 12}, HTTPStatus.BAD_REQUEST)
+                    return True
+
+                # op=13 是平台验证回调地址，携带 plain_token/event_ts，没有签名头
+                if payload.get("op") == 13:
+                    app_id = str(self.headers.get("X-Bot-Appid") or "")
+                    if app_id and client.app_id and app_id != client.app_id:
+                        self._json({"op": 12}, HTTPStatus.FORBIDDEN)
+                        return True
+                    try:
+                        answer = client.callback_validation(payload)
+                        server.app._qqbot_event("system", "Webhook 回调地址验证通过")
+                        self._json(answer)
+                    except Exception as exc:
+                        server.app._qqbot_event(
+                            "error", "Webhook 验证失败：%s" % exc, False, str(exc))
+                        self._json({"op": 12}, HTTPStatus.BAD_REQUEST)
+                    return True
+
+                ok, error = qqsignature.verify_request(
+                    self.headers, raw, client.app_secret,
+                    client.signature_tolerance)
+                if not ok:
+                    server.app._qqbot_event("error", "Webhook 验签失败：%s" % error,
+                                            False, error)
+                    server.log.warning("QQ 官方回调验签失败：%s", error)
+                    self._json({"op": 12}, HTTPStatus.UNAUTHORIZED)
+                    return True
+                try:
+                    answer = client.handle_webhook(payload)
+                    self._json(answer)
+                except Exception as exc:  # pragma: no cover - 防御
+                    server.app._qqbot_event("error", "Webhook 处理失败：%s" % exc,
+                                            False, str(exc))
+                    server.log.exception("处理 QQ 官方回调失败：%s", exc)
+                    self._json({"op": 12}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                return True
+
             def do_POST(self):
+                parsed = urlparse(self.path)
+                if self._qq_callback(parsed.path):
+                    return
                 if not self._authorized():
                     self._unauthorized()
                     return
-                parsed = urlparse(self.path)
                 try:
                     length = int(self.headers.get("Content-Length") or 0)
                 except ValueError:
@@ -369,6 +451,41 @@ class AdminServer:
                 except Exception:
                     self._json({"ok": False, "message": "JSON 格式错误。"},
                                HTTPStatus.BAD_REQUEST)
+                    return
+
+                if parsed.path == "/api/qqbot/config":
+                    try:
+                        config = server.app.save_qqbot_config(data)
+                        self._json({
+                            "ok": True, "config": config,
+                            "message": "配置已保存；连接方式、密钥等改动需重启机器人后生效。",
+                        })
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                    return
+
+                if parsed.path == "/api/qqbot/debug":
+                    try:
+                        result = server.app.qqbot_debug(data.get("payload"))
+                        self._json({"ok": True, **result})
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                    return
+
+                if parsed.path == "/api/qqbot/send_test":
+                    try:
+                        result = server.app.send_qqbot_test(
+                            data.get("target"), bool(data.get("is_group")),
+                            data.get("text"))
+                        self._json({"ok": True, "message": "已发送", "result": result})
+                    except ValueError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                    except Exception as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_GATEWAY)
                     return
 
                 if parsed.path == "/api/update/check":

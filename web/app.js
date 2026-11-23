@@ -39,6 +39,8 @@
     commands: null,
     rivenAliasesLoaded: false,
     rivenAliases: null,
+    qqbotConfig: null,
+    qqbotEvents: [],
     timer: null,
     logTimer: null,
     modalAction: null,
@@ -146,12 +148,14 @@
 
   function render(status) {
     state.status = status;
-    const conn = status.onebot || {};
+    const conn = status.qqbot || {};
     setText("uptime", formatUptime(status.uptime));
     setText("version", status.version);
     setText("footerVersion", status.version);
-    setText("wsState", conn.connected ? "已连接" : "未连接");
-    setText("wsUrl", conn.url || "—");
+    setText("wsState", "官方机器人 " + (conn.connected ? "已连接" : "未连接"));
+    setText("wsUrl", (conn.app_id ? conn.app_id + " · " : "") +
+      (conn.transport || conn.mode || "—"));
+    renderQqbotStatus(conn);
     setText("itemCount", Number(status.market && status.market.items || 0).toLocaleString("zh-CN"));
     setText("rivenCount", Number(status.riven && status.riven.weapons || 0).toLocaleString("zh-CN"));
     setText("lastUpdate", status.updater && status.updater.last_run ? formatTime(status.updater.last_run) : "尚未运行");
@@ -371,6 +375,178 @@
     } finally {
       button.disabled = false;
       button.textContent = "检查更新";
+    }
+  }
+
+  // ---------------------------------------------------------------- QQ 官方机器人
+  function renderQqbotStatus(qqbot) {
+    const info = qqbot || {};
+    const cfg = state.qqbotConfig || {};
+    setText("qqbotStatusTransport", info.transport || info.mode || "—");
+    setText("qqbotStatusConnected", info.connected ? "已连接" : "未连接");
+    setText("qqbotStatusAppId", info.app_id || "—");
+    setText("qqbotStatusSelfId", info.self_id || "—");
+    setText("qqbotStatusCallback", cfg.callback_url || info.callback_path || "—");
+    setText("qqbotStatusLastError", info.last_error || "—");
+    const chip = $("qqbotStatusChip");
+    if (chip) chip.textContent = info.connected ? "ONLINE" : "OFFLINE";
+  }
+
+  function fillQqbotForm(config) {
+    const cfg = config || {};
+    const set = (id, value) => { const node = $(id); if (node) node.value = value; };
+    set("qqbotTransport", cfg.transport || "websocket");
+    set("qqbotEnv", cfg.env || "prod");
+    set("qqbotAppId", cfg.app_id || "");
+    set("qqbotCallbackPath", cfg.callback_path || "/qq/callback");
+    set("qqbotSelfId", cfg.self_id || "");
+    set("qqbotIntents", cfg.intents == null ? 33554432 : cfg.intents);
+    set("qqbotProxy", cfg.proxy || "none");
+    set("qqbotReconnectMin", cfg.reconnect_min_seconds == null ? 1 : cfg.reconnect_min_seconds);
+    set("qqbotReconnectMax", cfg.reconnect_max_seconds == null ? 60 : cfg.reconnect_max_seconds);
+    const secret = $("qqbotAppSecret");
+    if (secret) {
+      secret.value = "";
+      secret.placeholder = "留空表示不修改" +
+        (cfg.app_secret_masked ? "（当前 " + cfg.app_secret_masked + "）" : "");
+    }
+    const enabled = $("qqbotEnabled");
+    if (enabled) enabled.checked = cfg.enabled !== false;
+  }
+
+  async function loadQqbotConfig() {
+    try {
+      const data = await api("/api/qqbot/config");
+      state.qqbotConfig = data.config || {};
+      fillQqbotForm(state.qqbotConfig);
+      renderQqbotStatus(state.status && state.status.qqbot);
+      setText("qqbotConfigInfo", "配置已加载，修改后点「保存配置」，重启后生效");
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        setText("qqbotConfigInfo", "读取配置失败：" + exc.message);
+      }
+    }
+  }
+
+  async function saveQqbotConfig() {
+    const button = $("qqbotConfigSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      const body = {
+        transport: $("qqbotTransport").value || "websocket",
+        env: $("qqbotEnv").value || "prod",
+        app_id: $("qqbotAppId").value.trim(),
+        app_secret: $("qqbotAppSecret").value.trim(),
+        callback_path: $("qqbotCallbackPath").value.trim() || "/qq/callback",
+        self_id: $("qqbotSelfId").value.trim(),
+        intents: Number($("qqbotIntents").value) || 33554432,
+        proxy: $("qqbotProxy").value.trim() || "none",
+        reconnect_min_seconds: Number($("qqbotReconnectMin").value) || 1,
+        reconnect_max_seconds: Number($("qqbotReconnectMax").value) || 60,
+        enabled: $("qqbotEnabled").checked,
+      };
+      const result = await api("/api/qqbot/config", { method: "POST", body });
+      if (result && result.ok === false) throw new Error(result.message || "保存失败");
+      state.qqbotConfig = result.config || state.qqbotConfig;
+      fillQqbotForm(state.qqbotConfig);
+      renderQqbotStatus(state.status && state.status.qqbot);
+      setText("qqbotConfigInfo", (result.message || "配置已保存") + "（重启后生效）");
+      toast("配置已保存，重启后生效");
+      refresh();
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("保存失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "保存配置";
+    }
+  }
+
+  async function loadQqbotEvents() {
+    try {
+      const data = await api("/api/qqbot/events");
+      const events = Array.isArray(data.events) ? data.events : [];
+      state.qqbotEvents = events;
+      const lines = events.map((event) => {
+        const tag = event.type || "system";
+        const failed = event.ok === false ? " [失败]" : "";
+        const error = event.error ? " · " + event.error : "";
+        return "[" + (event.time || "—") + "] [" + tag + "]" + failed +
+          " " + (event.summary || "") + error;
+      });
+      const node = $("qqbotEvents");
+      node.textContent = lines.length ? lines.join("\n") : "（暂无事件）";
+      node.scrollTop = node.scrollHeight;
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        $("qqbotEvents").textContent = "事件读取失败：" + exc.message;
+      }
+    }
+  }
+
+  async function debugQqbotEvent() {
+    const button = $("qqbotDebugBtn");
+    const raw = $("qqbotDebugPayload").value.trim();
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (exc) {
+      toast("事件 JSON 解析失败：" + exc.message);
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "解析中…";
+    try {
+      const result = await api("/api/qqbot/debug", {
+        method: "POST", body: { payload },
+      });
+      if (result && result.ok === false) throw new Error(result.message || "解析失败");
+      const normalized = result.normalized == null
+        ? "—" : JSON.stringify(result.normalized, null, 2);
+      const command = result.command
+        ? result.command + (result.argument ? " · 参数：" + result.argument : "") +
+          (result.is_group ? "（群聊）" : "（私聊）")
+        : "—";
+      $("qqbotDebugResult").textContent =
+        "归一化事件：\n" + normalized + "\n\n" +
+        "提取文本：" + (result.text || "—") + "\n" +
+        "识别命令：" + command;
+      toast("事件解析完成");
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") {
+        $("qqbotDebugResult").textContent = "解析失败：" + exc.message;
+        toast("解析失败：" + exc.message);
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = "解析事件";
+    }
+  }
+
+  async function sendQqbotTest() {
+    const button = $("qqbotTestSend");
+    const target = $("qqbotTestTarget").value.trim();
+    const text = $("qqbotTestText").value.trim();
+    if (!target) { toast("请填写群 / 用户 openid"); return; }
+    if (!text) { toast("请填写测试消息"); return; }
+    button.disabled = true;
+    button.textContent = "发送中…";
+    try {
+      const result = await api("/api/qqbot/send_test", {
+        method: "POST",
+        body: {
+          target,
+          is_group: $("qqbotTestTargetType").value === "group",
+          text,
+        },
+      });
+      if (result && result.ok === false) throw new Error(result.message || "发送失败");
+      toast(result.message || "已发送");
+    } catch (exc) {
+      if (exc.message !== "UNAUTHORIZED") toast("发送失败：" + exc.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "发送测试";
     }
   }
 
@@ -1763,6 +1939,11 @@
 
   function bind() {
     $("refreshBtn").addEventListener("click", refresh);
+    $("qqbotConfigRefresh").addEventListener("click", loadQqbotConfig);
+    $("qqbotConfigSave").addEventListener("click", saveQqbotConfig);
+    $("qqbotDebugBtn").addEventListener("click", debugQqbotEvent);
+    $("qqbotEventsRefresh").addEventListener("click", loadQqbotEvents);
+    $("qqbotTestSend").addEventListener("click", sendQqbotTest);
     $("commandRefresh").addEventListener("click", loadCommands);
     $("commandAdd").addEventListener("click", addCommandAlias);
     $("rivenAliasRefresh").addEventListener("click", loadRivenAliases);
@@ -1928,6 +2109,8 @@
       loadCommands();
       loadRivenAliases();
       loadModAliases();
+      loadQqbotConfig();
+      loadQqbotEvents();
     });
     $("tokenInput").addEventListener("keydown", (event) => {
       if (event.key === "Enter") $("tokenSave").click();
@@ -1944,6 +2127,8 @@
   loadCommands();
   loadRivenAliases();
   loadModAliases();
+  loadQqbotConfig();
+  loadQqbotEvents();
   state.timer = setInterval(refresh, 10000);
   state.logTimer = setInterval(refreshLogs, 5000);
 })();

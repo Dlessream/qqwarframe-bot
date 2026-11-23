@@ -51,12 +51,20 @@ class FakeApp:
         self.groups = {"whitelist": ["100"], "blacklist": []}
         self.aliases = {"电男头": "volt_prime_neuroptics_blueprint"}
         self.refreshed = 0
+        self.qqbot = type("FakeClient", (), {
+            "callback_path": "/qq/callback", "app_id": "123",
+            "app_secret": "secret", "signature_tolerance": 0,
+            "callback_validation": lambda self, payload: {
+                "plain_token": payload["d"]["plain_token"], "signature": "abc"},
+            "handle_webhook": lambda self, payload: {"op": 12},
+        })()
 
     def status_snapshot(self):
         return {
             "version": "2.0.0",
             "uptime": 12,
-            "onebot": {"connected": False, "url": "ws://test"},
+            "qqbot": {"connected": False, "transport": "websocket",
+                      "app_id": "123", "callback_path": "/qq/callback"},
             "market": {"items": 3},
             "riven": {"weapons": 1},
             "updater": {"last_run": 0},
@@ -64,6 +72,33 @@ class FakeApp:
             "groups": self.groups,
             "update": self.update_checker.snapshot(),
         }
+
+    def _qqbot_event(self, kind, summary, ok=True, error=""):
+        return None
+
+    def qqbot_snapshot(self):
+        return {"connected": False, "transport": "websocket",
+                "app_id": "123", "callback_path": "/qq/callback"}
+
+    def qqbot_config_snapshot(self):
+        return {"transport": "websocket", "app_id": "123",
+                "app_secret_masked": "(已设置)", "env": "prod",
+                "callback_path": "/qq/callback"}
+
+    def save_qqbot_config(self, updates):
+        self.qqbot_saved = updates
+        return self.qqbot_config_snapshot()
+
+    def qqbot_events(self):
+        return [{"time": "2026-01-01 00:00:00", "type": "in",
+                 "summary": "测试事件", "ok": True, "error": ""}]
+
+    def qqbot_debug(self, payload):
+        return {"normalized": {"post_type": "message"}, "text": "#帮助",
+                "command": "help", "argument": "", "is_group": True}
+
+    def send_qqbot_test(self, target, is_group, text):
+        return {"id": "SENT"}
 
     def update_group_policy(self, whitelist, blacklist, mode=None):
         self.groups = {"whitelist": list(whitelist), "blacklist": list(blacklist),
@@ -719,6 +754,50 @@ class AdminServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["ok"])
         self.assertEqual(self.app.refreshed, 1)
+
+    def test_qqbot_api_auth(self):
+        for path in ("/api/qqbot/status", "/api/qqbot/config",
+                     "/api/qqbot/events"):
+            status, _ = self.request(path)
+            self.assertEqual(status, 401)
+            status, body = self.request(path,
+                                        headers={"X-Admin-Token": "secret"})
+            self.assertEqual(status, 200)
+            self.assertTrue(json.loads(body)["ok"])
+
+    def test_qqbot_config_save_and_debug(self):
+        status, body = self.request(
+            "/api/qqbot/config", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"transport": "webhook", "app_id": "123"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.app.qqbot_saved["transport"], "webhook")
+        status, body = self.request(
+            "/api/qqbot/debug", method="POST",
+            headers={"X-Admin-Token": "secret"},
+            body={"payload": {"t": "C2C_MESSAGE_CREATE", "d": {}}})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["command"], "help")
+
+    def test_qqbot_callback_validation_no_admin_token(self):
+        """Webhook 回调无需 admin token；op=13 用 BotSecret 验证。"""
+        from bot import qqsignature
+
+        payload = {"op": 13, "d": {"plain_token": "TOKEN",
+                                   "event_ts": "1725442341"}}
+        status, body = self.request(
+            "/qq/callback", method="POST",
+            headers={"X-Bot-Appid": "123"}, body=payload)
+        self.assertEqual(status, 200)
+        result = json.loads(body)
+        self.assertEqual(result["plain_token"], "TOKEN")
+        self.assertTrue(result["signature"])
+
+    def test_qqbot_callback_rejects_bad_signature(self):
+        payload = {"op": 0, "t": "C2C_MESSAGE_CREATE", "d": {}}
+        status, body = self.request("/qq/callback", method="POST", body=payload)
+        self.assertEqual(status, 401)
+        self.assertEqual(json.loads(body)["op"], 12)
 
 
 if __name__ == "__main__":

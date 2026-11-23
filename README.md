@@ -7,9 +7,9 @@
 - 市场数据：<https://warframe.market/zh-hans/>（官方 API v2，简体中文名）
 - 世界状态：<https://api.warframestat.us>（奸商/突击/仲裁）
 - 英文维基：<https://wiki.warframe.com/>（官方；Cloudflare 拦截时用 Fandom 英文镜像）
-- QQ 接入：OneBot 11（NapCatQQ / LLOneBot / Lagrange.OneBot）
-- 运行环境：Python 3.8+，仅依赖 Pillow（已装则开箱即用）
-- Linux 一键部署：NapCat + Xray（VLESS 节点）+ 机器人，见 [LINUX.md](LINUX.md)
+- QQ 接入：**QQ 开放平台官方机器人**（WebSocket 反向连接 / Webhook 正向回调，网页可切换）
+- 运行环境：Python 3.8+，依赖 Pillow 与 cryptography（Webhook 验签用）
+- Linux 一键部署：QQ 官方机器人 + Xray（VLESS 节点），见 [LINUX.md](LINUX.md)
 - Linux 部署：见 [LINUX.md](LINUX.md)（一键脚本 / Docker / systemd 三种方式）
 - 功能设计参考了社区的 [NyxBot](https://github.com/KingPrimes/NyxBot) 等项目
 
@@ -300,19 +300,22 @@ WM 的紫卡拍卖里混着大量「议价请私聊」的占位单（同一价�
 
 ### 1. 环境
 
-- Python 3.8+（你机器上已有 3.8.6）
-- Pillow（已安装；若换机器：`pip install -i https://pypi.tuna.tsinghua.edu.cn/simple Pillow`）
-- QQ 小号 + [NapCatQQ](https://github.com/NapNeko/NapCatQQ)（或 LLOneBot / Lagrange.OneBot）
+- Python 3.8+
+- Pillow + cryptography：`pip install Pillow cryptography`
+- QQ 开放平台机器人（<https://q.qq.com/>），创建后拿到 AppID / AppSecret
 - **代理**：默认使用 v2rayN 的 HTTP 代理 `http://127.0.0.1:10809`
 
-### 2. 配置 NapCat
+### 2. 配置 QQ 官方机器人
 
-1. 启动 NapCat 并用小号登录。
-2. 「网络配置」→ 新建 → **WebSocket 服务器**：
-   - 端口 `3001`
-   - Token 自定义（例如 `my-secret-token`），也可以留空
-   - 消息格式 `array` / `string` 都兼容
-3. 保存并启用。
+在开放平台「事件订阅与回调地址」里二选一：
+
+1. **WebSocket（默认，反向连接）**：选 WebSocket，机器人启动后主动连官方网关，
+   不需要公网地址。
+2. **Webhook（正向回调）**：填 HTTPS 回调地址（端口只能是 80/443/8080/8443），
+   并把 `web.host` 设为 `0.0.0.0`、`web.token` 设为强口令。
+
+> 群聊默认只推送 @ 机器人的消息。若要像以前一样裸词唤醒，请群主在 QQ 里给该机器人
+> 开启「接收全部消息」；主动推送（降价提醒/订阅）需要群主开启「允许主动发送」。
 
 ### 3. 配置机器人
 
@@ -326,9 +329,10 @@ python run.py
 第一次运行会生成 `config.json`。打开它，确认：
 
 ```json
-"onebot": {
-  "ws_url": "ws://127.0.0.1:3001",
-  "access_token": "my-secret-token"
+"qqbot": {
+  "transport": "websocket",
+  "app_id": "你的AppID",
+  "app_secret": "你的AppSecret"
 },
 "warframe_market": {
   "proxy": "http://127.0.0.1:10809"
@@ -354,13 +358,17 @@ python selftest.py
 python run.py
 ```
 
-看到 `已连接 OneBot 服务` 后，在群里发 `#帮助`。停止：`Ctrl + C`。
+看到 `QQ 官方网关鉴权成功` 后（Webhook 模式看到 `Webhook 回调已就绪`），
+在群里 @ 机器人发 `#帮助`。停止：`Ctrl + C`。
+
+也可以打开网页控制台（默认 <http://127.0.0.1:8080>），在「QQ 官方机器人」面板里
+填配置、看连接状态和收发日志、做回调解析与发送测试。
 
 ---
 
 ## Linux 部署
 
-代码本身跨平台；Linux 提供 **裸机一键部署**、**一键部署（NapCat + Xray + 机器人，Docker）**、
+代码本身跨平台；Linux 提供 **裸机一键部署**、**一键部署（官方机器人 + Xray，Docker）**、
 直接运行、Docker、systemd 五种方式。**Docker 不是必须的**，也不用 screen 挂着：
 裸机方式有 systemd 就用 systemd，没有就用自带的 `deploy/daemon.sh`（崩溃自动拉起）。
 项目里已经带了这些文件：
@@ -368,10 +376,9 @@ python run.py
 ```text
 deploy/baremetal.sh             # 裸机一键部署（无 Docker / 无 screen）
 deploy/daemon.sh                # 无 systemd 时的常驻管理（start/stop/restart/status/logs）
-deploy/install_napcat.sh        # NapCat Shell 版安装（非 Docker）
 deploy/setup_config.py          # 用 JSON 读写改配置，替代 sed 硬替换
-deploy/oneclick.sh              # 一键部署（含 NapCat 与代理，Docker；--bare 走裸机）
-docker-compose.full.yml         # napcat + xray + bot
+deploy/oneclick.sh              # 一键部署（官方机器人 + 代理，Docker；--bare 走裸机）
+docker-compose.full.yml         # xray + bot（官方网关 / Webhook，无第三方协议端）
 deploy/vless_to_xray.py         # VLESS 链接转 Xray 配置
 xray/config.json                # 已按你的节点生成（含凭据，600）
 install.sh  start.sh  check.sh
@@ -380,30 +387,29 @@ deploy/qqwarframe-bot.service
 deploy/docker-entrypoint.sh
 ```
 
-### 方式 0：一键部署（NapCat + 代理 + 机器人）
+### 方式 0：一键部署（官方机器人 + 代理）
 
 ```bash
 sudo ./deploy/oneclick.sh
 ```
 
-脚本会安装/启动 Docker、配置 **Docker 国内镜像加速**、生成 `.env`、
-用 `deploy/vless.txt` 生成 `xray/config.json`，然后启动三个容器：
+脚本会安装/启动 Docker、配置 **Docker 国内镜像加速**、生成 `.env`（含官方机器人票据位置）、
+用 `deploy/vless.txt` 生成 `xray/config.json`，然后启动两个容器：
 
 | 容器 | 作用 |
 | --- | --- |
-| `napcat` | QQ 协议端，WebUI `127.0.0.1:6099`，WS `3001`（仅容器网络） |
 | `xray` | 你的 VLESS Reality 节点 → 本地 HTTP 代理 `10809`（仅容器网络） |
-| `bot` | 机器人，连 `ws://napcat:3001`，走 `http://xray:10809`，Web 控制台 `8080` |
+| `bot` | 官方机器人，连 QQ 开放平台网关或收 Webhook，走 `http://xray:10809`，Web 控制台 `8080` |
 
-完成后按脚本提示：打开 WebUI 扫码登录 QQ → 确认 WS 服务器 3001 →
-`docker compose -f docker-compose.full.yml logs -f bot` → 打开
-`http://127.0.0.1:8080` → 群里发 `#帮助`。
+完成后按脚本提示：在 <https://q.qq.com/> 创建机器人并把 AppID / AppSecret 写进 `.env` →
+重启 bot → `docker compose -f docker-compose.full.yml logs -f bot` → 打开
+`http://127.0.0.1:8080` → 群里 @机器人发 `#帮助`。
 
 ### 方式 0B：裸机一键部署（无 Docker / 无 screen，推荐不想装 Docker 的机器）
 
 ```bash
 # 当前目录就地部署（普通用户也行，装系统包和注册 systemd 才需要 root）
-./deploy/baremetal.sh --ws-url ws://127.0.0.1:3001 --proxy none
+./deploy/baremetal.sh --app-id 你的AppID --app-secret 你的AppSecret --proxy none
 
 # 或者部署到 /opt 并注册 systemd 服务
 sudo ./deploy/baremetal.sh --dir /opt/qqwarframe-bot --proxy none
@@ -417,10 +423,12 @@ sudo ./deploy/baremetal.sh --dir /opt/qqwarframe-bot --proxy none
 | 参数 | 作用 |
 | --- | --- |
 | `--dir PATH` | 部署到别的目录（默认当前目录） |
-| `--ws-url` / `--token` | OneBot 地址与 access_token |
+| `--app-id` / `--app-secret` | QQ 开放平台 AppID / AppSecret |
+| `--transport` | `websocket` 或 `webhook` |
+| `--ws-url` / `--token` | 旧参数兼容（已忽略）；官方机器人不需要第三方协议端 |
 | `--proxy none` | 全部直连；`--proxy http://127.0.0.1:7890` 用已有代理；`--proxy-all` 连官方兜底源一起改 |
 | `--with-xray` | 装 xray-core，并用 `deploy/vless.txt` 生成配置做本地代理 |
-| `--with-napcat` | 顺带装 NapCat（Shell 版，非 Docker） |
+| `--with-napcat` | 旧参数兼容（已忽略）；QQ 官方机器人无需 NapCat |
 | `--no-service` | 只装依赖，不注册常驻（自己 `./start.sh` 跑） |
 | `--no-start` | 装好并注册，但不立即启动 |
 
@@ -467,10 +475,12 @@ DOCKER_MIRRORS=
 `https://ghproxy.net/https://github.com/...`，但要注意第三方代理的代码完整性；
 最稳妥仍是直连或先下载 Release 压缩包。
 
-- WebUI 默认只绑 `127.0.0.1`，远程服务器用
-  `ssh -L 6099:127.0.0.1:6099 root@服务器IP` 转发。
-- 若在 NapCat WebUI 里设置了 WS Token，把它写进 `.env` 的
-  `NAPCAT_WS_TOKEN=`，再重启 bot 容器。
+- Web 控制台默认只绑 `127.0.0.1`，远程服务器用
+  `ssh -L 8080:127.0.0.1:8080 root@服务器IP` 转发。
+- 官方机器人票据写在 `.env` 的 `QQWF_APP_ID` / `QQWF_APP_SECRET`；
+  改完执行 `docker compose -f docker-compose.full.yml up -d bot`。
+- 默认 `QQWF_TRANSPORT=websocket`（反向连接）。改成 `webhook` 时回调地址必须是公网
+  HTTPS，端口 80/443/8080/8443，并把 443 反代到容器映射的 8080。
 - **`xray/config.json` 和 `deploy/vless.txt` 含节点凭据（权限 600），
   不要把压缩包或目录分享给别人。**
 - 换节点：修改 `deploy/vless.txt` 后运行
@@ -490,7 +500,7 @@ sudo apt install -y python3 python3-venv fonts-noto-cjk
 cd qqwarframe-bot
 chmod +x install.sh start.sh check.sh
 ./install.sh          # 建 .venv、装 Pillow、生成 config.json
-nano config.json      # 填 ws_url / access_token / proxy
+nano config.json      # 填 qqbot.app_id / qqbot.app_secret / proxy
 ./check.sh            # 联网自检
 ./start.sh            # 启动
 ```
@@ -510,17 +520,17 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-- 默认 `network_mode: host`：容器里的 `127.0.0.1` 就是宿主机，
-  NapCat 和代理都按本机地址填。
+- 默认 `network_mode: host`：容器里的 `127.0.0.1` 就是宿主机，代理按本机地址填。
 - 首次启动自动生成 `config/config.json`，可直接在宿主机编辑。
 - 也可以用环境变量覆盖（优先级高于 json）：
-  `QQWF_WS_URL`、`QQWF_ACCESS_TOKEN`、`QQWF_PROXY`、`QQWF_PLATFORM`、
+  `QQWF_APP_ID`、`QQWF_APP_SECRET`、`QQWF_TRANSPORT`、`QQWF_QQBOT_ENV`、
+  `QQWF_CALLBACK_PATH`、`QQWF_SELF_ID`、`QQWF_PROXY`、`QQWF_PLATFORM`、
   `QQWF_IMAGE`、`QQWF_ALERTS`、`QQWF_WORLDSTATE`、`QQWF_AUTO_UPDATE`、
   `QQWF_CACHE`、`QQWF_RIVEN_DISPOSITION`、`QQWF_ARBI_PROXY`、`QQWF_FONT`、
-`QQWF_FONT_BOLD`、`QQWF_LOG_LEVEL`。
+  `QQWF_FONT_BOLD`、`QQWF_LOG_LEVEL`。
 - 镜像内置 `fonts-noto-cjk`，不需要在宿主机装字体。
-- 如果 NapCat 是同一 compose 里的另一个容器：删掉 `network_mode`，
-  按 `docker-compose.yml` 注释启用 bridge 网络，`ws_url` 改成 `ws://napcat:3001`。
+- 旧变量 `QQWF_WS_URL` / `QQWF_ACCESS_TOKEN` 仅作兼容别名，分别映射到
+  `qqbot.gateway_url` / `qqbot.app_token`，不要再填 NapCat 的本地地址。
 
 ### 方式 C：systemd 常驻
 
@@ -541,19 +551,12 @@ sudo journalctl -u qqwarframe-bot -f
 
 服务文件默认用 `/opt/qqwarframe-bot/.venv/bin/python`，路径不同就改 `ExecStart`。
 
-### Linux 上的 NapCat
+### QQ 官方机器人的群聊权限
 
-NapCat 官方提供 Linux / Docker 版本。Docker 方式通常是：
-
-```bash
-docker run -d --name napcat --restart unless-stopped \
-  --network host \
-  -v "$PWD/napcat/config:/app/napcat/config" \
-  mlikiowa/napcat-docker:latest
-```
-
-（镜像名和挂载路径以 NapCat 官方文档为准。）WebUI 默认 6099，登录后到
-「网络配置」添加 WebSocket 服务器，端口 3001。
+- 群聊默认只收到 **@机器人** 的消息；要裸词唤醒，群主在机器人设置里开启「接收全部消息」。
+- 主动推送（订阅提醒、仲裁表推送）需要群主开启「允许主动发送」。
+- 群号使用官方的 `group_openid`，白名单同时接受数字群号与 16–64 位 openid。
+- 回调调试、连接状态、票据配置都在 Web 控制台的「QQ 官方机器人」面板。
 
 ### Linux 上的代理
 
@@ -575,7 +578,8 @@ http://127.0.0.1:8080
 
 默认只绑定本机；Docker 映射为 `127.0.0.1:8080`。界面包含：
 
-- 运行状态、OneBot 连接、版本、运行时长
+- 运行状态、QQ 官方机器人连接（/Webhook 状态）、版本、运行时长
+- QQ 官方机器人面板：连接方式、AppID、密钥、回调地址、Intents、收发日志、回调调试、发送测试
 - 市场物品数、紫卡武器数、上次数据刷新、活跃提醒
 - 图片/字体状态
 - 实时日志（最后 120 行）
@@ -929,14 +933,21 @@ environment:
 
 ## 配置项
 
-### onebot
+### qqbot（QQ 官方机器人）
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `ws_url` | `ws://127.0.0.1:3001` | NapCat WebSocket 地址 |
-| `access_token` | `""` | 与 NapCat Token 一致 |
+| `transport` | `"websocket"` | `websocket` 反向连接 / `webhook` 正向回调 |
+| `app_id` / `app_secret` | `""` | 开放平台创建的机器人票据 |
+| `app_token` | `""` | 旧版 Token（可选，仅在需要 `Bot appid.token` 鉴权时填） |
+| `env` | `"prod"` | `prod` / `sandbox` |
+| `callback_path` | `"/qq/callback"` | Webhook 回调路径；回调地址 = 控制台公网地址 + 此路径 |
+| `self_id` | `""` | 机器人自身 openid，留空则从 READY 事件自动取 |
+| `intents` | `33554432` | `1<<25`，群 @ / 单聊 / 全量群消息事件 |
+| `api_base` / `gateway_url` | `""` | 自定义 OpenAPI 地址 / WSS 地址，留空用官方默认 |
+| `proxy` | `"none"` | OpenAPI 代理 |
 | `reconnect_min_seconds` / `reconnect_max_seconds` | 1 / 60 | 断线重连退避 |
-| `heartbeat_seconds` / `heartbeat_timeout_seconds` | 25 / 75 | 心跳与超时 |
+| `heartbeat_timeout_seconds` | 90 | 网关无数据超时 |
 | `api_timeout_seconds` | 15 | 发送接口超时 |
 
 ### behavior
@@ -1288,7 +1299,7 @@ environment:
 - 中文字体自动查找：微软雅黑（`msyh.ttc`）→ 黑体（`simhei.ttf`）→ Noto/文泉驿；
   Linux 还会走 `fc-match` 和 `/usr/share/fonts` 全目录扫描。
   找不到字体或 Pillow 时会自动**退回文字**，不会导致机器人崩溃。
-- 图片以 `base64://` 形式通过 OneBot 发送，NapCat 在 Docker 里也能收到。
+- 图片先以 base64 上传到 QQ 官方富媒体接口拿 `file_info`，再以 `msg_type=7` 发送。
 - 想换字体：把 ttc/ttf 路径填到 `image.font` / `image.font_bold`。
 
 ---
@@ -1382,7 +1393,7 @@ python -m unittest discover -s tests -t . -v
 - `#翻译` 中英双语对照、Web 翻译接口
 - 短 TTL 缓存的命中/过期、各数据源缓存包装
 - 图片卡片的 PNG 尺寸与长文本换行、仲裁表两列排布高度
-- **端到端**：mock OneBot 服务端 + mock 市场/Wiki，验证收事件、发图片、@ 回复
+- **端到端**：官方 Bot Webhook 事件 + mock QQ OpenAPI/市场/Wiki，验证收事件、发消息、@ 回复
 - **SQLite 数据库**：schema、JSON 导入、物品/别名/赏金/轮换/视图、校验、CLI、幂等构建
 - **独立数据库服务**：健康检查、鉴权、stats/search/item/parts/validate HTTP 接口
 
@@ -1400,7 +1411,7 @@ python db/query.py validate
 
 Web 控制台也提供只读接口：`/api/database`、`/api/database/search?q=`、`/api/database/parts?q=`、`/api/database/validate`。
 
-数据库还可以作为独立 HTTP 服务运行，不依赖 QQ / OneBot：
+数据库还可以作为独立 HTTP 服务运行，不依赖 QQ 机器人：
 
 ```bash
 python db/server.py --db data/warframe.db --host 127.0.0.1 --port 8090
@@ -1427,8 +1438,8 @@ qqwarframe-bot/
 ├── start.sh  / check.sh   # Linux / macOS 快捷方式
 ├── install.sh             # Linux 一键安装（venv + Pillow + 配置）
 ├── Dockerfile             # Linux 容器镜像（内置中文字体）
-├── docker-compose.yml     # 只起机器人（用宿主机代理/NapCat）
-├── docker-compose.full.yml # 一键：napcat + xray + bot
+├── docker-compose.yml     # 只起机器人（用宿主机代理）
+├── docker-compose.full.yml # 一键：xray + bot（官方机器人）
 ├── deploy/
 │   ├── oneclick.sh              # 一键部署脚本
 │   ├── vless_to_xray.py         # VLESS 链接转 Xray 配置
@@ -1436,7 +1447,6 @@ qqwarframe-bot/
 │   ├── qqwarframe-bot.service   # systemd 单元
 │   └── docker-entrypoint.sh     # 容器入口
 ├── xray/config.json       # 生成的 Xray 配置（含凭据，600）
-├── napcat/                # 一键部署后 NapCat 的 QQ 数据
 ├── data/
 │   ├── aliases.json       # 外号表（可编辑）
 │   ├── items_cache.json   # 物品缓存（运行后生成）
@@ -1452,7 +1462,9 @@ qqwarframe-bot/
 │   ├── netadapt.py        # 网络适配：探活并自动挑选可用代理
 │   ├── cache.py           # 短 TTL 缓存
 │   ├── ws.py              # RFC6455 WebSocket
-│   ├── onebot.py          # OneBot 11（文字/图片）
+│   ├── qqofficial.py      # QQ 官方机器人网关（WSS + REST + 富媒体）
+│   ├── qqevent.py         # 官方事件 -> 内部事件归一化
+│   ├── qqsignature.py     # Webhook Ed25519 验签
 │   ├── market.py          # 市场 API、搜索、行情、拆件
 │   ├── riven.py           # 紫卡
 │   ├── rivencalc.py       # 紫卡词条基础数据、范围计算与别名
@@ -1538,10 +1550,12 @@ v2rayN 没开，或端口不是 10809。启动 v2rayN，或在 `config.json` 里
 提醒只对比**在线卖家的最低在售价**；价格没到目标就不会推送。
 用 `#提醒列表` 看“当前”价。检查间隔默认 5 分钟。
 
-**9. 会不会封号**
+**9. 官方机器人收不到消息**
 
-使用 NapCat 这类第三方协议端存在风控可能。请用小号、控制频率、
-不要发广告或 @全体。默认配置已经比较保守。
+- 群聊默认只处理 @机器人的消息；裸词唤醒要群主开启「接收全部消息」。
+- 主动推送要群主开启「允许主动发送」。
+- AppID / AppSecret 为空时不会连接官方网关；在 Web 控制台或 `.env` 填写后重启。
+- 在控制台「QQ 官方机器人」面板看连接状态与事件日志，用「回调调试」核对事件格式。
 
 **10. `#紫卡 <武器>` 查不到武器 / 没有范围表**
 

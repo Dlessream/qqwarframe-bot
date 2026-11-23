@@ -21,7 +21,8 @@ class ConfigTest(unittest.TestCase):
 
     def test_load_example(self):
         config = load_config(EXAMPLE)
-        self.assertEqual(config["onebot"]["ws_url"], "ws://127.0.0.1:3001")
+        self.assertEqual(config["qqbot"]["transport"], "websocket")
+        self.assertEqual(config["qqbot"]["intents"], 1 << 25)
         self.assertEqual(config["warframe_market"]["language"], "zh-hans")
         self.assertTrue(config["image"]["enabled"])
         self.assertEqual(config["alerts"]["check_seconds"], 300)
@@ -32,8 +33,11 @@ class ConfigTest(unittest.TestCase):
 
     def test_env_overrides(self):
         env = {
-            "QQWF_WS_URL": "ws://napcat:3001",
-            "QQWF_ACCESS_TOKEN": "secret",
+            "QQWF_WS_URL": "wss://custom.example/websocket/",
+            "QQWF_ACCESS_TOKEN": "legacy-token",
+            "QQWF_APP_ID": "11111111",
+            "QQWF_APP_SECRET": "secret",
+            "QQWF_TRANSPORT": "webhook",
             "QQWF_PROXY": "none",
             "QQWF_PLATFORM": "ps4",
             "QQWF_IMAGE": "0",
@@ -41,8 +45,12 @@ class ConfigTest(unittest.TestCase):
         }
         with mock.patch.dict(os.environ, env, clear=False):
             config = load_config(EXAMPLE)
-        self.assertEqual(config["onebot"]["ws_url"], "ws://napcat:3001")
-        self.assertEqual(config["onebot"]["access_token"], "secret")
+        self.assertEqual(config["qqbot"]["gateway_url"],
+                         "wss://custom.example/websocket/")
+        self.assertEqual(config["qqbot"]["app_token"], "legacy-token")
+        self.assertEqual(config["qqbot"]["app_id"], "11111111")
+        self.assertEqual(config["qqbot"]["app_secret"], "secret")
+        self.assertEqual(config["qqbot"]["transport"], "webhook")
         self.assertEqual(config["warframe_market"]["proxy"], "none")
         self.assertEqual(config["warframe_market"]["platform"], "ps4")
         self.assertFalse(config["image"]["enabled"])
@@ -53,17 +61,28 @@ class ConfigTest(unittest.TestCase):
             config = load_config(EXAMPLE)
         self.assertTrue(config["image"]["enabled"])
 
-    def test_invalid_ws_url(self):
+    def test_invalid_gateway_url(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "config.json")
             with open(EXAMPLE, "r", encoding="utf-8") as handle:
                 raw = json.load(handle)
-            raw["onebot"]["ws_url"] = "http://example.com"
+            raw["qqbot"]["gateway_url"] = "http://example.com"
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump(raw, handle)
             with self.assertRaises(ConfigError) as ctx:
                 load_config(path)
             self.assertIn("ws://", str(ctx.exception))
+
+    def test_invalid_transport(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.json")
+            with open(EXAMPLE, "r", encoding="utf-8") as handle:
+                raw = json.load(handle)
+            raw["qqbot"]["transport"] = "napcat"
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(raw, handle)
+            with self.assertRaises(ConfigError):
+                load_config(path)
 
     def test_missing_file(self):
         with self.assertRaises(ConfigError):

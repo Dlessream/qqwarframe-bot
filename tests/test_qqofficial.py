@@ -1,0 +1,161 @@
+"""QQ 官方文档接入层测试：事件归一化、Ed25519 验签、回复上下文。"""
+
+import json
+import os
+import tempfile
+import unittest
+
+from bot import config as config_module
+from bot.qqevent import to_onebot_event
+from bot.qqofficial import QQOfficialClient
+from bot.qqsignature import (sign, validation_response, verify,
+                             verify_request)
+
+
+SECRET = "DG5g3B4j9X2KOErG"
+
+
+class SignatureTest(unittest.TestCase):
+    def test_validation_matches_official_example(self):
+        payload = {
+            "op": 13,
+            "d": {"plain_token": "Arq0D5A61EgUu4OxUvOp",
+                  "event_ts": "1725442341"},
+        }
+        result = validation_response(SECRET, payload)
+        self.assertEqual(result["plain_token"], "Arq0D5A61EgUu4OxUvOp")
+        self.assertEqual(
+            result["signature"],
+            "87befc99c42c651b3aac0278e71ada338433ae26fcb24307bdc5ad38c1"
+            "adc2d01bcfcadc0842edac85e85205028a1132afe09280305f13aa6909"
+            "ffc2d652c706")
+
+    def test_request_signature_roundtrip(self):
+        body = json.dumps({"op": 0, "t": "C2C_MESSAGE_CREATE", "d": {}},
+                          ensure_ascii=False).encode("utf-8")
+        import time
+        ts = str(int(time.time()))
+        signature = sign(SECRET, ts.encode("ascii") + body)
+        headers = {
+            "X-Signature-Ed25519": signature,
+            "X-Signature-Timestamp": ts,
+        }
+        ok, error = verify_request(headers, body, SECRET)
+        self.assertTrue(ok, error)
+        self.assertTrue(verify(SECRET, ts.encode("ascii") + body, signature))
+        bad = dict(headers, **{"X-Signature-Ed25519": "00" * 64})
+        self.assertFalse(verify_request(bad, body, SECRET)[0])
+        self.assertFalse(verify_request(
+            {"X-Signature-Ed25519": signature}, body, SECRET)[0])
+
+
+class EventNormalizeTest(unittest.TestCase):
+    SELF = "BOTOPENID0000000000000000000001"
+
+    def test_group_at_event(self):
+        payload = {
+            "id": "EVENT_1", "op": 0, "t": "GROUP_AT_MESSAGE_CREATE", "s": 7,
+            "d": {
+                "id": "MSG_1",
+                "author": {"id": "USER_1", "member_openid": "MEMBER_1",
+                           "username": "小明"},
+                "content": " /wm 战甲 ",
+                "group_openid": "GROUP_1",
+            },
+        }
+        event = to_onebot_event(payload, self.SELF)
+        self.assertEqual(event["post_type"], "message")
+        self.assertEqual(event["message_type"], "group")
+        self.assertEqual(event["group_id"], "GROUP_1")
+        self.assertEqual(event["user_id"], "MEMBER_1")
+        self.assertTrue(event["qq_at_me"])
+        self.assertEqual(event["qq_msg_id"], "MSG_1")
+        self.assertEqual(event["qq_event_id"], "EVENT_1")
+        self.assertIn("/wm 战甲", event["raw_message"])
+        self.assertIn("[CQ:at,qq=%s]" % self.SELF, event["raw_message"])
+
+    def test_group_full_event_strips_mentions(self):
+        payload = {
+            "id": "EVENT_2", "op": 0, "t": "GROUP_MESSAGE_CREATE",
+            "d": {
+                "id": "MSG_2",
+                "author": {"id": "USER_2"},
+                "content": "<@%s> #wm 战甲" % self.SELF,
+                "group_openid": "GROUP_2",
+                "mentions": [{"id": self.SELF, "is_you": True}],
+            },
+        }
+        event = to_onebot_event(payload, self.SELF)
+        self.assertTrue(event["qq_at_me"])
+        self.assertIn("#wm 战甲", event["raw_message"])
+        self.assertNotIn("<@", event["raw_message"])
+
+    def test_c2c_event(self):
+        payload = {
+            "id": "EVENT_3", "op": 0, "t": "C2C_MESSAGE_CREATE",
+            "d": {"id": "MSG_3", "author": {"id": "USER_3"},
+                  "content": "#帮助", "user_openid": "USER_3"},
+        }
+        event = to_onebot_event(payload, self.SELF)
+        self.assertEqual(event["message_type"], "private")
+        self.assertEqual(event["group_id"], "")
+        self.assertEqual(event["user_id"], "USER_3")
+        self.assertEqual(event["raw_message"], "#帮助")
+
+    def test_unsupported_event_returns_none(self):
+        self.assertIsNone(to_onebot_event(
+            {"op": 0, "t": "GROUP_ADD_ROBOT", "d": {}}, self.SELF))
+
+
+class GatewayClientTest(unittest.TestCase):
+    def _client(self, transport="websocket"):
+        client = QQOfficialClient({
+            "transport": transport, "app_id": "123", "app_secret": SECRET,
+            "self_id": "BOT", "callback_path": "/qq/callback",
+        }, lambda event: None)
+        self.addCleanup(client.close)
+        return client
+
+    def test_reply_context_generates_incrementing_seq(self):
+        client = self._client()
+        client.remember_reply_context({
+            "group_id": "G1", "user_id": "U1", "qq_msg_id": "M1",
+            "qq_event_id": "E1",
+        })
+        first = client._reply_fields("G1")
+        second = client._reply_fields("G1")
+        self.assertEqual(first["msg_id"], "M1")
+        self.assertEqual(first["msg_seq"], 1)
+        self.assertEqual(second["msg_seq"], 2)
+        self.assertEqual(client._reply_fields("G2"), {})
+
+    def test_mentions_translation(self):
+        client = self._client()
+        self.assertEqual(client._mentions("[CQ:at,qq=G1] 你好"),
+                         "<@G1> 你好")
+
+    def test_webhook_status_and_callback(self):
+        client = self._client("webhook")
+        self.assertFalse(client.connected)
+        self.assertEqual(client.url, "/qq/callback")
+        answer = client.handle_webhook({
+            "op": 13,
+            "d": {"plain_token": "Arq0D5A61EgUu4OxUvOp",
+                  "event_ts": "1725442341"},
+        })
+        self.assertEqual(answer["plain_token"], "Arq0D5A61EgUu4OxUvOp")
+        self.assertEqual(client.handle_webhook({"op": 0, "d": {}}), {"op": 12})
+
+
+class ConfigTest(unittest.TestCase):
+    def test_example_config_has_qqbot(self):
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                            "config.example.json")
+        cfg = config_module.load_config(path)
+        self.assertEqual(cfg["qqbot"]["transport"], "websocket")
+        self.assertEqual(cfg["qqbot"]["intents"], 1 << 25)
+        self.assertNotIn("onebot", cfg)
+
+
+if __name__ == "__main__":
+    unittest.main()

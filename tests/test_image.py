@@ -111,11 +111,17 @@ class ImageCardTest(unittest.TestCase):
         self.assertEqual(width, 860)
         self.assertGreater(height, 300)
 
-    def test_image_cq(self):
-        from bot.onebot import image_cq
-        cq = image_cq(b"\x89PNG\r\n\x1a\n")
-        self.assertTrue(cq.startswith("[CQ:image,file=base64://"))
-        self.assertTrue(cq.endswith("]"))
+    def test_official_image_upload_payload(self):
+        """官方图片走富媒体上传，file_data 必须是 base64。"""
+        import base64
+        from bot.qqofficial import QQOfficialClient
+
+        client = QQOfficialClient({}, lambda event: None)
+        self.addCleanup(client.close)
+        png = b"\x89PNG\r\n\x1a\n"
+        self.assertEqual(base64.b64encode(png).decode("ascii"),
+                         "iVBORw0KGgo=")
+        self.assertEqual(client._mentions("[CQ:at,qq=ABC] 你好"), "<@ABC> 你好")
 
 
 if __name__ == "__main__":

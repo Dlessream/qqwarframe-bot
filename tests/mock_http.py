@@ -37,7 +37,7 @@ class MockServer:
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
 
-            def do_GET(self):  # noqa: N802
+            def _handle(self, method, body_bytes=b""):
                 parsed = urlparse(self.path)
                 query = parse_qs(parsed.query)
                 headers = {key.lower(): value for key, value in self.headers.items()}
@@ -45,6 +45,8 @@ class MockServer:
                     "path": parsed.path,
                     "query": query,
                     "headers": headers,
+                    "method": method,
+                    "body": body_bytes,
                 })
                 route = parent._routes.get(parsed.path)
                 if route is None:
@@ -56,6 +58,16 @@ class MockServer:
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+
+            def do_GET(self):  # noqa: N802
+                self._handle("GET")
+
+            def do_POST(self):  # noqa: N802
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = 0
+                self._handle("POST", self.rfile.read(length) if length else b"")
 
             def log_message(self, *args):  # noqa: A003
                 pass

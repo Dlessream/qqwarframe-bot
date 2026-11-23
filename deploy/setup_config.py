@@ -69,15 +69,41 @@ def ensure_section(data: Dict[str, Any], name: str) -> Dict[str, Any]:
 def apply(data: Dict[str, Any], args: argparse.Namespace) -> List[str]:
     changed: List[str] = []
 
-    if args.ws_url:
-        onebot = ensure_section(data, "onebot")
-        onebot["ws_url"] = args.ws_url
-        changed.append("onebot.ws_url=%s" % args.ws_url)
-
-    if args.token is not None:
-        onebot = ensure_section(data, "onebot")
-        onebot["access_token"] = args.token
-        changed.append("onebot.access_token=%s" % ("(已设置)" if args.token else "(空)"))
+    if any((args.app_id, args.app_secret, args.app_token, args.transport,
+            args.env, args.callback_path, args.self_id, args.ws_url,
+            args.token is not None)):
+        bot = ensure_section(data, "qqbot")
+        if args.app_id:
+            bot["app_id"] = args.app_id
+            changed.append("qqbot.app_id=%s" % args.app_id)
+        if args.app_secret is not None:
+            bot["app_secret"] = args.app_secret
+            changed.append("qqbot.app_secret=%s" %
+                           ("(已设置)" if args.app_secret else "(空)"))
+        if args.app_token is not None:
+            bot["app_token"] = args.app_token
+            changed.append("qqbot.app_token=%s" %
+                           ("(已设置)" if args.app_token else "(空)"))
+        if args.transport:
+            bot["transport"] = args.transport
+            changed.append("qqbot.transport=%s" % args.transport)
+        if args.env:
+            bot["env"] = args.env
+            changed.append("qqbot.env=%s" % args.env)
+        if args.callback_path:
+            bot["callback_path"] = args.callback_path
+            changed.append("qqbot.callback_path=%s" % args.callback_path)
+        if args.self_id:
+            bot["self_id"] = args.self_id
+            changed.append("qqbot.self_id=%s" % args.self_id)
+        # 旧参数别名，兼容已有部署脚本
+        if args.ws_url:
+            bot["gateway_url"] = args.ws_url
+            changed.append("qqbot.gateway_url=%s" % args.ws_url)
+        if args.token is not None:
+            bot["app_token"] = args.token
+            changed.append("qqbot.app_token=%s" %
+                           ("(已设置)" if args.token else "(空)"))
 
     if args.proxy is not None:
         fields = list(PROXY_FIELDS)
@@ -127,8 +153,19 @@ def apply(data: Dict[str, Any], args: argparse.Namespace) -> List[str]:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="写入机器人配置")
     parser.add_argument("--config", default="config.json", help="配置文件路径")
-    parser.add_argument("--ws-url", dest="ws_url", default="", help="OneBot WebSocket 地址")
-    parser.add_argument("--token", default=None, help="OneBot access_token")
+    parser.add_argument("--app-id", default="", help="QQ 开放平台 AppID")
+    parser.add_argument("--app-secret", default=None, help="QQ 开放平台 AppSecret")
+    parser.add_argument("--app-token", default=None, help="旧版 Bot Token（可选）")
+    parser.add_argument("--transport", default="", choices=["websocket", "webhook"],
+                        help="连接方式：websocket 反向 / webhook 正向")
+    parser.add_argument("--env", default="", choices=["prod", "sandbox"],
+                        help="QQ 开放平台环境")
+    parser.add_argument("--callback-path", default="", help="Webhook 回调路径")
+    parser.add_argument("--self-id", default="", help="机器人自身 openid（可选）")
+    parser.add_argument("--ws-url", dest="ws_url", default="",
+                        help="兼容旧脚本：写入 qqbot.gateway_url")
+    parser.add_argument("--token", default=None,
+                        help="兼容旧脚本：写入 qqbot.app_token")
     parser.add_argument("--proxy", default=None,
                         help="HTTP 代理；none 表示直连，空串表示跟随系统代理")
     parser.add_argument("--proxy-all", action="store_true",

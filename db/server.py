@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """qqwarframe-db：独立的只读数据库 HTTP 服务。
 
-不依赖 bot 包，也不需要启动 QQ/OneBot。只读打开 db/build.py 生成的 SQLite，
+不依赖 bot 包，也不需要启动 QQ 机器人。只读打开 db/build.py 生成的 SQLite，
 通过 HTTP 提供状态、搜索、物品、套装部件和校验接口。
 
 启动：

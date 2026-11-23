@@ -5,7 +5,7 @@
 
 ---
 
-## 0. 一键部署（NapCat + Xray + 机器人，推荐）
+## 0. 一键部署（QQ 官方机器人 + Xray，推荐）
 
 要求：全新 Linux 服务器（Debian/Ubuntu/Fedora 等）、root、能拉 Docker 镜像。
 
@@ -18,26 +18,28 @@ sudo ./deploy/oneclick.sh
 脚本会自动：
 
 1. 安装/启动 Docker（已装则跳过）
-2. 生成 `.env`（NapCat WebUI 随机密码）
+2. 生成 `.env`（Web 控制台令牌 + 官方机器人票据位置）
 3. 配置 Docker 国内镜像加速（daocloud / 1ms）
 4. 用 `deploy/vless.txt` 里的 VLESS 节点生成 `xray/config.json`
-5. 构建并启动 **napcat + xray + bot** 三个容器
-6. 打印 WebUI 地址、密码和后续步骤
+5. 构建并启动 **xray + bot** 两个容器（无第三方协议端）
+6. 打印后续配置步骤
 
 完成后：
 
-- 打开 `http://127.0.0.1:6099/webui`（远程服务器用 SSH 隧道：
-  `ssh -L 6099:127.0.0.1:6099 root@服务器IP`），输入脚本打印的密码。
-- 扫码登录 QQ 小号。
-- 确认「网络配置」里的 WebSocket 服务器监听 `3001`；若设置了 Token，
-  把 Token 填到 `.env` 的 `NAPCAT_WS_TOKEN=`，再
-  `docker compose -f docker-compose.full.yml up -d bot`。
+- 在 <https://q.qq.com/> 创建机器人，把 AppID / AppSecret 写进 `.env`：
+  `QQWF_APP_ID=...`、`QQWF_APP_SECRET=...`；默认 `QQWF_TRANSPORT=websocket`。
+- 重启机器人：`docker compose -f docker-compose.full.yml up -d bot`。
 - 看日志：`docker compose -f docker-compose.full.yml logs -f bot`。
 - 打开 Web 控制台 `http://127.0.0.1:8080`，令牌在 `.env` 的
   `WEB_ADMIN_TOKEN`；远程服务器用 `ssh -L 8080:127.0.0.1:8080 root@服务器IP`。
+- 控制台「QQ 官方机器人」面板可改票据、看连接状态与事件日志、调试回调。
 - 控制台检测到 GitHub 新提交或本地 `bot/*.py` 变化时，会弹窗询问
   “是否更新/重启”，不会自动执行。
-- 群里发 `#帮助`。
+- 群里 @机器人发 `#帮助`（群聊默认只处理 @机器人的消息）。
+
+Webhook 模式：`.env` 里设 `QQWF_TRANSPORT=webhook`，把公网 HTTPS 的
+`https://域名:443/qq/callback` 配到开放平台；官方只接受 80/443/8080/8443 端口，
+用反代把 443 转到容器映射的 8080，并按需调整 `WEB_ADMIN_BIND`。
 
 节点配置在 `xray/config.json`（权限 600），机器人通过 `http://xray:10809`
 访问市场/维基/世界状态。**这个文件和 `deploy/vless.txt` 含节点凭据，
@@ -70,7 +72,7 @@ docker compose -f docker-compose.full.yml restart xray
 
 ```bash
 cd qqwarframe-bot
-./deploy/baremetal.sh --ws-url ws://127.0.0.1:3001 --proxy none
+./deploy/baremetal.sh --app-id 你的AppID --app-secret 你的AppSecret --proxy none
 
 # 或者部署到 /opt 并注册 systemd 服务
 sudo ./deploy/baremetal.sh --dir /opt/qqwarframe-bot --proxy none
@@ -99,15 +101,10 @@ sudo journalctl -u qqwarframe-bot -f
 git pull && ./deploy/update.sh
 ```
 
-可选参数：`--with-xray`（装 xray-core 做本地代理）、`--with-napcat`（装 NapCat Shell 版）、
-`--no-service`（只装依赖自己跑）、`--no-start`（注册但不启动）。完整用法
-`./deploy/baremetal.sh --help`。
-
-NapCat 也可以单独装：
-
-```bash
-./deploy/install_napcat.sh     # Shell 版，非 Docker
-```
+可选参数：`--app-id` / `--app-secret`（官方机器人票据）、`--transport webhook`、
+`--with-xray`（装 xray-core 做本地代理）、`--no-service`（只装依赖自己跑）、
+`--no-start`（注册但不启动）。旧参数 `--ws-url` / `--token` / `--with-napcat`
+保留兼容但已忽略，官方机器人不需要第三方协议端。完整用法 `./deploy/baremetal.sh --help`。
 
 ---
 
@@ -126,7 +123,7 @@ sudo apt install -y python3 python3-venv fonts-noto-cjk
 cd qqwarframe-bot
 chmod +x install.sh start.sh check.sh
 ./install.sh
-nano config.json        # 填 onebot.ws_url / access_token，确认 proxy
+nano config.json        # 填 qqbot.app_id / app_secret，选 transport，确认 proxy
 ./check.sh
 ./start.sh
 ```
@@ -166,23 +163,25 @@ docker compose restart
 ```
 
 默认 `network_mode: host`，所以容器里的 `127.0.0.1` 就是宿主机：
-NapCat 的 `ws://127.0.0.1:3001` 和代理 `http://127.0.0.1:10809` 都不用改。
+代理 `http://127.0.0.1:10809` 不用改。QQ 接入走官方开放平台，无需本地协议端地址。
 
 也可以不用配置文件，直接用环境变量：
 
 ```yaml
 environment:
-  QQWF_WS_URL: ws://127.0.0.1:3001
-  QQWF_ACCESS_TOKEN: "你的token"
+  QQWF_APP_ID: "你的AppID"
+  QQWF_APP_SECRET: "你的AppSecret"
+  QQWF_TRANSPORT: websocket   # 或 webhook
   QQWF_PROXY: http://127.0.0.1:10809
   QQWF_PLATFORM: pc
 ```
 
-支持：`QQWF_WS_URL`、`QQWF_ACCESS_TOKEN`、`QQWF_PROXY`、`QQWF_WIKI_PROXY`、
+支持：`QQWF_APP_ID`、`QQWF_APP_SECRET`、`QQWF_TRANSPORT`、`QQWF_QQBOT_ENV`、
+`QQWF_CALLBACK_PATH`、`QQWF_SELF_ID`、`QQWF_PROXY`、`QQWF_WIKI_PROXY`、
 `QQWF_WORLDSTATE_PROXY`、`QQWF_PLATFORM`、`QQWF_LANGUAGE`、`QQWF_IMAGE`、
 `QQWF_ALERTS`、`QQWF_WORLDSTATE`、`QQWF_AUTO_UPDATE`、`QQWF_CACHE`、
 `QQWF_RIVEN_DISPOSITION`、`QQWF_ARBI_PROXY`、`QQWF_FONT`、`QQWF_FONT_BOLD`、
-`QQWF_LOG_LEVEL`。
+`QQWF_LOG_LEVEL`。旧变量 `QQWF_WS_URL` / `QQWF_ACCESS_TOKEN` 只是兼容别名。
 
 ---
 
@@ -208,21 +207,16 @@ sudo journalctl -u qqwarframe-bot -f
 
 ---
 
-## NapCat
+## QQ 官方机器人
 
-NapCat 官方提供 Linux / Docker 版本。Docker 常用：
-
-```bash
-docker run -d --name napcat --restart unless-stopped \
-  --network host \
-  -v "$PWD/napcat/config:/app/napcat/config" \
-  mlikiowa/napcat-docker:latest
-```
-
-（镜像名和挂载路径以 NapCat 官方文档为准。）WebUI 默认 `6099`，登录后到
-「网络配置」新建 **WebSocket 服务器**，端口 `3001`，Token 与 `config.json` 一致。
-
-如果 NapCat 在另一台机器：`ws_url` 改成那台机器的 IP，并确保 3001 端口可达。
+- 在 <https://q.qq.com/> 创建机器人，拿到 AppID / AppSecret，填入 `config.json` 的
+  `qqbot.app_id` / `qqbot.app_secret`，或在 Web 控制台的「QQ 官方机器人」面板填写。
+- `transport=websocket` 为默认：机器人主动连官方网关，不需要公网回调地址。
+- `transport=webhook`：公网 HTTPS 回调地址填到开放平台，路径默认 `/qq/callback`；
+  官方只接受 80/443/8080/8443 端口，并保证服务端验签用的 AppSecret 与后台一致。
+- 群聊默认只处理 @机器人的消息；裸词唤醒和主动推送要群主在 QQ 侧开启对应权限。
+- 群白名单填官方 `group_openid`（16–64 位十六进制），数字群号也兼容。
+- 改连接方式需要重启；改票据、回调路径等字段即时生效。
 
 ---
 
@@ -241,7 +235,7 @@ docker run -d --name napcat --restart unless-stopped \
 
 ```bash
 ./check.sh                              # 联网自检
-python3 -m unittest discover -s tests -t .   # 836 个离线测试
+python3 -m pytest -q                          # 894 个离线测试
 ```
 
 自检里维基可能显示 `WARN`（Cloudflare/WAF 拦截），不影响市场、图片、提醒等功能。

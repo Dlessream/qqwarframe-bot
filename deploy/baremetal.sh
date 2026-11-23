@@ -4,19 +4,19 @@
 # 用法（普通用户或 root 都行，装系统包和注册 systemd 才需要 root）：
 #   ./deploy/baremetal.sh                      安装到当前目录并注册常驻
 #   sudo ./deploy/baremetal.sh --dir /opt/qqwarframe-bot
-#   ./deploy/baremetal.sh --ws-url ws://127.0.0.1:3001 --token 你的token
+#   ./deploy/baremetal.sh --app-id 你的AppID --app-secret 你的AppSecret
+#   ./deploy/baremetal.sh --transport webhook                  # 设成正向回调
 #   ./deploy/baremetal.sh --proxy http://127.0.0.1:7890   # 用已有代理
 #   ./deploy/baremetal.sh --proxy none                    # 全部直连
 #   ./deploy/baremetal.sh --with-xray                     # 顺带装 xray-core 做本地代理
-#   ./deploy/baremetal.sh --with-napcat                   # 顺带装 NapCat（Shell 版）
 #   ./deploy/baremetal.sh --no-service                    # 只装依赖，不注册常驻
 #   ./deploy/baremetal.sh --no-start                      # 注册但不立即启动
 #
 # 常用环境变量：
 #   PIP_INDEX_URL       pip 源（默认清华）
 #   XRAY_INSTALL_URL    xray-core 安装脚本地址
-#   NAPCAT_INSTALL_URL  NapCat 安装脚本地址
 #   RUN_USER            运行机器人服务的系统用户
+# QQ 接入为开放平台官方机器人，不再需要 NapCat / OneBot 协议端。
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -24,12 +24,12 @@ SRC="$(pwd)"
 
 # ------------------------------------------------------------------ 参数
 DIR="$SRC"
-WS_URL=""
-WS_TOKEN=""
+APP_ID=""
+APP_SECRET=""
+TRANSPORT=""
 PROXY=""
 PROXY_ALL=0
 WITH_XRAY=0
-WITH_NAPCAT=0
 NO_SERVICE=0
 NO_START=0
 VLESS_FILE=""
@@ -39,13 +39,16 @@ RUN_USER="${RUN_USER:-}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --dir)            DIR="${2:?--dir 需要路径}"; shift 2 ;;
-        --ws-url)         WS_URL="${2:?--ws-url 需要地址}"; shift 2 ;;
-        --token)          WS_TOKEN="$2"; shift 2 ;;
+        --app-id)         APP_ID="${2:?--app-id 需要 AppID}"; shift 2 ;;
+        --app-secret)     APP_SECRET="$2"; shift 2 ;;
+        --transport)      TRANSPORT="$2"; shift 2 ;;
+        --ws-url)         shift 2 ;;  # 旧参数兼容：官方机器人不需要协议端地址
+        --token)          shift 2 ;;
         --proxy)          PROXY="$2"; shift 2 ;;
         --proxy-all)      PROXY_ALL=1; shift ;;
         --with-xray)      WITH_XRAY=1; shift ;;
         --vless-file)     VLESS_FILE="${2:?--vless-file 需要路径}"; shift 2 ;;
-        --with-napcat)    WITH_NAPCAT=1; shift ;;
+        --with-napcat)    echo "提示：官方机器人不再需要 NapCat，已忽略 --with-napcat。" >&2; shift ;;
         --no-service)     NO_SERVICE=1; shift ;;
         --no-start)       NO_START=1; shift ;;
         --web-port)       WEB_PORT="${2:?--web-port 需要端口}"; shift 2 ;;
@@ -246,8 +249,9 @@ fi
 # ------------------------------------------------------------------ 配置
 echo "[5/6] 写入配置 config.json"
 CFG_ARGS=(--config "$ROOT/config.json")
-[ -n "$WS_URL" ] && CFG_ARGS+=(--ws-url "$WS_URL")
-[ -n "$WS_TOKEN" ] && CFG_ARGS+=(--token "$WS_TOKEN")
+[ -n "$APP_ID" ] && CFG_ARGS+=(--app-id "$APP_ID")
+[ -n "$APP_SECRET" ] && CFG_ARGS+=(--app-secret "$APP_SECRET")
+[ -n "$TRANSPORT" ] && CFG_ARGS+=(--transport "$TRANSPORT")
 if [ -n "$PROXY_VALUE" ]; then
     CFG_ARGS+=(--proxy "$PROXY_VALUE")
     [ "$PROXY_ALL" -eq 1 ] && CFG_ARGS+=(--proxy-all)
@@ -382,22 +386,20 @@ cat <<EOF
    cd $ROOT && ./check.sh
 
  配置文件： $ROOT/config.json
-   需要确认 onebot.ws_url / access_token；代理当前为：
-   ${PROXY_VALUE:-（未设置，启动时由网络适配自动探测）}
+   需要确认 qqbot.app_id / qqbot.app_secret；默认 transport=websocket。
+   代理当前为：${PROXY_VALUE:-（未设置，启动时由网络适配自动探测）}
 
  手动更新：
    cd $ROOT && git pull && ./deploy/update.sh --bare
 EOF
 
-if [ "$WITH_NAPCAT" -eq 1 ]; then
-    "$ROOT/deploy/install_napcat.sh" || true
-else
+if [ -z "$APP_ID" ] || [ -z "$APP_SECRET" ]; then
     cat <<EOF
 
- 还没有 NapCat（QQ 协议端）？两个办法：
-   1) 裸机装 Shell 版：./deploy/baremetal.sh --with-napcat
-   2) 手动：把 config.json 的 onebot.ws_url 指向你已有的 OneBot 实现
-      （NapCat / Lagrange / go-cqhttp 均可，端口与 token 对上就行）
+ QQ 官方机器人票据还没写入 config.json：
+   在 Web 控制台「QQ 官方机器人」面板填写，或编辑 config.json 的 qqbot 段，
+   然后重启服务：systemctl restart qqwarframe-bot
+   AppID / AppSecret 在 https://q.qq.com/ 创建机器人后获得。
 EOF
 fi
 

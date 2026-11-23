@@ -16,14 +16,28 @@ from typing import Any, Dict, List
 DEFAULT_LOCAL_PORTS = (7890, 10809, 10808, 20171, 1080, 8889)
 
 DEFAULTS: Dict[str, Any] = {
-    "onebot": {
-        "ws_url": "ws://127.0.0.1:3001",
-        "access_token": "",
+    # QQ 开放平台官方机器人：websocket = 我方主动连网关（反向），
+    # webhook = 官方推送到我方 HTTPS 回调（正向）。
+    "qqbot": {
+        "enabled": True,
+        "transport": "websocket",
+        "app_id": "",
+        "app_secret": "",
+        "app_token": "",
+        "env": "prod",
+        "api_base": "",
+        "gateway_url": "",
+        "callback_path": "/qq/callback",
+        "self_id": "",
+        "intents": 33554432,  # 1 << 25, GROUP_AND_C2C_EVENT
+        "shard": [0, 1],
+        "proxy": "none",
+        "api_timeout_seconds": 15,
         "reconnect_min_seconds": 1,
         "reconnect_max_seconds": 60,
-        "heartbeat_seconds": 25,
-        "heartbeat_timeout_seconds": 75,
-        "api_timeout_seconds": 15,
+        "heartbeat_timeout_seconds": 90,
+        "signature_tolerance_seconds": 300,
+        "ws_token_template": "QQBot {token}",
     },
     "behavior": {
         "prefixes": ["#", "＃"],
@@ -266,15 +280,25 @@ DEFAULTS: Dict[str, Any] = {
 }
 
 _REQUIRED_PATHS = (
-    ("onebot", "ws_url"),
     ("warframe_market", "base_url"),
     ("wiki", "api_url"),
 )
 
 _ENV_OVERRIDES = {
-    "QQWF_WS_URL": ("onebot", "ws_url", "str"),
     "QQWF_REQUIRE_PREFIX": ("behavior", "require_prefix", "bool"),
-    "QQWF_ACCESS_TOKEN": ("onebot", "access_token", "str"),
+    # 旧变量保留成兼容别名，避免已有 Docker 环境变量直接失效
+    "QQWF_WS_URL": ("qqbot", "gateway_url", "str"),
+    "QQWF_ACCESS_TOKEN": ("qqbot", "app_token", "str"),
+    "QQWF_TRANSPORT": ("qqbot", "transport", "str"),
+    "QQWF_QQBOT": ("qqbot", "enabled", "bool"),
+    "QQWF_APP_ID": ("qqbot", "app_id", "str"),
+    "QQWF_APP_SECRET": ("qqbot", "app_secret", "str"),
+    "QQWF_APP_TOKEN": ("qqbot", "app_token", "str"),
+    "QQWF_QQBOT_ENV": ("qqbot", "env", "str"),
+    "QQWF_QQBOT_TRANSPORT": ("qqbot", "transport", "str"),
+    "QQWF_CALLBACK_PATH": ("qqbot", "callback_path", "str"),
+    "QQWF_SELF_ID": ("qqbot", "self_id", "str"),
+    "QQWF_QQBOT_PROXY": ("qqbot", "proxy", "str"),
     "QQWF_PROXY": ("warframe_market", "proxy", "str"),
     "QQWF_WIKI_PROXY": ("wiki", "proxy", "str"),
     "QQWF_WIKI_PROXY_MODE": ("wiki", "proxy_mode", "str"),
@@ -376,23 +400,44 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         if not str(cfg.get(section, {}).get(key, "")).strip():
             raise ConfigError("配置项 %s.%s 不能为空" % (section, key))
 
-    ws_url = str(cfg["onebot"]["ws_url"]).strip()
-    if not (ws_url.startswith("ws://") or ws_url.startswith("wss://")):
-        raise ConfigError("onebot.ws_url 必须以 ws:// 或 wss:// 开头，当前为 %r" % ws_url)
-    cfg["onebot"]["ws_url"] = ws_url
-
-    cfg["onebot"]["reconnect_min_seconds"] = max(
-        1, _as_int(cfg["onebot"]["reconnect_min_seconds"], "onebot.reconnect_min_seconds", 1))
-    cfg["onebot"]["reconnect_max_seconds"] = max(
-        cfg["onebot"]["reconnect_min_seconds"],
-        _as_int(cfg["onebot"]["reconnect_max_seconds"], "onebot.reconnect_max_seconds", 1))
-    cfg["onebot"]["heartbeat_seconds"] = max(
-        5, _as_int(cfg["onebot"]["heartbeat_seconds"], "onebot.heartbeat_seconds", 5))
-    cfg["onebot"]["heartbeat_timeout_seconds"] = max(
-        cfg["onebot"]["heartbeat_seconds"] * 2,
-        _as_int(cfg["onebot"]["heartbeat_timeout_seconds"], "onebot.heartbeat_timeout_seconds", 10))
-    cfg["onebot"]["api_timeout_seconds"] = max(
-        3, _as_int(cfg["onebot"]["api_timeout_seconds"], "onebot.api_timeout_seconds", 3))
+    bot_cfg = cfg["qqbot"]
+    transport = str(bot_cfg.get("transport") or "websocket").strip().lower()
+    if transport not in ("websocket", "webhook"):
+        raise ConfigError("qqbot.transport 只能是 websocket 或 webhook")
+    bot_cfg["transport"] = transport
+    bot_cfg["enabled"] = bool(bot_cfg.get("enabled", True))
+    env = str(bot_cfg.get("env") or "prod").strip().lower()
+    if env not in ("prod", "sandbox"):
+        raise ConfigError("qqbot.env 只能是 prod 或 sandbox")
+    bot_cfg["env"] = env
+    callback_path = str(bot_cfg.get("callback_path") or "/qq/callback").strip()
+    if not callback_path.startswith("/"):
+        callback_path = "/" + callback_path
+    bot_cfg["callback_path"] = callback_path
+    gateway_url = str(bot_cfg.get("gateway_url") or "").strip()
+    if gateway_url and not (gateway_url.startswith("ws://")
+                            or gateway_url.startswith("wss://")):
+        raise ConfigError("qqbot.gateway_url 必须以 ws:// 或 wss:// 开头")
+    bot_cfg["gateway_url"] = gateway_url
+    bot_cfg["intents"] = _as_int(bot_cfg.get("intents"), "qqbot.intents", 0)
+    shard = bot_cfg.get("shard") or [0, 1]
+    if not isinstance(shard, (list, tuple)) or len(shard) != 2:
+        raise ConfigError("qqbot.shard 必须是 [分片序号, 分片总数]")
+    bot_cfg["shard"] = [_as_int(shard[0], "qqbot.shard[0]", 0),
+                        max(1, _as_int(shard[1], "qqbot.shard[1]", 1))]
+    bot_cfg["reconnect_min_seconds"] = max(
+        1, _as_int(bot_cfg.get("reconnect_min_seconds", 1),
+                   "qqbot.reconnect_min_seconds", 1))
+    bot_cfg["reconnect_max_seconds"] = max(
+        bot_cfg["reconnect_min_seconds"],
+        _as_int(bot_cfg.get("reconnect_max_seconds", 60),
+                "qqbot.reconnect_max_seconds", 1))
+    bot_cfg["api_timeout_seconds"] = max(
+        3, _as_int(bot_cfg.get("api_timeout_seconds", 15),
+                   "qqbot.api_timeout_seconds", 3))
+    bot_cfg["heartbeat_timeout_seconds"] = max(
+        30, _as_int(bot_cfg.get("heartbeat_timeout_seconds", 90),
+                    "qqbot.heartbeat_timeout_seconds", 30))
 
     prefixes = _as_str_list(cfg["behavior"].get("prefixes"), "behavior.prefixes")
     cfg["behavior"]["prefixes"] = [p for p in prefixes if p] or ["#"]
