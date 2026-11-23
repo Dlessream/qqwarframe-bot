@@ -2263,9 +2263,18 @@ def eleanor_reply(view: dict) -> Reply:
             aligns=["left", "left", "right"]))
 
 
-def help_reply(prefix: str, disabled=()) -> Reply:
-    return Reply(text=render.render_help(prefix, disabled),
-                 image=lambda: imagecard.help_card(prefix, disabled))
+def help_reply(prefix: str, disabled=(), bg_provider=None) -> Reply:
+    """帮助菜单。bg_provider 可选：返回 PIL.Image 官方 key art 作背景。"""
+    def _image():
+        background = None
+        if bg_provider is not None:
+            try:
+                background = bg_provider()
+            except Exception:
+                background = None
+        return imagecard.help_card(prefix, disabled, background=background)
+
+    return Reply(text=render.render_help(prefix, disabled), image=_image)
 
 def error_reply(message: str) -> Reply:
     return Reply(text=message)

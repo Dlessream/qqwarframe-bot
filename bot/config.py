@@ -123,6 +123,11 @@ DEFAULTS: Dict[str, Any] = {
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/126.0.0.0 Safari/537.36"),
     },
+    # 帮助菜单动态背景：从官方 news 的 key art 取图，随游戏更新自动换
+    "helpbg": {
+        "enabled": True,
+        "timeout_seconds": 12,
+    },
     "riven": {
         "disposition_override": 1.2,
         "aliases_file": "data/riven_aliases.json",

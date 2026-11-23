@@ -1509,74 +1509,191 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
     return _encode(image.crop((0, 0, WIDTH, min(height, _footer(draw, y, footer) + 10))))
 
 
-def help_card(prefix: str = "#", disabled=()) -> bytes:
-    rows = [
-        ["%swm <名称> [平台]" % prefix, "物品详情 + 实时报价 + 15 天走势"],
-        ["%swm mod <名称>" % prefix, "只查 MOD（等价于 %smod <名称>）" % prefix],
-        ["%s价格 <名称> [平台]" % prefix, "只看价格、买卖单与行情"],
-        ["%s战甲 / %s武器 / %smod" % (prefix, prefix, prefix), "按分类搜索"],
-        ["%s拆件 <套装>" % prefix, "套装 vs 部件比价"],
-        ["%s金垃圾 / %s银垃圾 / %s铜垃圾" % (prefix, prefix, prefix), "垃圾地板价 + 一组价"],
-        ["%s垃圾" % prefix, "金/银/铜垃圾行情总览"],
-        ["%s战甲榜" % prefix, "Prime 战甲价格排行"],
-        ["%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"],
-        ["%swr <武器> [词条…]" % prefix,
-         "在线/游戏中卖家；不写「负任意」= 只看无负面"],
-        ["%s遗物 <编号|奖励名>" % prefix,
-         "编号→奖励明细/行情；奖励名→反查含它的全部遗物（支持别名）"],
-        ["%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"],
-        ["%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"],
-        ["%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"],
-        ["%s轮换 言录使" % prefix, "本周 5 件（苦栓）"],
-        ["%s轮换 格拉斯 / 埃莉诺" % prefix, "信条近战 / 终幕武器加成"],
-        ["%s奸商 / %s突击 / %s仲裁" % (prefix, prefix, prefix), "奸商、突击、当前仲裁"],
-        ["%s世界状态" % prefix, "完整世界状态总览"],
-        ["%s警报 / %s入侵" % (prefix, prefix), "当前警报、入侵进度与双方奖励"],
-        ["%s钢铁侵袭 / %s电波" % (prefix, prefix), "钢铁侵袭、午夜电波"],
-        ["%s平原 / %s特惠" % (prefix, prefix), "平原时间、每日特惠"],
-        ["%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"],
-        ["%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化、执刑官猎杀"],
-        ["%s裂缝 / %s钢铁裂缝" % (prefix, prefix), "普通裂缝、钢铁之路裂缝"],
-        ["%s虚空风暴 / %s九重天" % (prefix, prefix), "航道星舰 风暴裂缝"],
-        ["%s赏金 / %s平原赏金" % (prefix, prefix), "各大 NPC 可接赏金"],
-        ["%s希图斯" % prefix, "希图斯时间 + 7档赏金 + 帐篷A/B/C"],
-        ["%s圣所 / %s1999 / %s扎里曼" % (prefix, prefix, prefix),
-         "三处固定档位赏金（几档 / 几级 / 给什么）"],
-        ["%s深层科研 / %s时光科研" % (prefix, prefix), "深层科研、时光科研"],
-        ["%s科研" % prefix, "两种科研总览"],
-        ["%s仲裁评级" % prefix, "仲裁梯队（加「本地」看推算）"],
-        ["%s今日仲裁 / %s高效仲裁" % (prefix, prefix), "未来 24 小时轮换、S/A+ 高价值仲裁"],
-        ["%s仲裁表 [天数]" % prefix, "未来 7 天完整仲裁排期（底部含筛选按钮）"],
-        ["%s谷拦仲裁 / %s镜防仲裁" % (prefix, prefix), "谷神星拦截、火星/火卫二镜像防御仲裁"],
-        ["%s提醒 <名称> <价>" % prefix, "降价提醒"],
-        ["%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"],
-        ["%s订阅 <类型> [筛选]" % prefix, "新内容出现就推送到群"],
-        ["%s订阅列表 / %s取消订阅" % (prefix, prefix), "管理事件订阅"],
-        ["%s更新 / %s数据状态" % (prefix, prefix), "刷新缓存、查看数据源"],
-        ["%swiki <关键词>" % prefix, "英文维基"],
-        ["%s翻译 <物品名>" % prefix, "中英双语对照"],
-        ["%s帮助" % prefix, "显示本菜单"],
+def _help_groups(prefix: str):
+    """帮助菜单分组结构：[(分组名, 强调色, [(命令, 说明), ...]), ...]。"""
+    return [
+        ("市场行情", GOLD, [
+            ("%swm <名称> [平台]" % prefix, "物品详情 + 实时报价 + 15 天走势"),
+            ("%swm mod <名称>" % prefix, "只查 MOD（等价于 %smod <名称>）" % prefix),
+            ("%s价格 <名称> [平台]" % prefix, "只看价格、买卖单与行情"),
+            ("%s战甲 / %s武器 / %smod" % (prefix, prefix, prefix), "按分类搜索"),
+            ("%s拆件 <套装>" % prefix, "套装 vs 部件比价"),
+            ("%s金/银/铜垃圾" % prefix, "垃圾地板价 + 一组价"),
+            ("%s垃圾" % prefix, "金/银/铜垃圾行情总览"),
+            ("%s战甲榜" % prefix, "Prime 战甲价格排行"),
+        ]),
+        ("紫卡与遗物", PURPLE, [
+            ("%s紫卡 <武器>" % prefix, "倾向 + 词条范围（2 / 2+1 / 3 / 3+1）"),
+            ("%swr <武器> [词条…]" % prefix,
+             "在线/游戏中卖家；不写「负任意」= 只看无负面"),
+            ("%s遗物 <编号|奖励名>" % prefix,
+             "编号→奖励明细；奖励名→反查全部遗物（支持别名）"),
+            ("%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"),
+            ("%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"),
+        ]),
+        ("世界状态", CYAN, [
+            ("%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"),
+            ("%s轮换 言录使" % prefix, "本周 5 件（苦栓）"),
+            ("%s轮换 格拉斯 / 埃莉诺" % prefix, "信条近战 / 终幕武器加成"),
+            ("%s奸商 / %s突击 / %s仲裁" % (prefix, prefix, prefix), "奸商、突击、当前仲裁"),
+            ("%s世界状态" % prefix, "完整世界状态总览"),
+            ("%s警报 / %s入侵" % (prefix, prefix), "当前警报、入侵进度与双方奖励"),
+            ("%s钢铁侵袭 / %s电波" % (prefix, prefix), "钢铁侵袭、午夜电波"),
+            ("%s平原 / %s特惠" % (prefix, prefix), "平原时间、每日特惠"),
+            ("%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"),
+            ("%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化、执刑官猎杀"),
+            ("%s裂缝 / %s钢铁裂缝" % (prefix, prefix), "普通裂缝、钢铁之路裂缝"),
+            ("%s虚空风暴 / %s九重天" % (prefix, prefix), "航道星舰 风暴裂缝"),
+            ("%s赏金 / %s平原赏金" % (prefix, prefix), "各大 NPC 可接赏金"),
+            ("%s希图斯" % prefix, "希图斯时间 + 7档赏金 + 帐篷A/B/C"),
+            ("%s圣所 / %s1999 / %s扎里曼" % (prefix, prefix, prefix),
+             "三处固定档位赏金（几档 / 几级 / 给什么）"),
+            ("%s深层科研 / %s时光科研" % (prefix, prefix), "深层科研、时光科研"),
+            ("%s科研" % prefix, "两种科研总览"),
+        ]),
+        ("仲裁排期", GREEN, [
+            ("%s仲裁评级" % prefix, "仲裁梯队（加「本地」看推算）"),
+            ("%s今日仲裁 / %s高效仲裁" % (prefix, prefix), "未来 24 小时轮换、S/A+ 高价值仲裁"),
+            ("%s仲裁表 [天数]" % prefix, "未来 7 天完整仲裁排期（底部含筛选按钮）"),
+            ("%s谷拦仲裁 / %s镜防仲裁" % (prefix, prefix), "谷神星拦截、火星/火卫二镜像防御仲裁"),
+        ]),
+        ("订阅与工具", GOLD, [
+            ("%s提醒 <名称> <价>" % prefix, "降价提醒"),
+            ("%s提醒列表 / %s取消提醒" % (prefix, prefix), "管理降价提醒"),
+            ("%s订阅 <类型> [筛选]" % prefix, "新内容出现就推送到群"),
+            ("%s订阅列表 / %s取消订阅" % (prefix, prefix), "管理事件订阅"),
+            ("%s更新 / %s数据状态" % (prefix, prefix), "刷新缓存、查看数据源"),
+            ("%swiki <关键词>" % prefix, "英文维基"),
+            ("%s翻译 <物品名>" % prefix, "中英双语对照"),
+            ("%s帮助" % prefix, "显示本菜单"),
+        ]),
     ]
-    disabled = set(disabled or ())
-    if "wiki" in disabled:
-        rows = [row for row in rows
-                if not row[0].startswith(prefix + "wiki")]
-    if "riven_market" in disabled:
-        rows = [row for row in rows
-                if not row[0].startswith(prefix + "wr")]
-    if "relic" in disabled:
-        rows = [row for row in rows
-                if not row[0].startswith(prefix + "遗物")]
-    if "help" in disabled:
-        rows = [row for row in rows
-                if not row[0].startswith(prefix + "帮助")]
-    return build_table(
-        "Warframe 查询机器人", "命令可直接发送，不需要 # 前缀或 @ 机器人",
-        ["命令", "说明"], rows,
-        "平台：pc / ps / xbox / switch / mobile，默认 PC",
-        accent=GOLD, chip="HELP", ratios=[1.2, 2.0],
-        note="名称支持中文、英文、slug 和常用外号；结果优先以图片发送。")
 
+
+def _help_canvas(background, height: int) -> "Image.Image":
+    """铺背景并叠暗色蒙版；无背景时用纯色渐变。始终返回 RGBA。"""
+    if background is None:
+        return _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    try:
+        bw, bh = background.size
+        scale = max(WIDTH / float(bw), height / float(bh))
+        nw, nh = max(WIDTH, int(bw * scale)), max(height, int(bh * scale))
+        scaled = background.resize((nw, nh), Image.LANCZOS).convert("RGBA")
+        left = (nw - WIDTH) // 2
+        top = (nh - height) // 2
+        canvas = scaled.crop((left, top, left + WIDTH, top + height))
+    except Exception:
+        return _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
+    # 上暗下稍亮的深色蒙版，保证文字对比度同时隐约透出游戏 key art
+    veil = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    vd = ImageDraw.Draw(veil)
+    for y in range(height):
+        alpha = int(178 - 52 * (y / max(1, height - 1)))
+        vd.line([(0, y), (WIDTH, y)], fill=(9, 12, 20, alpha))
+    canvas.alpha_composite(veil)
+    return canvas
+
+
+def help_card(prefix: str = "#", disabled=(), background=None) -> bytes:
+    """帮助菜单卡片。
+
+    background: PIL.Image 官方 key art（可选）。传入时铺底并叠暗色蒙版；
+    未传入或渲染失败时降级为纯色渐变卡片。
+
+    半透明元素先画到独立 overlay，再 alpha_composite 到底图，最后画文字——
+    避免低版本 Pillow 在 RGBA 画布上直接写半透明色导致不混合的问题。
+    """
+    groups = _help_groups(prefix)
+    disabled = set(disabled or ())
+    hidden = []
+    if "wiki" in disabled:
+        hidden.append(prefix + "wiki")
+    if "riven_market" in disabled:
+        hidden.append(prefix + "wr")
+    if "relic" in disabled:
+        hidden.append(prefix + "遗物")
+    if "help" in disabled:
+        hidden.append(prefix + "帮助")
+
+    filtered = []
+    for name, color, rows in groups:
+        kept = [(cmd, desc) for cmd, desc in rows
+                if not any(cmd.startswith(h) for h in hidden)]
+        if kept:
+            filtered.append((name, color, kept))
+
+    HEADER_H = 118
+    SECTION_H = 40
+    ROW_H = 36
+    GROUP_GAP = 14
+    content_h = sum(SECTION_H + len(rows) * ROW_H + GROUP_GAP
+                    for _, _, rows in filtered)
+    height = max(700, HEADER_H + content_h + 76)
+
+    canvas = _help_canvas(background, height)
+    draw = ImageDraw.Draw(canvas)
+    overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay, "RGBA")
+
+    draw.rectangle([0, 0, WIDTH, 5], fill=GOLD)
+    title_font = _font(34, bold=True)
+    draw.text((PAD, 22), "Warframe 查询机器人", font=title_font, fill=TEXT)
+    draw.text((PAD, 68), "命令可直接发送，不需要 # 前缀或 @ 机器人",
+              font=_font(15), fill=MUTED)
+
+    chip_text = "HELP"
+    chip_font = _font(14, bold=True)
+    cw, ch = _tsize(draw, chip_text, chip_font)
+    _rrect(od, (WIDTH - PAD - cw - 24, 28, WIDTH - PAD, 28 + ch + 14), 8,
+           fill=(235, 188, 96, 46), outline=GOLD + (210,), width=1)
+    draw.text((WIDTH - PAD - cw - 12, 33), chip_text,
+              font=chip_font, fill=GOLD)
+    draw.line([(PAD, 100), (WIDTH - PAD, 100)], fill=(150, 112, 44), width=1)
+
+    y = HEADER_H
+    cmd_font = _font(17, bold=True)
+    desc_font = _font(15)
+    section_font = _font(16, bold=True)
+    usable = WIDTH - 2 * PAD
+    cmd_w = int(usable * 1.1 / 3.25)
+    desc_x = PAD + cmd_w
+
+    # 先记录所有行位置，画到 overlay；文字位置留到合成后画
+    row_layout = []
+    for name, color, rows in filtered:
+        draw.rectangle([PAD, y, PAD + 5, y + 24], fill=color)
+        draw.text((PAD + 16, y - 2), name, font=section_font, fill=color)
+        tw, _ = _tsize(draw, name, section_font)
+        draw.line([(PAD + 24 + tw, y + 12), (WIDTH - PAD, y + 12)],
+                  fill=tuple(int(c * 0.42) for c in color), width=1)
+        y += SECTION_H
+
+        for index, (cmd, desc) in enumerate(rows):
+            if index % 2 == 0:
+                _rrect(od, (PAD - 8, y - 4, WIDTH - PAD + 8, y + ROW_H - 6), 7,
+                       fill=(24, 31, 44, 168))
+            row_layout.append((y, cmd, desc))
+            y += ROW_H
+        y += GROUP_GAP
+
+    # overlay 合成到底图，再画所有文字，保证文字永远在最上层
+    canvas = Image.alpha_composite(canvas, overlay)
+    draw = ImageDraw.Draw(canvas)
+    for y, cmd, desc in row_layout:
+        draw.text((PAD + 4, y + 3), _fit(draw, cmd, cmd_font, cmd_w - 16),
+                  font=cmd_font, fill=GOLD)
+        draw.text((desc_x, y + 5), _fit(draw, desc, desc_font, usable - cmd_w - 8),
+                  font=desc_font, fill=TEXT)
+
+    footer_font = _font(13)
+    draw.line([(PAD, y + 6), (WIDTH - PAD, y + 6)], fill=(90, 98, 110), width=1)
+    draw.text((PAD, y + 18), "平台：pc / ps / xbox / switch / mobile，默认 PC",
+              font=footer_font, fill=DIM)
+    right = "QQ Warframe Bot"
+    rw, _ = _tsize(draw, right, footer_font)
+    draw.text((WIDTH - PAD - rw, y + 18), right, font=footer_font, fill=DIM)
+
+    return _encode(canvas.crop((0, 0, WIDTH, min(height, y + 48))))
 
 # ---------------------------------------------------------------------- 科研卡
 def _tag_chip(draw, x: int, y: int, text: str, color) -> int:

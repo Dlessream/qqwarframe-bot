@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from . import helpbg
 from . import imagecard
 from . import names
 from . import present
@@ -298,6 +299,12 @@ class CommandRouter:
             "icon_dir") or "data/cache/icons")
         imagecard.set_icon_loader(self._load_icon)
 
+        # 帮助菜单动态背景：复用世界状态已配好代理的 http 客户端，
+        # 从 news 的官方 key art 取图；新闻更新时缓存 key 变化，背景自动更换。
+        ws_http = getattr(worldstate, "http", None) if worldstate is not None else None
+        self.help_background = helpbg.HelpBackground(
+            config.get("helpbg", {}), http=ws_http, logger=self.log)
+
     def _reload_commands(self) -> None:
         aliases = self.command_store.aliases()
         self.commands = dict(COMMANDS)
@@ -462,7 +469,9 @@ class CommandRouter:
 
         try:
             if command == "help":
-                return [present.help_reply(ctx.prefix, self.disabled_commands)]
+                return [present.help_reply(
+                    ctx.prefix, self.disabled_commands,
+                    bg_provider=self._help_bg_provider)]
             if command == "wiki":
                 return [self._wiki(argument, ctx)]
             if command == "translate":
@@ -1081,6 +1090,32 @@ class CommandRouter:
         if force:
             return self.worldstate.fetch(path, force=True)
         return self.worldstate.fetch(path)
+
+    def _help_bg_provider(self):
+        """给帮助菜单提供当前官方 key art 背景；任何失败都返回 None 降级。"""
+        try:
+            from . import datafiles
+            news = None
+            if self.worldstate is not None:
+                try:
+                    news = self.worldstate.fetch("news")
+                except Exception:
+                    news = None
+            # 聚合源被墙时 worldstate 会把 news 补进本地 supplement 文件
+            if not news:
+                path = datafiles.resolve(
+                    os.path.join("data", "worldstate_supplement.json"))
+                if os.path.isfile(path):
+                    import json
+                    with open(path, encoding="utf-8") as handle:
+                        raw = json.load(handle)
+                    if isinstance(raw, dict):
+                        data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+                        news = data.get("news") or raw.get("news")
+            return self.help_background.get(news)
+        except Exception as exc:
+            self.log.debug("帮助背景加载跳过：%s", exc)
+            return None
 
     def _world_summary(self, ctx: Context) -> Reply:
         state = self._ws("")
