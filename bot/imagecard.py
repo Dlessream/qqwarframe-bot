@@ -220,6 +220,26 @@ def _vcenter(draw, text: str, font, box_h: float, box_top: float = 0.0) -> int:
     return int(round(box_top + (box_h - glyph_h) / 2.0 - top))
 
 
+def _ctext(draw, y: int, text: str, font, fill, cx: float = None,
+           width: int = WIDTH) -> None:
+    """水平居中绘制文字；cx 默认取 width 的水平中线。"""
+    if cx is None:
+        cx = width / 2.0
+    tw, _ = _tsize(draw, text, font)
+    draw.text((int(round(cx - tw / 2.0)), y), text, font=font, fill=fill)
+
+
+def _cvtext(draw, text: str, font, fill, box_h: float, box_top: float = 0.0,
+            cx: float = None, width: int = WIDTH) -> None:
+    """在 [box_top, box_top + box_h] 的行框内水平 + 垂直居中绘制文字。"""
+    if cx is None:
+        cx = width / 2.0
+    tw, _ = _tsize(draw, text, font)
+    draw.text((int(round(cx - tw / 2.0)),
+               _vcenter(draw, text, font, box_h, box_top)),
+              text, font=font, fill=fill)
+
+
 def _fit(draw, text: str, font, max_width: int) -> str:
     text = str(text or "")
     if not text:
@@ -389,8 +409,8 @@ def _pills(draw, y: int, items: Sequence[Tuple[str, str]], accent,
 def _order_column(draw, x: int, width: int, y: int, title: str, color,
                   orders, empty_text: str) -> int:
     font_title = _font(19, bold=True)
-    draw.ellipse([x, y + 8, x + 10, y + 18], fill=color)
-    draw.text((x + 18, y), title, font=font_title, fill=TEXT)
+    draw.ellipse([x + 6, y + 8, x + 16, y + 18], fill=color)
+    _ctext(draw, y, title, font_title, TEXT, cx=x + width / 2.0)
     if orders:
         count_text = "%d 条" % len(orders)
         count_font = _font(15)
@@ -399,7 +419,7 @@ def _order_column(draw, x: int, width: int, y: int, title: str, color,
     y += 38
 
     if not orders:
-        draw.text((x, y + 2), empty_text, font=_font(17), fill=DIM)
+        _ctext(draw, y + 2, empty_text, _font(17), DIM, cx=x + width / 2.0)
         return y + 34
 
     price_font = _font(25, bold=True)
@@ -460,9 +480,10 @@ def _format_price(value) -> str:
 
 def _stat_block(draw, x: int, width: int, y: int, label: str, value: str,
                 sub: str, color) -> None:
-    draw.text((x, y), label, font=_font(15), fill=DIM)
-    draw.text((x, y + 24), value, font=_font(26, bold=True), fill=color)
-    draw.text((x, y + 62), _fit(draw, sub, _font(15), width), font=_font(15), fill=MUTED)
+    cx = x + width / 2.0
+    _ctext(draw, y, label, _font(15), DIM, cx=cx)
+    _ctext(draw, y + 24, value, _font(26, bold=True), color, cx=cx)
+    _ctext(draw, y + 62, _fit(draw, sub, _font(15), width), _font(15), MUTED, cx=cx)
 
 
 def _trend_table(draw, y, stats, days: int = 15) -> int:
@@ -569,7 +590,7 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
 
     _divider(draw, y)
     y += 20
-    draw.text((PAD, y), "行情", font=_font(17, bold=True), fill=TEXT)
+    _ctext(draw, y, "行情", _font(17, bold=True), TEXT)
     y += 30
 
     third = (WIDTH - 2 * PAD) // 3
@@ -597,8 +618,8 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
     if item.description and not price_only:
         desc = item.description.replace("\n", " ").strip()
         y += 4
-        draw.text((PAD, y), "“%s”" % _fit(draw, desc, _font(14), WIDTH - 2 * PAD),
-                  font=_font(14), fill=DIM)
+        _ctext(draw, y, "“%s”" % _fit(draw, desc, _font(14), WIDTH - 2 * PAD),
+               _font(14), DIM)
         y += 28
 
     left = "数据 warframe market · %s · %s" % (
@@ -618,8 +639,7 @@ def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
                 "TREND", GOLD)
     y += 18
     if len(points) < 2:
-        draw.text((PAD, y + 10), "暂无足够的价格历史数据。",
-                  font=_font(16), fill=MUTED)
+        _ctext(draw, y + 10, "暂无足够的价格历史数据。", _font(16), MUTED)
         y += 50
     else:
         y = _trend_table(draw, y, stats)
@@ -640,28 +660,25 @@ def item_desc_card(item, platform_label: str = "PC") -> bytes:
     y = _header(draw, item.name or item.slug,
                 "物品说明 · warframe.market 风格", "DESC", CYAN)
     y += 30
-    draw.text((PAD, y), "TENNO", font=_font(13, bold=True), fill=GOLD)
+    _ctext(draw, y, "TENNO", _font(13, bold=True), GOLD)
     y += 26
     font = _font(18)
     lines = _wrap(draw, desc, font, WIDTH - 2 * PAD - 60, max_lines=10)
     box = (PAD, y - 8, WIDTH - PAD, y + len(lines) * 32 + 22)
     _rrect(draw, box, 13, fill=PANEL_LIGHT, outline=(70, 84, 106), width=1)
     for index, line in enumerate(lines):
-        draw.text((PAD + 24, y + index * 32), line, font=font, fill=TEXT)
+        _ctext(draw, y + index * 32, line, font, TEXT)
     y = box[3] + 30
-    draw.text((PAD, y), "来源：warframe.market 物品页说明文本",
-              font=_font(15), fill=DIM)
+    _ctext(draw, y, "来源：warframe.market 物品页说明文本", _font(15), DIM)
     y = _footer(draw, y + 44, "平台：%s" % platform_label)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
 # ---------------------------------------------------------------------- 紫卡范围
 def _analysis_section(draw, y: int, title: str, hint: str = "") -> int:
-    draw.text((PAD, y), title, font=_font(20, bold=True), fill=TEXT)
-    if hint:
-        font = _font(15)
-        width, _ = _tsize(draw, hint, font)
-        draw.text((WIDTH - PAD - width, y + 6), hint, font=font, fill=DIM)
+    font = _font(20, bold=True)
+    heading = title + ("  ·  " + hint if hint else "")
+    _ctext(draw, y, _fit(draw, heading, font, WIDTH - 2 * PAD), font, TEXT)
     y += 34
     _divider(draw, y)
     return y + 10
@@ -785,8 +802,8 @@ def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计�
         notes.append("最近一次倾向调整：%s（%s）" % (latest[1], latest[0]))
     y += 10
     for line in notes:
-        draw.text((PAD, y), _fit(draw, line, _font(14), WIDTH - 2 * PAD),
-                  font=_font(14), fill=MUTED)
+        _ctext(draw, y, _fit(draw, line, _font(14), WIDTH - 2 * PAD),
+               _font(14), MUTED)
         y += 25
 
     y = _footer(draw, y + 8, footer)
@@ -1599,15 +1616,15 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
         if not line:
             y += 12
             continue
-        draw.text((PAD, y), line, font=body_font, fill=TEXT)
+        _ctext(draw, y, line, body_font, TEXT)
         y += line_height
 
     y += 16
     _divider(draw, y)
     y += 18
     url_font = _font(16)
-    draw.text((PAD, y), _fit(draw, "链接 " + url, url_font, WIDTH - 2 * PAD),
-              font=url_font, fill=CYAN)
+    _ctext(draw, y, _fit(draw, "链接 " + url, url_font, WIDTH - 2 * PAD),
+           url_font, CYAN)
     y += 36
 
     return _encode(image.crop((0, 0, WIDTH, min(height, _footer(draw, y, footer) + 10))))
@@ -1813,10 +1830,14 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     # ---- 顶部标题条 ----
     _rrect(od, (M, 30, HELP_W - M, 124), 14,
            fill=(9, 12, 19, 158), outline=GOLD + (110,), width=1)
-    od.rectangle([M + 20, 50, M + 27, 104], fill=GOLD)
-    text_ops.append(((M + 42, 44), "命令一览", _font(31, bold=True), TEXT))
-    text_ops.append(((M + 226, 60), "命令可直接发送，不需要 # 前缀或 @ 机器人",
-                     _font(19), MUTED))
+    probe = ImageDraw.Draw(canvas)
+    title_font = _font(31, bold=True)
+    tw, _ = _tsize(probe, "命令一览", title_font)
+    text_ops.append((((HELP_W - tw) // 2 - 18, 44), "命令一览", title_font, TEXT))
+    sub_font = _font(17)
+    sub_text = "命令可直接发送，不需要 # 前缀或 @ 机器人"
+    sw, _ = _tsize(probe, sub_text, sub_font)
+    text_ops.append((((HELP_W - sw) // 2, 88), sub_text, sub_font, MUTED))
     chip_text = "HELP"
     chip_font = _font(18, bold=True)
     probe = ImageDraw.Draw(canvas)
@@ -1843,22 +1864,27 @@ def help_card(prefix: str = "#", disabled=(), background=None,
             panel_bottom = y + SECTION_H + len(rows) * ROW_H + 16
             _rrect(od, (x - 20, y - 16, x + col_w + 20, panel_bottom), 14,
                    fill=(9, 12, 19, 148), outline=LINE + (125,), width=1)
-            od.rectangle([x, y + 4, x + 6, y + 36], fill=color)
-            text_ops.append(((x + 20, y - 2), name, section_font, color))
-            tw, _ = _tsize(probe, name, section_font)
-            od.line([(x + 32 + tw, y + 19), (x + col_w - 6, y + 19)],
+            col_cx = x + col_w / 2.0
+            od.rectangle([x + 10, y + 4, x + 16, y + 36], fill=color)
+            nw, _ = _tsize(probe, name, section_font)
+            text_ops.append(((int(round(col_cx - nw / 2.0)), y - 2),
+                             name, section_font, color))
+            left_line = int(round(col_cx - nw / 2.0)) + nw + 12
+            od.line([(left_line, y + 19), (x + col_w - 6, y + 19)],
                     fill=tuple(int(c * 0.45) for c in color) + (180,), width=1)
             y += SECTION_H
             for index, (cmd, desc) in enumerate(rows):
                 if index % 2 == 0:
                     _rrect(od, (x + 2, y - 4, x + col_w - 2, y + ROW_H - 8), 8,
                            fill=(28, 36, 50, 128))
-                text_ops.append(((x + 14, y - 2),
-                                 _fit(probe, cmd, cmd_font, col_w - 28),
-                                 cmd_font, GOLD))
-                text_ops.append(((x + 14, y + 25),
-                                 _fit(probe, desc, desc_font, col_w - 28),
-                                 desc_font, TEXT))
+                cmd_text = _fit(probe, cmd, cmd_font, col_w - 28)
+                cw2, _ = _tsize(probe, cmd_text, cmd_font)
+                text_ops.append(((int(round(col_cx - cw2 / 2.0)), y - 2),
+                                 cmd_text, cmd_font, GOLD))
+                desc_text = _fit(probe, desc, desc_font, col_w - 28)
+                dw, _ = _tsize(probe, desc_text, desc_font)
+                text_ops.append(((int(round(col_cx - dw / 2.0)), y + 25),
+                                 desc_text, desc_font, TEXT))
                 y += ROW_H
             y += GROUP_GAP
 
@@ -1870,12 +1896,9 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     footer_font = _font(16)
     draw.line([(M, HELP_H - 54), (HELP_W - M, HELP_H - 54)],
               fill=(120, 128, 140, 170), width=1)
-    draw.text((M, HELP_H - 44), "平台：pc / ps / xbox / switch / mobile，默认 PC",
-              font=footer_font, fill=DIM)
-    right = "QQ Warframe Bot"
-    rw, _ = _tsize(draw, right, footer_font)
-    draw.text((HELP_W - M - rw, HELP_H - 44), right,
-              font=footer_font, fill=DIM)
+    footer_text = "平台：pc / ps / xbox / switch / mobile，默认 PC  ·  QQ Warframe Bot"
+    footer_text = _fit(draw, footer_text, footer_font, HELP_W - 2 * M)
+    _ctext(draw, HELP_H - 44, footer_text, footer_font, DIM, width=HELP_W)
 
     return _encode(canvas)
 
@@ -2176,9 +2199,9 @@ def _purple_footer(draw, y: int, left: str,
     draw.rectangle([0, band_top, width, y + 50], fill=(24, 16, 38))
     draw.line([(PAD, y), (width - PAD, y)], fill=(96, 74, 122), width=1)
     font = _font(14)
-    draw.text((PAD, y + 14), left, font=font, fill=(196, 182, 214))
-    tw, _ = _tsize(draw, right, font)
-    draw.text((width - PAD - tw, y + 14), right, font=font, fill=(196, 182, 214))
+    text = "  ·  ".join(part for part in (left, right) if part)
+    text = _fit(draw, text, font, width - 2 * PAD)
+    _ctext(draw, y + 14, text, font, (196, 182, 214), width=width)
     return y + 52
 
 
@@ -2197,13 +2220,11 @@ def alerts_card(items: Sequence[Dict],
     height = 140 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    draw.text((PAD, 30), "警报信息", font=_font(40, bold=True),
-              fill=PURPLE_TEXT)
-    draw.text((PAD, 88), "世界状态实时警报", font=_font(18), fill=PURPLE_MUTED)
+    _ctext(draw, 30, "警报信息", _font(40, bold=True), PURPLE_TEXT)
+    _ctext(draw, 88, "世界状态实时警报", _font(18), PURPLE_MUTED)
     y = 128
     if not items:
-        draw.text((PAD, y + 28), "当前没有活跃警报", font=_font(22),
-                  fill=PURPLE_MUTED)
+        _ctext(draw, y + 28, "当前没有活跃警报", _font(22), PURPLE_MUTED)
     for item in items:
         box = (26, y, WIDTH - 26, y + row_h - 12)
         _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
@@ -2225,9 +2246,10 @@ def alerts_card(items: Sequence[Dict],
         _purple_right(draw, node, WIDTH - 48, y + 24, _font(19), PURPLE_TEXT)
         reward = _fit(draw, str(item.get("reward") or "—"),
                       _font(18), WIDTH - 96)
-        draw.text((48, y + 66), reward, font=_font(18), fill=PURPLE_MUTED)
-        draw.text((48, y + 100), "剩余时间：" + str(item.get("remaining") or "—"),
-                  font=_font(17), fill=PURPLE_GOLD)
+        _ctext(draw, y + 66, reward, _font(18), PURPLE_MUTED)
+        _ctext(draw, y + 100,
+               "剩余时间：" + str(item.get("remaining") or "—"),
+               _font(17), PURPLE_GOLD)
         y += row_h
     y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -2241,14 +2263,12 @@ def invasions_card(items: Sequence[Dict],
     height = 144 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    draw.text((PAD, 30), "入侵任务", font=_font(40, bold=True),
-              fill=PURPLE_TEXT)
-    draw.text((PAD, 88), "使用命令 #订阅 可蹲守物品 · 部分信息会先于游戏出现",
-              font=_font(17), fill=PURPLE_MUTED)
+    _ctext(draw, 30, "入侵任务", _font(40, bold=True), PURPLE_TEXT)
+    _ctext(draw, 88, "使用命令 #订阅 可蹲守物品 · 部分信息会先于游戏出现",
+           _font(17), PURPLE_MUTED)
     y = 132
     if not items:
-        draw.text((PAD, y + 28), "当前没有入侵", font=_font(22),
-                  fill=PURPLE_MUTED)
+        _ctext(draw, y + 28, "当前没有入侵", _font(22), PURPLE_MUTED)
     for item in items:
         box = (26, y, WIDTH - 26, y + row_h - 12)
         _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
@@ -2304,7 +2324,7 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
     title = getattr(relic, "title", "遗物")
-    draw.text((PAD, 30), title, font=_font(42, bold=True), fill=PURPLE_TEXT)
+    _ctext(draw, 30, title, _font(42, bold=True), PURPLE_TEXT)
     badge = str(getattr(relic, "vault_label", ""))
     if badge:
         bw, _ = _tsize(draw, badge, _font(16, bold=True))
@@ -2312,12 +2332,12 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
                      (112, 82, 119), PURPLE_GOLD, font_size=16)
     refinement = str(getattr(relic, "refinement_label", "完整"))
     code = str(getattr(relic, "refinement", "Intact"))
-    draw.text((PAD, 94), "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
-        refinement, code), font=_font(17), fill=PURPLE_MUTED)
+    _ctext(draw, 94, "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
+        refinement, code), _font(17), PURPLE_MUTED)
     if locations:
-        draw.text((PAD, 122), "获取：%s" % _fit(
+        _ctext(draw, 122, "获取：%s" % _fit(
             draw, "、".join(locations[:8]), _font(14), WIDTH - 2 * PAD),
-            font=_font(14), fill=PURPLE_MUTED)
+            _font(14), PURPLE_MUTED)
     y = 150 if locations else 144
     for reward in rewards:
         name = str(getattr(reward, "market_name", "")
@@ -2348,8 +2368,8 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
         _divider(draw, y + row_h - 14, 34, WIDTH - 34)
         y += row_h
     if not rewards:
-        draw.text((PAD, y + 18), "这个遗物没有可读取的奖励数据。",
-                  font=_font(18), fill=PURPLE_MUTED)
+        _ctext(draw, y + 18, "这个遗物没有可读取的奖励数据。",
+               _font(18), PURPLE_MUTED)
     y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
@@ -2366,11 +2386,11 @@ def relic_reverse_card(query: str, target: str, rows,
     height = head_h + len(rows) * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    draw.text((PAD, 28), "奖励反查", font=_font(40, bold=True), fill=PURPLE_TEXT)
+    _ctext(draw, 28, "奖励反查", _font(40, bold=True), PURPLE_TEXT)
     sub = _fit(draw, "%s  →  %s" % (query, target), _font(20), WIDTH - 2 * PAD)
-    draw.text((PAD, 86), sub, font=_font(20), fill=PURPLE_GOLD)
-    draw.text((PAD, 118), "共 %d 个遗物可获得" % len(rows),
-              font=_font(17), fill=PURPLE_MUTED)
+    _ctext(draw, 86, sub, _font(20), PURPLE_GOLD)
+    _ctext(draw, 118, "共 %d 个遗物可获得" % len(rows),
+           _font(17), PURPLE_MUTED)
     y = head_h
     for index, (relic, rewards) in enumerate(rows, 1):
         title = str(getattr(relic, "title", "遗物"))
