@@ -143,6 +143,39 @@ class ImageCardTest(unittest.TestCase):
         self.assertEqual(width, 860)
         self.assertGreater(height, 300)
 
+    def test_relic_tier_localized_by_chinese_wiki(self):
+        """遗物标题的英文等级按中文 wiki 译名显示。"""
+        self.assertEqual(imagecard._localize_relic_title("Axi A1 遗物"),
+                         "后纪 A1 遗物")
+        self.assertEqual(imagecard._localize_relic_title("Lith B2"),
+                         "古纪 B2")
+        self.assertEqual(imagecard._localize_relic_title("Meso C3"),
+                         "前纪 C3")
+        self.assertEqual(imagecard._localize_relic_title("Neo D4"),
+                         "中纪 D4")
+        self.assertEqual(imagecard._localize_relic_title("Requiem E5"),
+                         "安魂 E5")
+        self.assertEqual(imagecard._localize_relic_title("后纪 S18"),
+                         "后纪 S18")  # 已经是中文不重复改
+
+    def test_alerts_card_fits_remaining_time(self):
+        """剩余时间完整落在卡片框内：框底 = y + row_h - 12 要低于文字底部。"""
+        class Reward:
+            market_name = "Allow Znip R1"
+            rarity_label = "稀有"
+            chance = 0.02
+            ducats = 45
+            price_low = 12.5
+            price_high = 18.0
+
+        png = imagecard.alerts_card([
+            {"mission": "歼灭", "level": "L25-30", "faction": "Grineer",
+             "node": "Cervantes (Earth)", "reward": "奥罗金反应堆蓝图 x1",
+             "remaining": "23 分"},
+        ])
+        # 单行卡：标题 140 + 行高 188 + 底部 80，行内最后一层在 y+148
+        self.assertGreater(png_size(png)[1], 140 + 188 + 30)
+
     def test_official_image_upload_payload(self):
         """官方图片走富媒体上传，file_data 必须是 base64。"""
         import base64

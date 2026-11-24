@@ -13,6 +13,7 @@ from __future__ import annotations
 import fnmatch
 import io
 import os
+import re
 import subprocess
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -2269,7 +2270,7 @@ def alerts_card(items: Sequence[Dict],
                 footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
     """警报卡片：任务、等级、派系、节点、奖励、剩余时间。"""
     count = max(1, len(items))
-    row_h = 170
+    row_h = 188
     height = 140 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
@@ -2297,7 +2298,7 @@ def alerts_card(items: Sequence[Dict],
         reward = _fit(draw, str(item.get("reward") or "—"),
                       _font(18), WIDTH - 96)
         _ctext(draw, y + 114, reward, _font(18), PURPLE_MUTED)
-        _ctext(draw, y + 140,
+        _ctext(draw, y + 148,
                "剩余时间：" + str(item.get("remaining") or "—"),
                _font(17), PURPLE_GOLD)
         y += row_h
@@ -2352,53 +2353,72 @@ def invasions_card(items: Sequence[Dict],
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
+# 中文 wiki（warframe.huijiwiki.com）的遗物等级译名
+_RELIC_TIER_ZH = {
+    "Lith": "古纪", "Meso": "前纪", "Neo": "中纪", "Axi": "后纪",
+    "Requiem": "安魂", "Omnia": "全能",
+}
+_RELIC_TIER_RE = re.compile(
+    r"\b(" + "|".join(sorted(_RELIC_TIER_ZH, key=len, reverse=True)) + r")\b",
+    re.I)
+
+
+def _localize_relic_title(title) -> str:
+    """把遗物标题里的英文等级按中文 wiki 译名替换（Axi → 后纪 等）。"""
+    text = str(title or "遗物")
+    return _RELIC_TIER_RE.sub(lambda m: _RELIC_TIER_ZH[m.group(1).title()], text)
+
+
 def relic_card(relic, footer: str = "数据 warframestat · warframe.market") -> bytes:
     """遗物：名称 + 出入库 + 精炼 / 奖励 / 概率 / 杜卡德 / WM 均价。"""
     rewards = list(getattr(relic, "rewards", ()) or ())
     count = max(1, len(rewards))
-    row_h = 124
+    row_h = 152
     locations = list(getattr(relic, "locations", ()) or ())
-    height = 178 + count * row_h + 80 + (28 if locations else 0)
+    height = 210 + count * row_h + 90 + (32 if locations else 0)
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    title = getattr(relic, "title", "遗物")
+    title = _localize_relic_title(getattr(relic, "title", "遗物"))
     _ctext(draw, 26, title, _font(40, bold=True), PURPLE_TEXT)
     badge = str(getattr(relic, "vault_label", ""))
     if badge:
-        _centered_pill_row(draw, 74, [(badge, (112, 82, 119), PURPLE_GOLD, 16)])
+        _centered_pill_row(draw, 86, [(badge, (112, 82, 119), PURPLE_GOLD, 16)])
     refinement = str(getattr(relic, "refinement_label", "完整"))
     code = str(getattr(relic, "refinement", "Intact"))
-    desc_y = 112 if badge else 84
-    _ctext(draw, desc_y,
-           "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
-               refinement, code), _font(16), PURPLE_MUTED)
+    desc_y = 128 if badge else 98
+    _ctext(draw, desc_y, "精炼：%s（%s）" % (refinement, code),
+           _font(17), PURPLE_MUTED)
+    _ctext(draw, desc_y + 30, "价格：WM 在线中/游戏中卖单最低 / 最高价",
+           _font(15), PURPLE_MUTED)
     if locations:
-        _ctext(draw, desc_y + 26, "获取：%s" % _fit(
+        _ctext(draw, desc_y + 60, "获取：%s" % _fit(
             draw, "、".join(locations[:8]), _font(14), WIDTH - 2 * PAD),
             _font(14), PURPLE_MUTED)
-    y = (desc_y + 58) if locations else (desc_y + 34)
+        y = desc_y + 92
+    else:
+        y = desc_y + 58
     for reward in rewards:
         name = str(getattr(reward, "market_name", "")
                    or getattr(reward, "name", "") or "—")
         name = _fit(draw, name, _font(21, bold=True), WIDTH - 96)
-        _ctext(draw, y + 6, name, _font(21, bold=True), PURPLE_TEXT)
+        _ctext(draw, y + 10, name, _font(21, bold=True), PURPLE_TEXT)
         rarity = str(getattr(reward, "rarity_label", "") or "")
         chance = float(getattr(reward, "chance", 0) or 0)
         chance_text = "概率 %.2f%%" % chance if chance else ""
         if rarity or chance_text:
-            _centered_pill_text(draw, y + 38, rarity, chance_text,
+            _centered_pill_text(draw, y + 50, rarity, chance_text,
                                 _font(15), PURPLE_MUTED,
                                 (104, 83, 133), PURPLE_TEXT, pill_size=14,
                                 gap=12)
         ducats = int(getattr(reward, "ducats", 0) or 0)
         price_low = float(getattr(reward, "price_low", 0) or 0)
         price_high = float(getattr(reward, "price_high", 0) or 0)
-        _centered_texts(draw, y + 78, [
+        _centered_texts(draw, y + 94, [
             ("%d 杜卡德" % ducats, _font(18, bold=True), PURPLE_GOLD),
             ("最低 %.2fp" % price_low, _font(17), PURPLE_MUTED),
             ("最高 %.2fp" % price_high, _font(17), PURPLE_MUTED),
         ], gap=22)
-        _divider(draw, y + row_h - 14, 34, WIDTH - 34)
+        _divider(draw, y + row_h - 16, 34, WIDTH - 34)
         y += row_h
     if not rewards:
         _ctext(draw, y + 18, "这个遗物没有可读取的奖励数据。",
@@ -2426,7 +2446,7 @@ def relic_reverse_card(query: str, target: str, rows,
            _font(17), PURPLE_MUTED)
     y = head_h
     for index, (relic, rewards) in enumerate(rows, 1):
-        title = str(getattr(relic, "title", "遗物"))
+        title = _localize_relic_title(getattr(relic, "title", "遗物"))
         vault = str(getattr(relic, "vault_label", ""))
         heading = "%d. %s" % (index, title)
         if vault:
