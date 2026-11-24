@@ -1620,10 +1620,13 @@ def _help_groups(prefix: str):
 
 
 # 帮助卡为横板，整卡尺寸固定；背景铺满整卡并压低透明度
-HELP_W = 1440
-HELP_H = 920
+HELP_W = 1680
+HELP_H = 1160
 HELP_BG_OPACITY = 0.40          # key art 不透明度，越低原图自带元素越淡
 HELP_BG_BLUR = 7                # 轻微模糊，进一步弱化 Logo / 按钮文字
+HELP_ROW_H = 50                 # 每行高度，留足两行文字的呼吸空间
+HELP_SECTION_H = 54             # 分组标题区高度
+HELP_GROUP_GAP = 30             # 分组之间的间距
 
 
 def _help_canvas(background, width: int, height: int) -> "Image.Image":
@@ -1681,7 +1684,8 @@ def _help_columns(groups, ncols: int = 3):
         if preferred is None or preferred >= ncols:
             preferred = min(range(ncols), key=lambda i: (loads[i], i))
         columns[preferred].append(group)
-        loads[preferred] += 40 + len(group[2]) * 40 + 16
+        loads[preferred] += (HELP_SECTION_H + len(group[2]) * HELP_ROW_H
+                             + HELP_GROUP_GAP)
     return columns
 
 
@@ -1750,55 +1754,55 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     od = ImageDraw.Draw(overlay, "RGBA")
     text_ops = []
 
-    M = 42
+    M = 56
     # ---- 顶部标题条 ----
-    _rrect(od, (M, 22, HELP_W - M, 92), 12,
+    _rrect(od, (M, 30, HELP_W - M, 124), 14,
            fill=(9, 12, 19, 158), outline=GOLD + (110,), width=1)
-    od.rectangle([M + 16, 40, M + 22, 76], fill=GOLD)
-    text_ops.append(((M + 34, 34), "命令一览", _font(27, bold=True), TEXT))
-    text_ops.append(((M + 190, 46), "命令可直接发送，不需要 # 前缀或 @ 机器人",
-                     _font(17), MUTED))
+    od.rectangle([M + 20, 50, M + 27, 104], fill=GOLD)
+    text_ops.append(((M + 42, 44), "命令一览", _font(31, bold=True), TEXT))
+    text_ops.append(((M + 226, 60), "命令可直接发送，不需要 # 前缀或 @ 机器人",
+                     _font(19), MUTED))
     chip_text = "HELP"
-    chip_font = _font(16, bold=True)
+    chip_font = _font(18, bold=True)
     probe = ImageDraw.Draw(canvas)
     cw, ch = _tsize(probe, chip_text, chip_font)
-    _rrect(od, (HELP_W - M - cw - 26, 38, HELP_W - M, 76), 8,
+    _rrect(od, (HELP_W - M - cw - 32, 50, HELP_W - M, 104), 9,
            fill=(235, 188, 96, 42), outline=GOLD + (200,), width=1)
-    text_ops.append(((HELP_W - M - cw - 13, 43), chip_text, chip_font, GOLD))
+    text_ops.append(((HELP_W - M - cw - 16, 57), chip_text, chip_font, GOLD))
 
     # ---- 三列命令面板 ----
-    GAP = 22
+    GAP = 28
     col_w = (HELP_W - 2 * M - 2 * GAP) // 3
-    BODY_Y = 112
-    SECTION_H = 40
-    ROW_H = 40
-    GROUP_GAP = 16
-    cmd_font = _font(19, bold=True)
-    desc_font = _font(16)
-    section_font = _font(21, bold=True)
+    BODY_Y = 152
+    SECTION_H = HELP_SECTION_H
+    ROW_H = HELP_ROW_H
+    GROUP_GAP = HELP_GROUP_GAP
+    cmd_font = _font(21, bold=True)
+    desc_font = _font(17)
+    section_font = _font(24, bold=True)
 
     for ci, column in enumerate(columns):
         x = M + ci * (col_w + GAP)
         y = BODY_Y
         for name, color, rows in column:
-            panel_bottom = y + SECTION_H + len(rows) * ROW_H + 6
-            _rrect(od, (x - 12, y - 10, x + col_w + 12, panel_bottom), 12,
-                   fill=(9, 12, 19, 150), outline=LINE + (130,), width=1)
-            od.rectangle([x, y + 2, x + 5, y + 28], fill=color)
-            text_ops.append(((x + 16, y - 2), name, section_font, color))
+            panel_bottom = y + SECTION_H + len(rows) * ROW_H + 16
+            _rrect(od, (x - 20, y - 16, x + col_w + 20, panel_bottom), 14,
+                   fill=(9, 12, 19, 148), outline=LINE + (125,), width=1)
+            od.rectangle([x, y + 4, x + 6, y + 36], fill=color)
+            text_ops.append(((x + 20, y - 2), name, section_font, color))
             tw, _ = _tsize(probe, name, section_font)
-            od.line([(x + 26 + tw, y + 14), (x + col_w - 4, y + 14)],
+            od.line([(x + 32 + tw, y + 19), (x + col_w - 6, y + 19)],
                     fill=tuple(int(c * 0.45) for c in color) + (180,), width=1)
             y += SECTION_H
             for index, (cmd, desc) in enumerate(rows):
                 if index % 2 == 0:
-                    _rrect(od, (x, y - 2, x + col_w, y + ROW_H - 6), 6,
-                           fill=(28, 36, 50, 132))
-                text_ops.append(((x + 10, y - 1),
-                                 _fit(probe, cmd, cmd_font, col_w - 20),
+                    _rrect(od, (x + 2, y - 4, x + col_w - 2, y + ROW_H - 8), 8,
+                           fill=(28, 36, 50, 128))
+                text_ops.append(((x + 14, y - 2),
+                                 _fit(probe, cmd, cmd_font, col_w - 28),
                                  cmd_font, GOLD))
-                text_ops.append(((x + 10, y + 20),
-                                 _fit(probe, desc, desc_font, col_w - 20),
+                text_ops.append(((x + 14, y + 25),
+                                 _fit(probe, desc, desc_font, col_w - 28),
                                  desc_font, TEXT))
                 y += ROW_H
             y += GROUP_GAP
@@ -1808,14 +1812,14 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     for (x, y), text, font, fill in text_ops:
         draw.text((x, y), text, font=font, fill=fill)
 
-    footer_font = _font(15)
-    draw.line([(M, HELP_H - 42), (HELP_W - M, HELP_H - 42)],
+    footer_font = _font(16)
+    draw.line([(M, HELP_H - 54), (HELP_W - M, HELP_H - 54)],
               fill=(120, 128, 140, 170), width=1)
-    draw.text((M, HELP_H - 34), "平台：pc / ps / xbox / switch / mobile，默认 PC",
+    draw.text((M, HELP_H - 44), "平台：pc / ps / xbox / switch / mobile，默认 PC",
               font=footer_font, fill=DIM)
     right = "QQ Warframe Bot"
     rw, _ = _tsize(draw, right, footer_font)
-    draw.text((HELP_W - M - rw, HELP_H - 34), right,
+    draw.text((HELP_W - M - rw, HELP_H - 44), right,
               font=footer_font, fill=DIM)
 
     return _encode(canvas)
