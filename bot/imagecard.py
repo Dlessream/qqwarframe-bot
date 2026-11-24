@@ -47,6 +47,15 @@ WIDTH = 860
 PAD = 34
 RADIUS = 14
 
+# ---- 统一「舒适版」排版尺寸：所有推送卡共享，避免拥挤、保证对齐 ----
+CELL_FONT = 18          # 表格正文（原 16）
+CELL_HEADER_FONT = 15   # 表头（原 13）
+CELL_PAD_X = 14         # 单元格左右内边距（原 10/12）
+ROW_H = 52              # 表格行高（原 42）
+ROW_TEXT_DY = 14        # 行内文字垂直偏移（原 9）
+GROUP_ROW_H = 50        # 分组表行高（原 38）
+ZEBRA_PAD = 8           # 斑马纹左右外扩
+
 _FONT_CACHE: Dict[Tuple[str, int], object] = {}
 _FONT_PATHS: Optional[Tuple[str, str]] = None
 
@@ -303,42 +312,42 @@ def _divider(draw, y: int, x1: int = PAD, x2: int = WIDTH - PAD) -> None:
     draw.line([(x1, y), (x2, y)], fill=LINE, width=1)
 
 
-def _chip(draw, x: int, y: int, text: str, color, font_size: int = 15) -> Tuple[int, int]:
+def _chip(draw, x: int, y: int, text: str, color, font_size: int = 16) -> Tuple[int, int]:
     font = _font(font_size, bold=True)
     width, height = _tsize(draw, text, font)
-    box = (x, y, x + width + 22, y + height + 14)
-    _rrect(draw, box, (height + 14) // 2, fill=PANEL_LIGHT, outline=color)
-    draw.text((x + 11, y + 7), text, font=font, fill=color)
+    box = (x, y, x + width + 26, y + height + 16)
+    _rrect(draw, box, (height + 16) // 2, fill=PANEL_LIGHT, outline=color)
+    draw.text((x + 13, y + 8), text, font=font, fill=color)
     return box[2] - box[0], box[3] - box[1]
 
 
 def _footer(draw, y: int, left: str, right: str = "QQ Warframe Bot",
             width: int = WIDTH) -> int:
     _divider(draw, y, PAD, width - PAD)
-    font = _font(13)
+    font = _font(14)
     draw.text((PAD, y + 12), left, font=font, fill=DIM)
     tw, _ = _tsize(draw, right, font)
     draw.text((width - PAD - tw, y + 12), right, font=font, fill=DIM)
-    return y + 40
+    return y + 42
 
 
-def _header(draw, title: str, subtitle: str, chip: str, accent, top: int = 28,
+def _header(draw, title: str, subtitle: str, chip: str, accent, top: int = 30,
             width: int = WIDTH) -> int:
     draw.rectangle([0, 0, width, 4], fill=accent)
     y = top
-    title_font = _font(32, bold=True)
+    title_font = _font(34, bold=True)
     max_width = width - 2 * PAD - 150
     lines = _wrap(draw, title, title_font, max_width, max_lines=2)
     for line in lines:
         draw.text((PAD, y), line, font=title_font, fill=TEXT)
-        y += 42
+        y += 46
     if chip:
-        cw, _ = _tsize(draw, chip, _font(15, bold=True))
-        _chip(draw, width - PAD - cw - 22, top + 2, chip, accent)
+        cw, _ = _tsize(draw, chip, _font(16, bold=True))
+        _chip(draw, width - PAD - cw - 26, top + 2, chip, accent)
     if subtitle:
-        draw.text((PAD, y + 2), _fit(draw, subtitle, _font(16), width - 2 * PAD),
-                  font=_font(16), fill=MUTED)
-        y += 26
+        draw.text((PAD, y + 3), _fit(draw, subtitle, _font(17), width - 2 * PAD),
+                  font=_font(17), fill=MUTED)
+        y += 28
     return y
 
 
@@ -361,33 +370,33 @@ def _pills(draw, y: int, items: Sequence[Tuple[str, str]], accent,
 # ---------------------------------------------------------------------- 物品卡
 def _order_column(draw, x: int, width: int, y: int, title: str, color,
                   orders, empty_text: str) -> int:
-    font_title = _font(17, bold=True)
-    draw.ellipse([x, y + 6, x + 8, y + 14], fill=color)
-    draw.text((x + 16, y), title, font=font_title, fill=TEXT)
+    font_title = _font(19, bold=True)
+    draw.ellipse([x, y + 8, x + 10, y + 18], fill=color)
+    draw.text((x + 18, y), title, font=font_title, fill=TEXT)
     if orders:
         count_text = "%d 条" % len(orders)
-        count_font = _font(13)
+        count_font = _font(15)
         count_width, _ = _tsize(draw, count_text, count_font)
         draw.text((x + width - count_width, y + 4), count_text, font=count_font, fill=DIM)
-    y += 32
+    y += 38
 
     if not orders:
-        draw.text((x, y + 2), empty_text, font=_font(15), fill=DIM)
-        return y + 30
+        draw.text((x, y + 2), empty_text, font=_font(17), fill=DIM)
+        return y + 34
 
-    price_font = _font(23, bold=True)
-    small_font = _font(13)
+    price_font = _font(25, bold=True)
+    small_font = _font(15)
     for order in orders:
         price = "%sp" % _format_int(order.platinum)
         draw.text((x, y), price, font=price_font, fill=color)
         price_width, _ = _tsize(draw, price, price_font)
-        draw.text((x + price_width + 8, y + 8), "×%d" % order.quantity,
-                  font=_font(14), fill=MUTED)
+        draw.text((x + price_width + 10, y + 10), "×%d" % order.quantity,
+                  font=_font(16), fill=MUTED)
 
-        seller_x = x + max(76, price_width + 46)
-        seller_width = x + width - seller_x - 58
-        seller = _fit(draw, order.user, _font(15), max(30, seller_width))
-        draw.text((seller_x, y + 7), seller, font=_font(15), fill=TEXT)
+        seller_x = x + max(84, price_width + 52)
+        seller_width = x + width - seller_x - 60
+        seller = _fit(draw, order.user, _font(17), max(30, seller_width))
+        draw.text((seller_x, y + 9), seller, font=_font(17), fill=TEXT)
 
         status = order.status_label
         if status in ("游戏中", "在线"):
@@ -397,7 +406,7 @@ def _order_column(draw, x: int, width: int, y: int, title: str, color,
             status_color = DIM
             status_text = status
         status_width, _ = _tsize(draw, status_text, small_font)
-        draw.text((x + width - status_width, y + 8), status_text,
+        draw.text((x + width - status_width, y + 10), status_text,
                   font=small_font, fill=status_color)
 
         mod = ""
@@ -406,8 +415,8 @@ def _order_column(draw, x: int, width: int, y: int, title: str, color,
         if order.charges:
             mod = (mod + " " if mod else "") + "%d次" % order.charges
         if mod:
-            draw.text((x + price_width + 40, y + 8), mod, font=_font(12), fill=PURPLE)
-        y += 34
+            draw.text((x + price_width + 46, y + 10), mod, font=_font(14), fill=PURPLE)
+        y += 40
     return y
 
 
@@ -433,9 +442,9 @@ def _format_price(value) -> str:
 
 def _stat_block(draw, x: int, width: int, y: int, label: str, value: str,
                 sub: str, color) -> None:
-    draw.text((x, y), label, font=_font(13), fill=DIM)
-    draw.text((x, y + 20), value, font=_font(24, bold=True), fill=color)
-    draw.text((x, y + 54), _fit(draw, sub, _font(13), width), font=_font(13), fill=MUTED)
+    draw.text((x, y), label, font=_font(15), fill=DIM)
+    draw.text((x, y + 24), value, font=_font(26, bold=True), fill=color)
+    draw.text((x, y + 62), _fit(draw, sub, _font(15), width), font=_font(15), fill=MUTED)
 
 
 def _trend_table(draw, y, stats, days: int = 15) -> int:
@@ -450,37 +459,37 @@ def _trend_table(draw, y, stats, days: int = 15) -> int:
     change = ((last.avg - first.avg) / first.avg * 100.0) if first.avg else 0.0
 
     draw.text((PAD, y), "近 %d 天价格走势" % len(points),
-              font=_font(17, bold=True), fill=TEXT)
-    y += 28
+              font=_font(19, bold=True), fill=TEXT)
+    y += 32
     change_color = GREEN if change >= 0 else RED
     draw.text((PAD, y), "均价 %.1fp ｜ 高 %.0fp ｜ 低 %.0fp ｜ 变化 " % (
-        avg, high, low), font=_font(13), fill=MUTED)
+        avg, high, low), font=_font(15), fill=MUTED)
     prefix_width, _ = _tsize(draw, "均价 %.1fp ｜ 高 %.0fp ｜ 低 %.0fp ｜ 变化 " % (
-        avg, high, low), _font(13))
+        avg, high, low), _font(15))
     draw.text((PAD + prefix_width, y), "%+.1f%%" % change,
-              font=_font(13, bold=True), fill=change_color)
-    y += 24
+              font=_font(15, bold=True), fill=change_color)
+    y += 30
 
     usable = WIDTH - 2 * PAD
     ratios = [0.8, 0.8, 0.7, 1.7]
     total = sum(ratios)
     widths = [int(usable * ratio / total) for ratio in ratios]
     headers = ["日期", "均价", "成交量", "区间"]
-    header_font = _font(12, bold=True)
+    header_font = _font(14, bold=True)
     x = PAD
     for index, header in enumerate(headers):
-        draw.text((x + 6, y), header, font=header_font, fill=DIM)
+        draw.text((x + 8, y), header, font=header_font, fill=DIM)
         x += widths[index]
-    y += 22
+    y += 28
     _divider(draw, y)
-    y += 4
+    y += 8
 
-    row_height = 23
-    font = _font(13)
+    row_height = 32
+    font = _font(16)
     for row_index, point in enumerate(ordered):
         if row_index % 2 == 0:
-            _rrect(draw, (PAD - 4, y - 3, WIDTH - PAD + 4, y + row_height - 6),
-                   6, fill=PANEL)
+            _rrect(draw, (PAD - 5, y - 4, WIDTH - PAD + 5, y + row_height - 8),
+                   7, fill=PANEL)
         latest = row_index == 0
         color = GOLD if latest else TEXT
         values = [
@@ -492,17 +501,17 @@ def _trend_table(draw, y, stats, days: int = 15) -> int:
         ]
         x = PAD
         for index, value in enumerate(values):
-            draw.text((x + 6, y), _fit(draw, value, font, widths[index] - 12),
+            draw.text((x + 8, y + 4), _fit(draw, value, font, widths[index] - 16),
                       font=font, fill=color)
             x += widths[index]
         y += row_height
-    return y + 14
+    return y + 18
 
 
 def item_card(item, sell, buy, stats, platform_label: str = "PC",
               price_only: bool = False) -> bytes:
     """物品行情卡。"""
-    height = 1800
+    height = 2100
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
 
@@ -579,7 +588,7 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
 def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
     """按钮触发：单独的近 15 天价格走势卡。"""
     points = list(getattr(stats, "history", None) or [])[-15:]
-    height = max(620, 250 + len(points) * 23 + 140)
+    height = max(720, 300 + len(points) * 32 + 170)
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
     y = _header(draw, item.name or item.slug, "价格走势 · %s" % platform_label,
@@ -602,7 +611,7 @@ def item_desc_card(item, platform_label: str = "PC") -> bytes:
     desc = str(getattr(item, "description", "") or "").replace("\n", " ").strip()
     if not desc:
         desc = "该物品在 warframe.market 暂无说明文本。"
-    height = 700
+    height = 900
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
     y = _header(draw, item.name or item.slug,
@@ -610,67 +619,67 @@ def item_desc_card(item, platform_label: str = "PC") -> bytes:
     y += 30
     draw.text((PAD, y), "TENNO", font=_font(13, bold=True), fill=GOLD)
     y += 26
-    font = _font(16)
+    font = _font(18)
     lines = _wrap(draw, desc, font, WIDTH - 2 * PAD - 60, max_lines=10)
-    box = (PAD, y - 8, WIDTH - PAD, y + len(lines) * 27 + 18)
-    _rrect(draw, box, 12, fill=PANEL_LIGHT, outline=(70, 84, 106), width=1)
+    box = (PAD, y - 8, WIDTH - PAD, y + len(lines) * 32 + 22)
+    _rrect(draw, box, 13, fill=PANEL_LIGHT, outline=(70, 84, 106), width=1)
     for index, line in enumerate(lines):
-        draw.text((PAD + 22, y + index * 27), line, font=font, fill=TEXT)
-    y = box[3] + 26
+        draw.text((PAD + 24, y + index * 32), line, font=font, fill=TEXT)
+    y = box[3] + 30
     draw.text((PAD, y), "来源：warframe.market 物品页说明文本",
-              font=_font(13), fill=DIM)
-    y = _footer(draw, y + 40, "平台：%s" % platform_label)
+              font=_font(15), fill=DIM)
+    y = _footer(draw, y + 44, "平台：%s" % platform_label)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
 # ---------------------------------------------------------------------- 紫卡范围
 def _analysis_section(draw, y: int, title: str, hint: str = "") -> int:
-    draw.text((PAD, y), title, font=_font(18, bold=True), fill=TEXT)
+    draw.text((PAD, y), title, font=_font(20, bold=True), fill=TEXT)
     if hint:
-        font = _font(13)
+        font = _font(15)
         width, _ = _tsize(draw, hint, font)
         draw.text((WIDTH - PAD - width, y + 6), hint, font=font, fill=DIM)
-    y += 30
+    y += 34
     _divider(draw, y)
-    return y + 8
+    return y + 10
 
 
 def _analysis_grid(draw, y: int, headers: Sequence[str], widths: Sequence[int],
                    rows: Sequence[Sequence[str]], aligns: Sequence[str],
                    colors: Optional[Dict[Tuple[int, int], tuple]] = None) -> int:
-    header_font = _font(12, bold=True)
+    header_font = _font(14, bold=True)
     x = PAD
     for index, header in enumerate(headers):
-        text = _fit(draw, header, header_font, widths[index] - 12)
+        text = _fit(draw, header, header_font, widths[index] - 16)
         text_width, _ = _tsize(draw, text, header_font)
         if aligns[index] == "right":
-            draw.text((x + widths[index] - 8 - text_width, y), text,
+            draw.text((x + widths[index] - 10 - text_width, y), text,
                       font=header_font, fill=DIM)
         else:
-            draw.text((x + 8, y), text, font=header_font, fill=DIM)
+            draw.text((x + 10, y), text, font=header_font, fill=DIM)
         x += widths[index]
-    y += 24
+    y += 28
     _divider(draw, y)
-    y += 6
+    y += 8
 
-    font = _font(15)
+    font = _font(17)
     for row_index, row in enumerate(rows):
         if row_index % 2 == 0:
-            _rrect(draw, (PAD - 6, y - 3, WIDTH - PAD + 6, y + 26), 7, fill=PANEL)
+            _rrect(draw, (PAD - 6, y - 4, WIDTH - PAD + 6, y + 32), 8, fill=PANEL)
         x = PAD
         for index, cell in enumerate(row):
-            text = _fit(draw, str(cell), font, widths[index] - 14)
+            text = _fit(draw, str(cell), font, widths[index] - 18)
             color = TEXT
             if colors:
                 color = colors.get((row_index, index), TEXT)
             text_width, _ = _tsize(draw, text, font)
             if aligns[index] == "right":
-                draw.text((x + widths[index] - 10 - text_width, y + 3),
+                draw.text((x + widths[index] - 12 - text_width, y + 4),
                           text, font=font, fill=color)
             else:
-                draw.text((x + 8, y + 3), text, font=font, fill=color)
+                draw.text((x + 10, y + 4), text, font=font, fill=color)
             x += widths[index]
-        y += 30
+        y += 36
     return y
 
 
@@ -690,8 +699,8 @@ def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计�
         if stat.name not in negative_names:
             negative_names.append(stat.name)
 
-    height = 180 + len(names) * 30 + len(negative_names) * 30 + 210
-    height = max(760, height)
+    height = 200 + len(names) * 36 + len(negative_names) * 36 + 240
+    height = max(820, height)
 
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
@@ -758,9 +767,9 @@ def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计�
         notes.append("最近一次倾向调整：%s（%s）" % (latest[1], latest[0]))
     y += 10
     for line in notes:
-        draw.text((PAD, y), _fit(draw, line, _font(13), WIDTH - 2 * PAD),
-                  font=_font(13), fill=MUTED)
-        y += 22
+        draw.text((PAD, y), _fit(draw, line, _font(14), WIDTH - 2 * PAD),
+                  font=_font(14), fill=MUTED)
+        y += 25
 
     y = _footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -787,56 +796,58 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
     rows: 每行与 columns 等长的 Cell 列表
     aligns: 每列 "left" / "right"
     """
-    height = max(700, 260 + len(rows) * 42 + (40 if note else 0) + 120)
+    height = max(760, 300 + len(rows) * (ROW_H + 4) + (48 if note else 0) + 150)
     image = _scene_canvas(background, height)
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
-    y += 16
+    y += 20
 
     total_ratio = sum(ratio for _, ratio in columns) or 1.0
     usable = WIDTH - 2 * PAD
     widths = [int(usable * ratio / total_ratio) for _, ratio in columns]
     aligns = list(aligns or ["left"] * len(columns))
 
-    header_font = _font(13, bold=True)
+    header_font = _font(CELL_HEADER_FONT, bold=True)
     x = PAD
     for index, (name, _) in enumerate(columns):
         if index < len(aligns) and aligns[index] == "right":
             text_width, _ = _tsize(draw, name, header_font)
-            draw.text((x + widths[index] - 12 - text_width, y), name,
+            draw.text((x + widths[index] - CELL_PAD_X - text_width, y), name,
                       font=header_font, fill=DIM)
         else:
-            draw.text((x + 10, y), name, font=header_font, fill=DIM)
+            draw.text((x + CELL_PAD_X, y), name, font=header_font, fill=DIM)
         x += widths[index]
-    y += 26
+    y += 32
     _divider(draw, y)
-    y += 8
+    y += 12
 
-    row_height = 42
-    text_font = _font(16)
-    bold_font = _font(16, bold=True)
+    row_height = ROW_H
+    text_font = _font(CELL_FONT)
+    bold_font = _font(CELL_FONT, bold=True)
     for row_index, row in enumerate(rows):
         if row_index % 2 == 0:
-            _rrect(draw, (PAD - 6, y - 4, WIDTH - PAD + 6, y + row_height - 10),
-                   8, fill=PANEL)
+            _rrect(draw, (PAD - ZEBRA_PAD, y - 5,
+                          WIDTH - PAD + ZEBRA_PAD, y + row_height - 12),
+                   10, fill=PANEL)
         x = PAD
         for index, cell in enumerate(row):
             font = bold_font if cell.bold else text_font
             color = cell.color or TEXT
-            text = _fit(draw, cell.text, font, widths[index] - 20)
+            text = _fit(draw, cell.text, font, widths[index] - 2 * CELL_PAD_X)
             if index < len(aligns) and aligns[index] == "right":
                 text_width, _ = _tsize(draw, text, font)
-                draw.text((x + widths[index] - 12 - text_width, y + 9),
-                          text, font=font, fill=color)
+                draw.text((x + widths[index] - CELL_PAD_X - text_width,
+                           y + ROW_TEXT_DY), text, font=font, fill=color)
             else:
-                draw.text((x + 10, y + 9), text, font=font, fill=color)
+                draw.text((x + CELL_PAD_X, y + ROW_TEXT_DY), text,
+                          font=font, fill=color)
             x += widths[index]
         y += row_height
 
     if note:
-        draw.text((PAD, y + 6), _fit(draw, note, _font(14), WIDTH - 2 * PAD),
-                  font=_font(14), fill=MUTED)
-        y += 30
+        draw.text((PAD, y + 8), _fit(draw, note, _font(16), WIDTH - 2 * PAD),
+                  font=_font(16), fill=MUTED)
+        y += 38
 
     y = _footer(draw, y + 12, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -860,18 +871,19 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
     """
     sections = list(sections or [])
     total_rows = sum(len(item.get("rows") or []) for item in sections)
-    height = max(700, 320 + total_rows * 38 + len(sections) * 80 + 120)
+    height = max(760, 360 + total_rows * (GROUP_ROW_H + 4)
+                 + len(sections) * 100 + 150)
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
-    y += 12
+    y += 16
 
     usable = WIDTH - 2 * PAD
-    label_font = _font(19, bold=True)
-    head_font = _font(13, bold=True)
-    text_font = _font(16)
-    bold_font = _font(16, bold=True)
-    row_height = 38
+    label_font = _font(22, bold=True)
+    head_font = _font(CELL_HEADER_FONT, bold=True)
+    text_font = _font(CELL_FONT)
+    bold_font = _font(CELL_FONT, bold=True)
+    row_height = GROUP_ROW_H
     right = WIDTH - PAD
 
     for item in sections:
@@ -882,9 +894,9 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
             draw.text((PAD + 14, y), _fit(draw, label, label_font, usable - 250),
                       font=label_font, fill=TEXT)
             if badge:
-                badge_width, _ = _tsize(draw, badge, _font(14, bold=True))
-                _chip(draw, right - badge_width - 16, y - 1, badge, accent)
-            y += 36
+                badge_width, _ = _tsize(draw, badge, _font(16, bold=True))
+                _chip(draw, right - badge_width - 20, y - 2, badge, accent)
+            y += 42
 
         columns = list(item.get("columns") or [])
         rows = list(item.get("rows") or [])
@@ -898,39 +910,41 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
             if name:
                 if index == len(columns) - 1:
                     name_width, _ = _tsize(draw, name, head_font)
-                    draw.text((x + widths[index] - 12 - name_width, y), name,
-                              font=head_font, fill=DIM)
+                    draw.text((x + widths[index] - CELL_PAD_X - name_width, y),
+                              name, font=head_font, fill=DIM)
                 else:
-                    draw.text((x + 10, y), name, font=head_font, fill=DIM)
+                    draw.text((x + CELL_PAD_X, y), name, font=head_font, fill=DIM)
             x += widths[index]
-        y += 22
+        y += 28
         _divider(draw, y)
-        y += 6
+        y += 10
 
         for row_index, row in enumerate(rows):
             if row_index % 2 == 0:
-                _rrect(draw, (PAD - 6, y - 4, WIDTH - PAD + 6, y + row_height - 10),
-                       8, fill=PANEL)
+                _rrect(draw, (PAD - ZEBRA_PAD, y - 5,
+                              WIDTH - PAD + ZEBRA_PAD, y + row_height - 12),
+                       10, fill=PANEL)
             x = PAD
             for index, cell in enumerate(list(row)[:len(widths)]):
                 color, bold, value = _cell_parts(cell)
                 font = bold_font if bold else text_font
-                value = _fit(draw, value, font, widths[index] - 20)
+                value = _fit(draw, value, font, widths[index] - 2 * CELL_PAD_X)
                 if index == len(widths) - 1:
                     value_width, _ = _tsize(draw, value, font)
-                    draw.text((x + widths[index] - 12 - value_width, y + 8),
-                              value, font=font, fill=color or TEXT)
-                else:
-                    draw.text((x + 10, y + 8), value, font=font,
+                    draw.text((x + widths[index] - CELL_PAD_X - value_width,
+                               y + ROW_TEXT_DY), value, font=font,
                               fill=color or TEXT)
+                else:
+                    draw.text((x + CELL_PAD_X, y + ROW_TEXT_DY), value,
+                              font=font, fill=color or TEXT)
                 x += widths[index]
             y += row_height
-        y += 16
+        y += 20
 
     if note:
-        draw.text((PAD, y + 2), _fit(draw, note, _font(14), usable),
-                  font=_font(14), fill=MUTED)
-        y += 28
+        draw.text((PAD, y + 6), _fit(draw, note, _font(16), usable),
+                  font=_font(16), fill=MUTED)
+        y += 36
 
     y = _footer(draw, y + 10, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -950,20 +964,20 @@ def _draw_buttons(draw, y: int, buttons: Sequence[Dict]) -> int:
         return y
     gap = 16
     col_w = (WIDTH - 2 * PAD - gap * (len(buttons) - 1)) // len(buttons)
-    btn_h = 54
-    top = y + 8
-    label_font = _font(16, bold=True)
-    hint_font = _font(11)
+    btn_h = 64
+    top = y + 10
+    label_font = _font(18, bold=True)
+    hint_font = _font(13)
     for index, spec in enumerate(buttons):
         x1 = PAD + index * (col_w + gap)
         x2 = x1 + col_w
         color = spec.get("color") or GOLD
-        _rrect(draw, (x1, top, x2, top + btn_h), 10,
+        _rrect(draw, (x1, top, x2, top + btn_h), 11,
                fill=PANEL_LIGHT, outline=color, width=2)
-        label = _fit(draw, str(spec.get("label", "")), label_font, col_w - 24)
-        hint = _fit(draw, str(spec.get("hint", "")), hint_font, col_w - 24)
-        draw.text((x1 + 12, top + 8), label, font=label_font, fill=color)
-        draw.text((x1 + 12, top + 32), hint, font=hint_font, fill=MUTED)
+        label = _fit(draw, str(spec.get("label", "")), label_font, col_w - 28)
+        hint = _fit(draw, str(spec.get("hint", "")), hint_font, col_w - 28)
+        draw.text((x1 + 14, top + 9), label, font=label_font, fill=color)
+        draw.text((x1 + 14, top + 38), hint, font=hint_font, fill=MUTED)
     return top + btn_h
 
 
@@ -982,30 +996,30 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
     for item in days:
         per_col = max(per_col, (len(list(item.get("rows") or [])) + 1) // 2)
     buttons = list(buttons or [])
-    height = max(700, 300 + len(days) * (62 + per_col * 32) + 120)
+    height = max(760, 320 + len(days) * (78 + per_col * 42) + 150)
     if buttons:
-        height += 84
+        height += 96
     image = _scene_canvas(background, height)
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
-    y += 12
+    y += 16
 
     usable = WIDTH - 2 * PAD
     gap = 26
     col_w = (usable - gap) // 2
     right = WIDTH - PAD
-    label_font = _font(18, bold=True)
-    badge_font = _font(12, bold=True)
-    head_font = _font(11, bold=True)
-    time_font = _font(13)
-    node_font = _font(14)
-    mission_font = _font(13)
-    rating_font = _font(13, bold=True)
-    row_h = 32
+    label_font = _font(21, bold=True)
+    badge_font = _font(14, bold=True)
+    head_font = _font(13, bold=True)
+    time_font = _font(15)
+    node_font = _font(16)
+    mission_font = _font(15)
+    rating_font = _font(15, bold=True)
+    row_h = 37
 
     # 每列内部的列坐标：时间 / 节点 / 任务 / 评级
-    time_x, node_x = 8, 56
-    mission_x = col_w - 118
+    time_x, node_x = 8, 60
+    mission_x = col_w - 120
     node_w = mission_x - node_x - 6
     headers = [("时间", time_x), ("节点", node_x),
                ("任务", mission_x), ("评级", col_w - 8)]
@@ -1015,18 +1029,18 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
         badge = str(item.get("badge") or "")
         rows = list(item.get("rows") or [])
         if label:
-            draw.rectangle([PAD, y + 3, PAD + 4, y + 22], fill=accent)
-            draw.text((PAD + 14, y), _fit(draw, label, label_font, usable - 300),
+            draw.rectangle([PAD, y + 4, PAD + 5, y + 26], fill=accent)
+            draw.text((PAD + 16, y), _fit(draw, label, label_font, usable - 300),
                       font=label_font, fill=TEXT)
             if badge:
                 badge_width, badge_height = _tsize(draw, badge, badge_font)
-                _chip(draw, right - badge_width - 22, y - 2, badge, accent,
-                      font_size=12)
-            y += 34
+                _chip(draw, right - badge_width - 24, y - 2, badge, accent,
+                      font_size=14)
+            y += 40
         if not rows:
-            draw.text((PAD + 14, y + 2), "这一天的排期还没算出来。",
-                      font=_font(13), fill=DIM)
-            y += 34
+            draw.text((PAD + 16, y + 2), "这一天的排期还没算出来。",
+                      font=_font(15), fill=DIM)
+            y += 40
             continue
 
         # 列头：左右两列各画一次
@@ -1036,9 +1050,9 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                 text_width, _ = _tsize(draw, name, head_font)
                 pos = cx + dx - text_width if dx > col_w - 60 else cx + dx
                 draw.text((pos, y), name, font=head_font, fill=DIM)
-        y += 20
+        y += 24
         _divider(draw, y)
-        y += 4
+        y += 8
 
         for index in range(per_col):
             for col in range(2):
@@ -1047,8 +1061,8 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                     continue
                 cx = PAD + col * (col_w + gap)
                 if index % 2 == 0:
-                    _rrect(draw, (cx - 6, y - 4, cx + col_w + 6, y + row_h - 9),
-                           8, fill=PANEL)
+                    _rrect(draw, (cx - 6, y - 4, cx + col_w + 6, y + row_h - 10),
+                           9, fill=PANEL)
                 cells = list(rows[pos])[:4]
                 while len(cells) < 4:
                     cells.append("")
@@ -1058,35 +1072,35 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                 mission_color, mission_bold, mission_text = _cell_parts(cells[2])
                 rating_color, _rb, rating_text_raw = _cell_parts(cells[3])
                 if mission_color:
-                    draw.rectangle([cx + 4, y + 3, cx + 6, y + row_h - 13],
+                    draw.rectangle([cx + 4, y + 4, cx + 7, y + row_h - 14],
                                    fill=mission_color)
-                draw.text((cx + time_x, y + 2),
-                          _fit(draw, time_text, time_font, 46),
+                draw.text((cx + time_x, y + 3),
+                          _fit(draw, time_text, time_font, 48),
                           font=time_font, fill=time_color or MUTED)
-                draw.text((cx + node_x, y + 1),
+                draw.text((cx + node_x, y + 2),
                           _fit(draw, node_text, node_font, node_w),
                           font=node_font,
                           fill=node_color or TEXT)
-                draw.text((cx + mission_x, y + 2),
-                          _fit(draw, mission_text, mission_font, 78),
+                draw.text((cx + mission_x, y + 3),
+                          _fit(draw, mission_text, mission_font, 80),
                           font=mission_font,
                           fill=mission_color or TEXT)
-                rating_text = _fit(draw, rating_text_raw, rating_font, 44)
+                rating_text = _fit(draw, rating_text_raw, rating_font, 46)
                 rating_width, _ = _tsize(draw, rating_text, rating_font)
-                draw.text((cx + col_w - 10 - rating_width, y + 2), rating_text,
+                draw.text((cx + col_w - 12 - rating_width, y + 3), rating_text,
                           font=rating_font, fill=rating_color or MUTED)
             y += row_h
-        y += 20
+        y += 24
 
     if note:
-        draw.text((PAD, y + 2), _fit(draw, note, _font(14), usable),
-                  font=_font(14), fill=MUTED)
-        y += 28
+        draw.text((PAD, y + 4), _fit(draw, note, _font(16), usable),
+                  font=_font(16), fill=MUTED)
+        y += 34
 
     if buttons:
-        _divider(draw, y + 6)
+        _divider(draw, y + 8)
         y = _draw_buttons(draw, y, buttons)
-        y += 12
+        y += 14
 
     y = _footer(draw, y + 10, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -1494,15 +1508,15 @@ def riven_group_card(sections: Sequence[Tuple[str, object]],
 def wiki_card(title: str, body: str, url: str, footer: str = "",
               chip: str = "WIKI") -> bytes:
     """维基词条卡：标题 + 自动换行正文 + 链接。"""
-    height = 1600
+    height = 1900
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, "", chip, CYAN)
-    y += 14
+    y += 18
 
-    body_font = _font(17)
-    line_height = 32
-    max_lines = 18
+    body_font = _font(19)
+    line_height = 38
+    max_lines = 20
     lines: List[str] = []
     for paragraph in str(body or "").splitlines():
         paragraph = paragraph.strip()
@@ -1547,13 +1561,13 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
         draw.text((PAD, y), line, font=body_font, fill=TEXT)
         y += line_height
 
-    y += 12
+    y += 16
     _divider(draw, y)
-    y += 14
-    url_font = _font(14)
+    y += 18
+    url_font = _font(16)
     draw.text((PAD, y), _fit(draw, "链接 " + url, url_font, WIDTH - 2 * PAD),
               font=url_font, fill=CYAN)
-    y += 30
+    y += 36
 
     return _encode(image.crop((0, 0, WIDTH, min(height, _footer(draw, y, footer) + 10))))
 
@@ -1836,9 +1850,9 @@ def _tag_chip(draw, x: int, y: int, text: str, color) -> int:
 
 def _research_rows(draw, mission, right: int):
     """把一个任务块排版成 (标签, 名称, 说明行, 名称起点x, 标签宽度)。"""
-    name_font = _font(17, bold=True)
-    desc_font = _font(15)
-    chip_font = _font(13, bold=True)
+    name_font = _font(19, bold=True)
+    desc_font = _font(17)
+    chip_font = _font(15, bold=True)
     label_x = PAD + 74
     rows = []
     deviation = mission.get("deviation") or {}
@@ -1861,35 +1875,35 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
                   footer: str, accent=PURPLE, chip: str = "",
                   note: str = "") -> bytes:
     """科研卡：任务编号 + 偏差/风险名称与说明 + 全局变量。"""
-    height = 2800
+    height = 3400
     image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
     y = _header(draw, title, subtitle, chip, accent)
     y += 6
 
     right = WIDTH - PAD - 18
-    name_font = _font(20, bold=True)
-    desc_font = _font(15)
-    num_font = _font(17, bold=True)
+    name_font = _font(22, bold=True)
+    desc_font = _font(17)
+    num_font = _font(19, bold=True)
 
     for section in sections or []:
         label = str(section.get("label") or "")
         remaining = str(section.get("remaining") or "")
         if label and label != title:
-            draw.rectangle([PAD, y + 5, PAD + 4, y + 25], fill=accent)
-            draw.text((PAD + 14, y), label, font=_font(20, bold=True), fill=TEXT)
+            draw.rectangle([PAD, y + 5, PAD + 5, y + 29], fill=accent)
+            draw.text((PAD + 16, y), label, font=_font(22, bold=True), fill=TEXT)
             if remaining:
-                chip_width, _ = _tsize(draw, remaining, _font(14, bold=True))
-                _chip(draw, WIDTH - PAD - chip_width - 22, y - 2, remaining, accent)
-            y += 38
-            _divider(draw, y - 8)
+                chip_width, _ = _tsize(draw, remaining, _font(16, bold=True))
+                _chip(draw, WIDTH - PAD - chip_width - 26, y - 2, remaining, accent)
+            y += 44
+            _divider(draw, y - 10)
 
         for mission in section.get("missions") or []:
             rows = _research_rows(draw, mission, right)
-            block_height = 34 + 10
+            block_height = 40 + 10
             for _label, _color, _name, lines, _width in rows:
-                block_height += 24 + len(lines) * 21 + 6
-            block_height += 12
+                block_height += 28 + len(lines) * 26 + 8
+            block_height += 14
             _rrect(draw, (PAD, y, WIDTH - PAD, y + block_height), 12,
                    fill=PANEL)
             draw.rectangle([PAD, y + 12, PAD + 5, y + block_height - 12],
@@ -1905,31 +1919,31 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
                                 right - (PAD + 58))
             draw.text((PAD + 58, y + 15), mission_name, font=name_font, fill=TEXT)
 
-            row_y = y + 56
+            row_y = y + 62
             for label_text, color, name_text, lines, chip_width in rows:
                 _tag_chip(draw, PAD + 74, row_y, label_text, color)
-                name_x = PAD + 74 + chip_width + 12
-                draw.text((name_x, row_y + 2), name_text,
-                          font=_font(17, bold=True), fill=TEXT)
-                line_y = row_y + 28
+                name_x = PAD + 74 + chip_width + 14
+                draw.text((name_x, row_y + 3), name_text,
+                          font=_font(19, bold=True), fill=TEXT)
+                line_y = row_y + 32
                 for line in lines:
                     draw.text((name_x, line_y), line, font=desc_font, fill=MUTED)
-                    line_y += 21
-                row_y += 24 + len(lines) * 21 + 6
-            y += block_height + 10
+                    line_y += 26
+                row_y += 28 + len(lines) * 26 + 8
+            y += block_height + 12
 
         variables = section.get("variables") or []
         if variables:
-            draw.text((PAD, y + 4), "全局变量", font=_font(19, bold=True), fill=TEXT)
-            y += 34
+            draw.text((PAD, y + 4), "全局变量", font=_font(21, bold=True), fill=TEXT)
+            y += 38
             for item in variables:
                 name_text = str(item.get("name") or "—")
                 desc = str(item.get("desc") or "")
-                draw.ellipse([PAD + 6, y + 8, PAD + 12, y + 14], fill=accent)
-                draw.text((PAD + 22, y), name_text, font=_font(16, bold=True),
+                draw.ellipse([PAD + 6, y + 10, PAD + 13, y + 17], fill=accent)
+                draw.text((PAD + 24, y), name_text, font=_font(18, bold=True),
                           fill=TEXT)
-                name_width, _ = _tsize(draw, name_text, _font(16, bold=True))
-                text_x = PAD + 22 + name_width + 10
+                name_width, _ = _tsize(draw, name_text, _font(18, bold=True))
+                text_x = PAD + 24 + name_width + 12
                 lines = _wrap(draw, desc, desc_font, right - text_x,
                               max_lines=2) if desc else []
                 if not lines:
@@ -1937,15 +1951,15 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
                     continue
                 draw.text((text_x, y + 2), lines[0], font=desc_font, fill=MUTED)
                 for extra in lines[1:]:
-                    y += 21
+                    y += 26
                     draw.text((text_x, y + 2), extra, font=desc_font, fill=MUTED)
-                y += 26
-            y += 6
+                y += 30
+            y += 8
 
     if note:
-        draw.text((PAD, y + 2), _fit(draw, note, _font(14), WIDTH - 2 * PAD),
-                  font=_font(14), fill=MUTED)
-        y += 26
+        draw.text((PAD, y + 4), _fit(draw, note, _font(16), WIDTH - 2 * PAD),
+                  font=_font(16), fill=MUTED)
+        y += 34
     y = _footer(draw, y + 10, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
@@ -1992,10 +2006,10 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
     groups = list(groups or [])
     probe = Image.new("RGB", (WIDTH, 8))
     pdraw = ImageDraw.Draw(probe)
-    task_font = _font(16, bold=True)
-    small_font = _font(14)
-    meta_font = _font(13)
-    badge_font = _font(13, bold=True)
+    task_font = _font(18, bold=True)
+    small_font = _font(16)
+    meta_font = _font(15)
+    badge_font = _font(15, bold=True)
 
     inner_left = PAD + 10
     inner_right = WIDTH - PAD
@@ -2022,55 +2036,55 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
         layout.append((group, rows))
 
     # 先按「最常见的两行奖励」估高，画完再裁
-    estimate = 240 + 6 * 40
+    estimate = 280 + 6 * 48
     for group, rows in layout:
-        estimate += 40 if group.get("label") else 0
-        estimate += sum(30 + len(row["lines"]) * 20 + 12 for row in rows)
-    estimate += 50 if note else 0
-    image = _gradient(WIDTH, max(700, estimate), BG_TOP, BG_BOTTOM).convert("RGBA")
+        estimate += 46 if group.get("label") else 0
+        estimate += sum(36 + len(row["lines"]) * 25 + 16 for row in rows)
+    estimate += 60 if note else 0
+    image = _gradient(WIDTH, max(760, estimate), BG_TOP, BG_BOTTOM).convert("RGBA")
     draw = ImageDraw.Draw(image)
-    y = _header(draw, title, subtitle, chip, accent) + 8
+    y = _header(draw, title, subtitle, chip, accent) + 12
 
     reward_color = (141, 196, 224)
     for group, rows in layout:
         label = str(group.get("label") or "")
         if label:
-            draw.rectangle([PAD, y + 6, PAD + 4, y + 26], fill=accent)
-            draw.text((PAD + 14, y + 2), label, font=_font(18, bold=True), fill=TEXT)
+            draw.rectangle([PAD, y + 6, PAD + 5, y + 30], fill=accent)
+            draw.text((PAD + 16, y + 2), label, font=_font(21, bold=True), fill=TEXT)
             right_note = str(group.get("note") or "")
             if right_note:
-                width, _ = _tsize(draw, right_note, _font(13))
-                draw.text((WIDTH - PAD - width, y + 8), right_note,
-                          font=_font(13), fill=DIM)
-            y += 34
+                width, _ = _tsize(draw, right_note, _font(15))
+                draw.text((WIDTH - PAD - width, y + 10), right_note,
+                          font=_font(15), fill=DIM)
+            y += 42
         for index, row in enumerate(rows):
             row_top = y
             badge = row["badge"]
             if badge:
-                box = (inner_left, y + 2, inner_left + row["badge_w"], y + 28)
-                _rrect(draw, box, 13, fill=PANEL_LIGHT, outline=accent)
+                box = (inner_left, y + 2, inner_left + row["badge_w"], y + 32)
+                _rrect(draw, box, 14, fill=PANEL_LIGHT, outline=accent)
                 text_w, text_h = _tsize(draw, badge, badge_font)
                 draw.text((inner_left + (row["badge_w"] - text_w) / 2,
-                           y + 2 + (26 - text_h) / 2), badge,
+                           y + 2 + (30 - text_h) / 2), badge,
                           font=badge_font, fill=accent)
             for line in row["tasks"]:
-                draw.text((row["task_x"], y + 3), line, font=task_font, fill=TEXT)
+                draw.text((row["task_x"], y + 4), line, font=task_font, fill=TEXT)
             if row["meta"]:
-                draw.text((WIDTH - PAD - row["meta_w"], y + 7), row["meta"],
+                draw.text((WIDTH - PAD - row["meta_w"], y + 9), row["meta"],
                           font=meta_font, fill=MUTED)
-            y += 30
+            y += 36
             for line in row["lines"]:
                 draw.text((inner_left, y), line, font=small_font, fill=reward_color)
-                y += 20
-            y += 12
+                y += 25
+            y += 16
             if index < len(rows) - 1:
-                draw.line([(inner_left, y - 6), (WIDTH - PAD, y - 6)], fill=LINE, width=1)
-        y += 8
+                draw.line([(inner_left, y - 8), (WIDTH - PAD, y - 8)], fill=LINE, width=1)
+        y += 10
 
     if note:
-        draw.text((PAD, y + 2), _fit(draw, note, _font(13), WIDTH - 2 * PAD),
-                  font=_font(13), fill=MUTED)
-        y += 26
+        draw.text((PAD, y + 4), _fit(draw, note, _font(16), WIDTH - 2 * PAD),
+                  font=_font(16), fill=MUTED)
+        y += 34
 
     y = _footer(draw, y + 10, footer)
     return _encode(image.crop((0, 0, WIDTH, min(estimate, y + 10))))
@@ -2101,6 +2115,19 @@ def _purple_right(draw, text: str, right: int, y: int, font, fill) -> None:
     draw.text((right - width, y), text, font=font, fill=fill)
 
 
+def _purple_footer(draw, y: int, left: str,
+                   right: str = "QQ Warframe Bot", width: int = WIDTH) -> int:
+    """紫色卡的页脚：先加深色底衬，保证页脚文字在亮紫渐变上清晰。"""
+    band_top = y - 6
+    draw.rectangle([0, band_top, width, y + 50], fill=(24, 16, 38))
+    draw.line([(PAD, y), (width - PAD, y)], fill=(96, 74, 122), width=1)
+    font = _font(14)
+    draw.text((PAD, y + 14), left, font=font, fill=(196, 182, 214))
+    tw, _ = _tsize(draw, right, font)
+    draw.text((width - PAD - tw, y + 14), right, font=font, fill=(196, 182, 214))
+    return y + 52
+
+
 def _purple_percent(value: float) -> str:
     text = "%.1f" % float(value or 0)
     if text.endswith(".0"):
@@ -2112,43 +2139,43 @@ def alerts_card(items: Sequence[Dict],
                 footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
     """警报卡片：任务、等级、派系、节点、奖励、剩余时间。"""
     count = max(1, len(items))
-    row_h = 112
-    height = 126 + count * row_h + 68
+    row_h = 138
+    height = 140 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    draw.text((PAD, 28), "警报信息", font=_font(38, bold=True),
+    draw.text((PAD, 30), "警报信息", font=_font(40, bold=True),
               fill=PURPLE_TEXT)
-    draw.text((PAD, 80), "世界状态实时警报", font=_font(16), fill=PURPLE_MUTED)
-    y = 118
+    draw.text((PAD, 88), "世界状态实时警报", font=_font(18), fill=PURPLE_MUTED)
+    y = 128
     if not items:
         draw.text((PAD, y + 28), "当前没有活跃警报", font=_font(22),
                   fill=PURPLE_MUTED)
     for item in items:
-        box = (24, y, WIDTH - 24, y + row_h - 10)
-        _rrect(draw, box, 14, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
+        box = (26, y, WIDTH - 26, y + row_h - 12)
+        _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
         mission = str(item.get("mission") or "未知任务")
-        draw.text((46, y + 14), mission, font=_font(24, bold=True),
+        draw.text((48, y + 16), mission, font=_font(26, bold=True),
                   fill=PURPLE_GOLD)
-        mission_w, _ = _tsize(draw, mission, _font(24, bold=True))
-        chip_x = 46 + mission_w + 12
+        mission_w, _ = _tsize(draw, mission, _font(26, bold=True))
+        chip_x = 48 + mission_w + 14
         level = str(item.get("level") or "")
         if level:
-            w, _ = _purple_pill(draw, chip_x, y + 18, level,
-                                (104, 83, 133), PURPLE_TEXT)
-            chip_x += w + 8
+            w, _ = _purple_pill(draw, chip_x, y + 20, level,
+                                (104, 83, 133), PURPLE_TEXT, font_size=15)
+            chip_x += w + 10
         faction = str(item.get("faction") or "")
         if faction:
-            _purple_pill(draw, chip_x, y + 18, faction,
-                         (112, 82, 119), PURPLE_TEXT)
-        node = _fit(draw, str(item.get("node") or "—"), _font(18), 330)
-        _purple_right(draw, node, WIDTH - 46, y + 20, _font(18), PURPLE_TEXT)
+            _purple_pill(draw, chip_x, y + 20, faction,
+                         (112, 82, 119), PURPLE_TEXT, font_size=15)
+        node = _fit(draw, str(item.get("node") or "—"), _font(19), 330)
+        _purple_right(draw, node, WIDTH - 48, y + 24, _font(19), PURPLE_TEXT)
         reward = _fit(draw, str(item.get("reward") or "—"),
-                      _font(16), WIDTH - 92)
-        draw.text((46, y + 54), reward, font=_font(16), fill=PURPLE_MUTED)
-        draw.text((46, y + 80), "剩余时间：" + str(item.get("remaining") or "—"),
-                  font=_font(15), fill=PURPLE_GOLD)
+                      _font(18), WIDTH - 96)
+        draw.text((48, y + 66), reward, font=_font(18), fill=PURPLE_MUTED)
+        draw.text((48, y + 100), "剩余时间：" + str(item.get("remaining") or "—"),
+                  font=_font(17), fill=PURPLE_GOLD)
         y += row_h
-    y = _footer(draw, height - 48, footer)
+    y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
@@ -2156,29 +2183,29 @@ def invasions_card(items: Sequence[Dict],
                    footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
     """入侵卡片：星球/节点、进度条、攻防双方奖励。"""
     count = max(1, len(items))
-    row_h = 130
-    height = 132 + count * row_h + 68
+    row_h = 156
+    height = 144 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    draw.text((PAD, 26), "入侵任务", font=_font(38, bold=True),
+    draw.text((PAD, 30), "入侵任务", font=_font(40, bold=True),
               fill=PURPLE_TEXT)
-    draw.text((PAD, 78), "使用命令 #订阅 可蹲守物品 · 部分信息会先于游戏出现",
-              font=_font(15), fill=PURPLE_MUTED)
-    y = 122
+    draw.text((PAD, 88), "使用命令 #订阅 可蹲守物品 · 部分信息会先于游戏出现",
+              font=_font(17), fill=PURPLE_MUTED)
+    y = 132
     if not items:
         draw.text((PAD, y + 28), "当前没有入侵", font=_font(22),
                   fill=PURPLE_MUTED)
     for item in items:
-        box = (24, y, WIDTH - 24, y + row_h - 10)
-        _rrect(draw, box, 14, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
+        box = (26, y, WIDTH - 26, y + row_h - 12)
+        _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
         label = _fit(draw, str(item.get("label") or "—"),
-                     _font(22, bold=True), 540)
-        draw.text((46, y + 12), label, font=_font(22, bold=True),
+                     _font(24, bold=True), 540)
+        draw.text((48, y + 14), label, font=_font(24, bold=True),
                   fill=PURPLE_TEXT)
         completion = float(item.get("completion") or 0)
-        _purple_right(draw, _purple_percent(completion), WIDTH - 46, y + 14,
-                      _font(21, bold=True), PURPLE_GOLD)
-        bar_x, bar_y, bar_w, bar_h = 46, y + 46, WIDTH - 92, 7
+        _purple_right(draw, _purple_percent(completion), WIDTH - 48, y + 16,
+                      _font(23, bold=True), PURPLE_GOLD)
+        bar_x, bar_y, bar_w, bar_h = 48, y + 56, WIDTH - 96, 8
         _rrect(draw, (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h), 4,
                fill=(62, 43, 87))
         filled = max(0, min(bar_w, int(bar_w * completion / 100.0)))
@@ -2187,29 +2214,29 @@ def invasions_card(items: Sequence[Dict],
                    fill=PURPLE_GOLD)
         left_faction = str(item.get("left_faction") or "")
         right_faction = str(item.get("right_faction") or "")
-        left_x = 46
+        left_x = 48
         if left_faction:
-            w, _ = _purple_pill(draw, left_x, y + 66, left_faction,
-                                (104, 83, 133), PURPLE_TEXT)
-            left_x += w + 10
+            w, _ = _purple_pill(draw, left_x, y + 82, left_faction,
+                                (104, 83, 133), PURPLE_TEXT, font_size=16)
+            left_x += w + 12
         left_reward = _fit(draw, str(item.get("left_reward") or "—"),
-                           _font(15), 300)
-        draw.text((left_x, y + 70), left_reward, font=_font(15),
+                           _font(17), 300)
+        draw.text((left_x, y + 88), left_reward, font=_font(17),
                   fill=PURPLE_MUTED)
-        right_x = WIDTH - 46
+        right_x = WIDTH - 48
         if right_faction:
-            fw, _ = _tsize(draw, right_faction, _font(14, bold=True))
-            right_x -= fw + 18
-            _purple_pill(draw, right_x, y + 66, right_faction,
-                         (112, 82, 119), PURPLE_TEXT)
-            right_x -= 10
+            fw, _ = _tsize(draw, right_faction, _font(16, bold=True))
+            right_x -= fw + 20
+            _purple_pill(draw, right_x, y + 82, right_faction,
+                         (112, 82, 119), PURPLE_TEXT, font_size=16)
+            right_x -= 12
         right_reward = _fit(draw, str(item.get("right_reward") or "—"),
-                            _font(15), max(120, right_x - 360))
-        rw, _ = _tsize(draw, right_reward, _font(15))
-        draw.text((right_x - rw, y + 70), right_reward, font=_font(15),
+                            _font(17), max(120, right_x - 360))
+        rw, _ = _tsize(draw, right_reward, _font(17))
+        draw.text((right_x - rw, y + 88), right_reward, font=_font(17),
                   fill=PURPLE_MUTED)
         y += row_h
-    y = _footer(draw, height - 48, footer)
+    y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
@@ -2217,59 +2244,59 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
     """遗物：名称 + 出入库 + 精炼 / 奖励 / 概率 / 杜卡德 / WM 均价。"""
     rewards = list(getattr(relic, "rewards", ()) or ())
     count = max(1, len(rewards))
-    row_h = 92
+    row_h = 116
     locations = list(getattr(relic, "locations", ()) or ())
-    height = 150 + count * row_h + 66 + (24 if locations else 0)
+    height = 170 + count * row_h + 80 + (28 if locations else 0)
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
     title = getattr(relic, "title", "遗物")
-    draw.text((PAD, 26), title, font=_font(40, bold=True), fill=PURPLE_TEXT)
+    draw.text((PAD, 30), title, font=_font(42, bold=True), fill=PURPLE_TEXT)
     badge = str(getattr(relic, "vault_label", ""))
     if badge:
-        bw, _ = _tsize(draw, badge, _font(15, bold=True))
-        _purple_pill(draw, WIDTH - PAD - bw - 18, 36, badge,
-                     (112, 82, 119), PURPLE_GOLD)
+        bw, _ = _tsize(draw, badge, _font(16, bold=True))
+        _purple_pill(draw, WIDTH - PAD - bw - 20, 42, badge,
+                     (112, 82, 119), PURPLE_GOLD, font_size=16)
     refinement = str(getattr(relic, "refinement_label", "完整"))
     code = str(getattr(relic, "refinement", "Intact"))
-    draw.text((PAD, 84), "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
-        refinement, code), font=_font(15), fill=PURPLE_MUTED)
+    draw.text((PAD, 94), "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
+        refinement, code), font=_font(17), fill=PURPLE_MUTED)
     if locations:
-        draw.text((PAD, 106), "获取：%s" % _fit(
-            draw, "、".join(locations[:8]), _font(12), WIDTH - 2 * PAD),
-            font=_font(12), fill=PURPLE_MUTED)
-    y = 128 if locations else 124
+        draw.text((PAD, 122), "获取：%s" % _fit(
+            draw, "、".join(locations[:8]), _font(14), WIDTH - 2 * PAD),
+            font=_font(14), fill=PURPLE_MUTED)
+    y = 150 if locations else 144
     for reward in rewards:
         name = str(getattr(reward, "market_name", "")
                    or getattr(reward, "name", "") or "—")
-        name = _fit(draw, name, _font(19, bold=True), 500)
-        draw.text((46, y + 10), name, font=_font(19, bold=True),
+        name = _fit(draw, name, _font(21, bold=True), 470)
+        draw.text((48, y + 12), name, font=_font(21, bold=True),
                   fill=PURPLE_TEXT)
         rarity = str(getattr(reward, "rarity_label", "") or "")
         chance = float(getattr(reward, "chance", 0) or 0)
-        chip_x = 46
+        chip_x = 48
         if rarity:
-            chip_w, _ = _purple_pill(draw, chip_x, y + 38, rarity,
+            chip_w, _ = _purple_pill(draw, chip_x, y + 48, rarity,
                                      (104, 83, 133), PURPLE_TEXT,
-                                     font_size=12)
-            chip_x += chip_w + 10
+                                     font_size=14)
+            chip_x += chip_w + 12
         if chance:
-            draw.text((chip_x, y + 41), "概率 %.2f%%" % chance,
-                      font=_font(12), fill=PURPLE_MUTED)
+            draw.text((chip_x, y + 52), "概率 %.2f%%" % chance,
+                      font=_font(14), fill=PURPLE_MUTED)
         ducats = int(getattr(reward, "ducats", 0) or 0)
-        draw.text((WIDTH - 350, y + 14), "%d 杜卡德" % ducats,
-                  font=_font(16, bold=True), fill=PURPLE_GOLD)
+        draw.text((WIDTH - 360, y + 18), "%d 杜卡德" % ducats,
+                  font=_font(18, bold=True), fill=PURPLE_GOLD)
         price_low = float(getattr(reward, "price_low", 0) or 0)
         price_high = float(getattr(reward, "price_high", 0) or 0)
-        draw.text((WIDTH - 232, y + 10), "最低 %.2fp" % price_low,
-                  font=_font(15), fill=PURPLE_MUTED)
-        draw.text((WIDTH - 232, y + 34), "最高 %.2fp" % price_high,
-                  font=_font(15), fill=PURPLE_MUTED)
-        _divider(draw, y + row_h - 12, 34, WIDTH - 34)
+        draw.text((WIDTH - 246, y + 12), "最低 %.2fp" % price_low,
+                  font=_font(17), fill=PURPLE_MUTED)
+        draw.text((WIDTH - 246, y + 44), "最高 %.2fp" % price_high,
+                  font=_font(17), fill=PURPLE_MUTED)
+        _divider(draw, y + row_h - 14, 34, WIDTH - 34)
         y += row_h
     if not rewards:
         draw.text((PAD, y + 18), "这个遗物没有可读取的奖励数据。",
                   font=_font(18), fill=PURPLE_MUTED)
-    y = _footer(draw, height - 48, footer)
+    y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
@@ -2280,25 +2307,25 @@ def relic_reverse_card(query: str, target: str, rows,
     ``rows`` 为 [(relic, [命中的 RelicReward, ...]), ...]。
     """
     rows = list(rows or ())
-    row_h = 84
-    head_h = 128
-    height = head_h + len(rows) * row_h + 66
+    row_h = 104
+    head_h = 148
+    height = head_h + len(rows) * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    draw.text((PAD, 24), "奖励反查", font=_font(38, bold=True), fill=PURPLE_TEXT)
-    sub = _fit(draw, "%s  →  %s" % (query, target), _font(18), WIDTH - 2 * PAD)
-    draw.text((PAD, 76), sub, font=_font(18), fill=PURPLE_GOLD)
-    draw.text((PAD, 102), "共 %d 个遗物可获得" % len(rows),
-              font=_font(15), fill=PURPLE_MUTED)
+    draw.text((PAD, 28), "奖励反查", font=_font(40, bold=True), fill=PURPLE_TEXT)
+    sub = _fit(draw, "%s  →  %s" % (query, target), _font(20), WIDTH - 2 * PAD)
+    draw.text((PAD, 86), sub, font=_font(20), fill=PURPLE_GOLD)
+    draw.text((PAD, 118), "共 %d 个遗物可获得" % len(rows),
+              font=_font(17), fill=PURPLE_MUTED)
     y = head_h
     for index, (relic, rewards) in enumerate(rows, 1):
         title = str(getattr(relic, "title", "遗物"))
         vault = str(getattr(relic, "vault_label", ""))
-        draw.text((PAD, y + 6), "%d. %s" % (index, title),
-                  font=_font(20, bold=True), fill=PURPLE_TEXT)
+        draw.text((PAD, y + 8), "%d. %s" % (index, title),
+                  font=_font(22, bold=True), fill=PURPLE_TEXT)
         if vault:
-            _purple_right(draw, vault, WIDTH - PAD, y + 10,
-                          _font(13, bold=True), PURPLE_GOLD)
+            _purple_right(draw, vault, WIDTH - PAD, y + 12,
+                          _font(15, bold=True), PURPLE_GOLD)
         parts = []
         for reward in rewards:
             name = str(getattr(reward, "market_name", "")
@@ -2307,11 +2334,11 @@ def relic_reverse_card(query: str, target: str, rows,
             chance = float(getattr(reward, "chance", 0) or 0)
             parts.append("%s (%s %.2f%%)" % (name, rarity, chance) if rarity
                          else "%s (%.2f%%)" % (name, chance))
-        detail = _fit(draw, "、".join(parts), _font(13), WIDTH - 2 * PAD)
-        draw.text((PAD + 16, y + 40), detail, font=_font(13), fill=PURPLE_MUTED)
-        _divider(draw, y + row_h - 10, PAD, WIDTH - PAD)
+        detail = _fit(draw, "、".join(parts), _font(15), WIDTH - 2 * PAD - 20)
+        draw.text((PAD + 18, y + 48), detail, font=_font(15), fill=PURPLE_MUTED)
+        _divider(draw, y + row_h - 12, PAD, WIDTH - PAD)
         y += row_h
-    y = _footer(draw, height - 48, footer)
+    y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
