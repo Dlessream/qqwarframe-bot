@@ -424,6 +424,115 @@ def official_void_storms(data: Dict[str, Any],
     return result
 
 
+def official_daily_deals(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """DailyDeals → warframestat dailyDeals 结构（今日特惠）。
+
+    官方给的是 StoreItem 资源路径 + 原价/折扣价/折扣/到期，没有中文名；
+    item 先存可读英文名，渲染层 localize_reward 会换成国服译名。
+    """
+    rows = data.get("DailyDeals") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return []
+    now = time.time()
+    result: List[Dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        end = _ms(row.get("Expiry")) / 1000.0
+        if end <= now:
+            continue
+        item_path = str(row.get("StoreItem") or "")
+        result.append({
+            "item": terms.localize_reward(_item_name(item_path)),
+            "originalPrice": int(row.get("OriginalPrice") or 0),
+            "salePrice": int(row.get("SalePrice") or 0),
+            "discount": int(row.get("Discount") or 0),
+            "activation": _iso(_ms(row.get("Activation")) / 1000.0),
+            "expiry": _iso(end),
+            "amountTotal": int(row.get("AmountTotal") or 0),
+            "amountSold": int(row.get("AmountSold") or 0),
+        })
+    result.sort(key=lambda item: item.get("expiry") or "")
+    return result
+
+
+def official_news(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Events → warframestat news 结构（社区新闻/公告）。
+
+    官方 Events 里全是带 Messages 的社区消息（Discord/Wiki/论坛/活动页），
+    取英文（缺则取任意语言）正文与 Prop 链接；没有英文正文的用链接域名兜底。
+    """
+    rows = data.get("Events") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return []
+    result: List[Dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        messages = row.get("Messages") or []
+        en = ""
+        any_text = ""
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            text = str(msg.get("Message") or "").strip()
+            if not text:
+                continue
+            if not any_text:
+                any_text = text
+            if str(msg.get("LanguageCode") or "") == "en":
+                en = text
+        prop = str(row.get("Prop") or "").strip()
+        # 正文是本地化路径（/Lotus/Language/...）时，用 Prop 链接域名兜底。
+        message = en or any_text
+        if message.startswith("/Lotus/"):
+            message = prop or message
+        if not message and not prop:
+            continue
+        result.append({
+            "message": message,
+            "date": "",
+            "link": prop,
+            "priority": bool(row.get("Priority")),
+            "community": bool(row.get("Community")),
+        })
+    # 有正文的优先，其次官方置顶，正文是链接的排最后。
+    result.sort(key=lambda item: (
+        item["message"].startswith("http"),
+        not item["priority"],
+        item["message"],
+    ))
+    return result
+
+
+def official_events(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Goals / Conquests → warframestat events 结构（游戏内活动）。
+
+    官方 Events 全部是社区公告（无游戏活动），真正的活动进度放在 Goals；
+    当前官方 Goals 常为空，因此这里只转换 Goals，避免把社区链接当成活动。
+    """
+    rows = data.get("Goals") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return []
+    now = time.time()
+    result: List[Dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        end = _ms(row.get("Expiry")) / 1000.0
+        if end <= now:
+            continue
+        desc = str(row.get("Description") or row.get("Title") or "活动")
+        result.append({
+            "description": desc,
+            "node": _node_name({}, str(row.get("Node") or "")),
+            "currentScore": row.get("Count") or 0,
+            "maximumScore": row.get("Goal") or 0,
+            "expiry": _iso(end),
+        })
+    return result
+
+
 # ---------------------------------------------------------------------- 主体
 class OfficialWorldState:
     """把官方 CDN 数据整理成 warframestat 的文档结构（带短缓存）。"""
@@ -504,15 +613,18 @@ class OfficialWorldState:
             "voidStorms": official_void_storms(data, nodes),
             "nightwave": self._nightwave(data),
             "archimedeas": self._archimedeas(),
+            # 官方 CDN 也提供这些字段，只是此前没有解析：今日特惠 / 新闻 / 活动。
+            "dailyDeals": official_daily_deals(data),
+            "news": official_news(data),
+            "events": official_events(data),
             # 官方接口没有仲裁字段；留空让上层按 arbi.wf.wiki 轮换兜底
             "arbitration": {
                 "node": "", "nodeKey": "SolNode000", "type": "",
                 "enemy": "", "expiry": "", "expired": True,
             },
         }
-        # 官方接口没有的模块：显式置 None，总览里显示「暂不可用」而不是 0
-        for key in ("steelPath", "duviriCycle", "archonHunt", "news",
-                    "events", "dailyDeals"):
+        # 官方接口确实没有的模块：显式置 None，总览里显示「暂不可用」而不是 0
+        for key in ("steelPath", "duviriCycle", "archonHunt"):
             state[key] = None
         return state
 

@@ -69,6 +69,32 @@ OFFICIAL_PAYLOAD = {
         "Modifier": "VoidT1", "Hard": False,
         "Expiry": ms(time.time() + 600),
     }],
+    "DailyDeals": [{
+        "StoreItem": "/Lotus/StoreItems/Weapons/Tenno/Akimbo/AkimboShotGun",
+        "Activation": ms(time.time() - 600),
+        "Expiry": ms(time.time() + 3600),
+        "Discount": 20, "OriginalPrice": 225, "SalePrice": 180,
+        "AmountTotal": 200, "AmountSold": 14,
+    }, {
+        "StoreItem": "/Lotus/StoreItems/Weapons/Tenno/ExpiredGun",
+        "Activation": ms(time.time() - 7200),
+        "Expiry": ms(time.time() - 3600),
+        "Discount": 50, "OriginalPrice": 100, "SalePrice": 50,
+    }],
+    "Events": [{
+        "Prop": "https://discord.com/invite/playwarframe",
+        "Messages": [
+            {"LanguageCode": "en", "Message": "Join the official Warframe Discord server"},
+            {"LanguageCode": "zh", "Message": "/Lotus/Language/CommunityMessages/JoinDiscord"},
+        ],
+        "Priority": False, "Community": True,
+    }, {
+        "Prop": "https://wiki.warframe.com/",
+        "Messages": [
+            {"LanguageCode": "en", "Message": "Check out the official Warframe Wiki "},
+        ],
+        "Priority": False, "Community": True,
+    }],
     "SyndicateMissions": [{
         "Tag": "CetusSyndicate", "Activation": ms(time.time() - 600),
         "Expiry": ms(time.time() + 4000),
@@ -215,6 +241,35 @@ class BuildStateTest(unittest.TestCase):
         rows = self.source.state()["fissures"]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["tier"], "Lith")
+
+    def test_daily_deals_from_official(self):
+        rows = self.source.state()["dailyDeals"]
+        # 过期那条被剔除
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["discount"], 20)
+        self.assertEqual(rows[0]["originalPrice"], 225)
+        self.assertEqual(rows[0]["salePrice"], 180)
+        self.assertTrue(rows[0]["expiry"])
+
+    def test_news_from_official_events(self):
+        rows = self.source.state()["news"]
+        self.assertEqual(len(rows), 2)
+        by_msg = {row["message"]: row for row in rows}
+        discord = by_msg["Join the official Warframe Discord server"]
+        self.assertEqual(discord["link"], "https://discord.com/invite/playwarframe")
+        self.assertTrue(discord["community"])
+        # 英文正文末尾的空格被清理
+        wiki = by_msg["Check out the official Warframe Wiki"]
+        self.assertEqual(wiki["link"], "https://wiki.warframe.com/")
+
+    def test_events_from_official(self):
+        # OFFICIAL_PAYLOAD 没有 Goals，官方活动为空列表而不是 None
+        self.assertEqual(self.source.state()["events"], [])
+
+    def test_truly_unavailable_modules_stay_none(self):
+        state = self.source.state()
+        for key in ("steelPath", "duviriCycle", "archonHunt"):
+            self.assertIsNone(state[key])
 
     def test_cache_avoids_refetch(self):
         http = FakeHttp(OFFICIAL_PAYLOAD)
