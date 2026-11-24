@@ -13,8 +13,14 @@
   * 英择谛：与希图斯同步（法斯 / 沃姆）
   * 福尔图娜：固定 1600 秒循环（温暖 400 秒 + 寒冷 1200 秒）
 
-官方接口没有的字段（钢铁侵袭 / 午夜电波 / 无尽回廊 / 执刑官 / 新闻 / 活动）
-不在此伪造，取用时由调用方给出明确提示。
+官方接口没有独立字段的模块按 WFCD 解析器口径本地还原：
+
+  * 钢铁侵袭：按 2020-11-16 起的 8 周轮换表计算（与 warframestat 同算法）
+  * 执刑官猎杀：官方 LiteSorties 里奖励指向 ArchonSortieRewards 的条目
+  * 无尽回廊：官方 EndlessXpSchedule（战甲 / 武器周轮换）
+  * 新闻 / 活动：分别来自官方 Events / Goals
+
+仍然拿不到的字段才由调用方给出明确提示。
 """
 
 from __future__ import annotations
@@ -73,6 +79,8 @@ SORTIE_BOSSES = {
     "SORTIE_BOSS_AMBULAS": "Ambulas", "SORTIE_BOSS_PHORID": "Phorid",
     "SORTIE_BOSS_LEPHANTIS": "Lephantis", "SORTIE_BOSS_JORDAS": "Jordas Golem",
     "SORTIE_BOSS_RAPTOR": "Raptor", "SORTIE_BOSS_HYENA": "Hyena",
+    "SORTIE_BOSS_AMAR": "Amar", "SORTIE_BOSS_BOREAL": "Boreal",
+    "SORTIE_BOSS_NIRA": "Nira",
 }
 
 SORTIE_MODIFIERS = {
@@ -142,6 +150,27 @@ VALLIS_LOOP_MS = 1600000
 VALLIS_WARM_MS = 400000
 # 2026-02-04T19:46:48Z（WFCD 解析器里的当前锚点）
 VALLIS_START_MS = int(calendar.timegm((2026, 2, 4, 19, 46, 48, 0, 0, 0)) * 1000)
+
+# 钢铁之路：WFCD warframe-worldstate-parser 的 SteelPathOfferings 口径。
+# 轮换从 2020-11-16T00:00:00Z 起，8 周一大循环，每周一项。
+STEEL_PATH_START = calendar.timegm((2020, 11, 16, 0, 0, 0, 0, 0, 0))
+STEEL_PATH_WEEK = 7 * 86400
+STEEL_PATH_CYCLE = 8 * STEEL_PATH_WEEK
+STEEL_PATH_ROTATION = [
+    {"name": "Umbra Forma 蓝图", "cost": 150},
+    {"name": "50,000 赤毒", "cost": 55},
+    {"name": "组合枪裂罅 Mod", "cost": 75},
+    {"name": "3x Forma", "cost": 75},
+    {"name": "Zaw 裂罅 Mod", "cost": 75},
+    {"name": "30,000 内融核心", "cost": 150},
+    {"name": "步枪裂罅 Mod", "cost": 75},
+    {"name": "霰弹枪裂罅 Mod", "cost": 75},
+]
+
+# 执刑官猎杀：LiteSorties 的 Boss 只有短名，这里补上所属派系。
+ARCHON_FACTIONS = {
+    "Amar": "Grineer", "Boreal": "Corpus", "Nira": "Infested",
+}
 
 
 class FallbackError(Exception):
@@ -533,6 +562,122 @@ def official_events(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return result
 
 
+def official_archon_hunt(data: Dict[str, Any],
+                         nodes: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """LiteSorties → warframestat archonHunt 结构。
+
+    官方没有单独的 ArchonHunt 字段，但 LiteSorties 里「奖励 = ArchonSortieRewards」
+    的三段式突击就是执刑官猎杀：Boss + 三个任务节点。
+    """
+    rows = data.get("LiteSorties") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return None
+    row = None
+    for item in rows:
+        if (isinstance(item, dict)
+                and "ArchonSortieRewards" in str(item.get("Reward") or "")):
+            row = item
+            break
+    if row is None:
+        return None
+    boss_key = str(row.get("Boss") or "")
+    boss = SORTIE_BOSSES.get(
+        boss_key, _humanize(boss_key.replace("SORTIE_BOSS_", "")))
+    missions = []
+    faction = ARCHON_FACTIONS.get(boss, "")
+    for item in row.get("Missions") or []:
+        if not isinstance(item, dict):
+            continue
+        node_id = str(item.get("node") or "")
+        node = nodes.get(node_id) or {}
+        node_name = str(node.get("name") or _node_name(nodes, node_id))
+        if not faction:
+            faction = str(node.get("enemy") or "")
+        missions.append({
+            "node": node_name,
+            "nodeKey": node_id,
+            "type": _mission(item.get("missionType")),
+        })
+    if not missions:
+        return None
+    # 加前缀后 present / overview 都能直接 localize_boss 成「执刑官·玻瑞尔」
+    label = "Archon " + boss if boss in ARCHON_FACTIONS else boss
+    return {
+        "boss": label,
+        "faction": faction,
+        "activation": _iso(_ms(row.get("Activation")) / 1000.0),
+        "expiry": _iso(_ms(row.get("Expiry")) / 1000.0),
+        "missions": missions,
+        "source": "official",
+    }
+
+
+def official_circuit(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """EndlessXpSchedule → warframestat duviriCycle 的 choices 结构。
+
+    官方 CategoryChoices：EXC_NORMAL 给三选一战甲，EXC_HARD 给五选一武器。
+    """
+    rows = data.get("EndlessXpSchedule") if isinstance(data, dict) else None
+    if not isinstance(rows, list) or not rows:
+        return None
+    now = time.time()
+    row = None
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        end = _ms(item.get("Expiry")) / 1000.0
+        if end > now:
+            row = item
+            break
+    if row is None:
+        return None
+    choices = []
+    for group in row.get("CategoryChoices") or []:
+        if not isinstance(group, dict):
+            continue
+        category = str(group.get("Category") or "").upper()
+        choices.append({
+            "category": "hard" if "HARD" in category else "normal",
+            "choices": [str(value) for value in group.get("Choices") or []
+                        if str(value).strip()],
+        })
+    if not choices:
+        return None
+    return {
+        "state": "本周",
+        "choices": choices,
+        "activation": _iso(_ms(row.get("Activation")) / 1000.0),
+        "expiry": _iso(_ms(row.get("Expiry")) / 1000.0),
+        "source": "official",
+    }
+
+
+def steel_path_offering(now: Optional[float] = None) -> Dict[str, Any]:
+    """按 WFCD 口径计算本周钢铁之路奖励与侵袭周期（不需要实时接口）。"""
+    now = time.time() if now is None else float(now)
+    since = now - STEEL_PATH_START
+    index = int((since % STEEL_PATH_CYCLE) // STEEL_PATH_WEEK)
+    index %= len(STEEL_PATH_ROTATION)
+    week_index = int(since // STEEL_PATH_WEEK)
+    week_start = STEEL_PATH_START + week_index * STEEL_PATH_WEEK
+    week_end = week_start + STEEL_PATH_WEEK
+    day_start = int(now // 86400) * 86400
+    day_end = day_start + 86400
+    return {
+        "currentReward": dict(STEEL_PATH_ROTATION[index]),
+        "activation": _iso(week_start),
+        "expiry": _iso(week_end),
+        "remaining": _delta(week_end - now),
+        "rotation": [dict(item) for item in STEEL_PATH_ROTATION],
+        "incursions": {
+            "id": "spi:%d" % int(day_start * 1000),
+            "activation": _iso(day_start),
+            "expiry": _iso(day_end),
+        },
+        "source": "computed",
+    }
+
+
 # ---------------------------------------------------------------------- 主体
 class OfficialWorldState:
     """把官方 CDN 数据整理成 warframestat 的文档结构（带短缓存）。"""
@@ -617,15 +762,16 @@ class OfficialWorldState:
             "dailyDeals": official_daily_deals(data),
             "news": official_news(data),
             "events": official_events(data),
+            # 三类原本以为缺失的模块：两个来自官方隐藏字段，一个按 WFCD 算法算。
+            "steelPath": steel_path_offering(now),
+            "duviriCycle": official_circuit(data),
+            "archonHunt": official_archon_hunt(data, nodes),
             # 官方接口没有仲裁字段；留空让上层按 arbi.wf.wiki 轮换兜底
             "arbitration": {
                 "node": "", "nodeKey": "SolNode000", "type": "",
                 "enemy": "", "expiry": "", "expired": True,
             },
         }
-        # 官方接口确实没有的模块：显式置 None，总览里显示「暂不可用」而不是 0
-        for key in ("steelPath", "duviriCycle", "archonHunt"):
-            state[key] = None
         return state
 
     def _nightwave(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:

@@ -1034,8 +1034,11 @@ def circuit_reply(raw) -> Reply:
             label, "、".join(
                 names_db.alias_label(name) if kind == "战甲" else names_db.label(name)
                 for name in picked)))
+    state = str(raw.get("state") or "").strip()
+    subtitle = _state_label(state) if state and state != "本周" else ""
+    title = "本周灵化 · %s" % subtitle if subtitle else "本周灵化"
     return _world_reply(
-        "无尽回廊", "本周灵化 · %s" % _state_label(raw.get("state")),
+        "无尽回廊", title,
         ["模式", "可选"], rows,
         "数据 世界状态聚合源 · 国服译名 / 别名", "回廊", text_lines=lines,
         ratios=[0.8, 2.8], accent=imagecard.PURPLE)
@@ -1053,7 +1056,8 @@ def archon_reply(raw) -> Reply:
         ])
     return _world_reply(
         "执刑官猎杀", "%s · %s" % (
-            raw.get("boss") or "—", terms.localize_faction(str(raw.get("faction") or "—"))),
+            terms.localize_boss(str(raw.get("boss") or "—")),
+            terms.localize_faction(str(raw.get("faction") or "—"))),
         ["节点", "任务", "类型"], rows,
         "数据 世界状态聚合源", "执刑官",
         ratios=[2.0, 1.2, 0.8], accent=imagecard.GOLD)

@@ -44,6 +44,25 @@ OFFICIAL_PAYLOAD = {
              "modifierType": "SORTIE_MODIFIER_IMPACT"},
         ],
     }],
+    "LiteSorties": [{
+        "Boss": "SORTIE_BOSS_BOREAL",
+        "Reward": "/Lotus/Types/Game/MissionDecks/ArchonSortieRewards",
+        "Activation": ms(time.time() - 3600),
+        "Expiry": ms(time.time() + 86400),
+        "Missions": [
+            {"missionType": "MT_INTEL", "node": "SolNode75"},
+            {"missionType": "MT_DEFENSE", "node": "SolNode39"},
+            {"missionType": "MT_ASSASSINATION", "node": "SolNode24"},
+        ],
+    }],
+    "EndlessXpSchedule": [{
+        "Activation": ms(time.time() - 3600),
+        "Expiry": ms(time.time() + 86400),
+        "CategoryChoices": [
+            {"Category": "EXC_NORMAL", "Choices": ["Garuda", "Baruuk", "Hildryn"]},
+            {"Category": "EXC_HARD", "Choices": ["Lex", "Magistar", "Boltor"]},
+        ],
+    }],
     "Alerts": [{
         "_id": {"$oid": "abc"},
         "Activation": ms(1793012400), "Expiry": ms(1793017800),
@@ -266,10 +285,53 @@ class BuildStateTest(unittest.TestCase):
         # OFFICIAL_PAYLOAD 没有 Goals，官方活动为空列表而不是 None
         self.assertEqual(self.source.state()["events"], [])
 
-    def test_truly_unavailable_modules_stay_none(self):
-        state = self.source.state()
-        for key in ("steelPath", "duviriCycle", "archonHunt"):
-            self.assertIsNone(state[key])
+    def test_archon_hunt_from_lite_sorties(self):
+        hunt = self.source.state()["archonHunt"]
+        self.assertEqual(hunt["boss"], "Archon Boreal")
+        self.assertEqual(hunt["faction"], "Corpus")
+        self.assertEqual(len(hunt["missions"]), 3)
+        self.assertEqual(hunt["missions"][0]["type"], "Spy")
+        self.assertTrue(hunt["expiry"])
+
+    def test_circuit_from_endless_xp_schedule(self):
+        circuit = self.source.state()["duviriCycle"]
+        self.assertEqual([g["category"] for g in circuit["choices"]],
+                         ["normal", "hard"])
+        self.assertEqual(circuit["choices"][0]["choices"],
+                         ["Garuda", "Baruuk", "Hildryn"])
+        self.assertEqual(circuit["choices"][1]["choices"],
+                         ["Lex", "Magistar", "Boltor"])
+
+    def test_steel_path_rotation_is_computed(self):
+        steel = self.source.state()["steelPath"]
+        self.assertEqual(len(steel["rotation"]), 8)
+        self.assertEqual(steel["currentReward"]["name"],
+                         worldfallback.STEEL_PATH_ROTATION[
+                             steel["rotation"].index(steel["currentReward"])
+                         ]["name"])
+        self.assertTrue(steel["currentReward"]["cost"] > 0)
+        self.assertTrue(steel["expiry"])
+        self.assertTrue(steel["incursions"]["expiry"])
+
+    def test_steel_path_index_follows_wfcd_cycle(self):
+        start = worldfallback.STEEL_PATH_START
+        week = worldfallback.STEEL_PATH_WEEK
+        for offset, expected in ((0, 0), (week, 1), (7 * week, 7)):
+            reward = worldfallback.steel_path_offering(start + offset + 1)
+            self.assertEqual(
+                reward["currentReward"],
+                worldfallback.STEEL_PATH_ROTATION[expected])
+
+    def test_missing_optional_modules_stay_none(self):
+        source = worldfallback.OfficialWorldState(
+            http=FakeHttp({"VoidTraders": []}),
+            oracle_http=FakeHttp({}),
+            nodes={},
+            ttl=30,
+        )
+        state = source.state()
+        self.assertIsNone(state["archonHunt"])
+        self.assertIsNone(state["duviriCycle"])
 
     def test_cache_avoids_refetch(self):
         http = FakeHttp(OFFICIAL_PAYLOAD)
@@ -324,7 +386,7 @@ class ClientFallbackTest(unittest.TestCase):
     def test_unknown_field_reports_clearly(self):
         client = self.make()
         with self.assertRaises(WorldStateError) as ctx:
-            client.fetch("steelPath")
+            client.fetch("noSuchModule")
         self.assertIn("第三方数据站", str(ctx.exception))
 
     def test_fallback_failure_returns_friendly_error(self):

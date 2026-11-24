@@ -341,5 +341,45 @@ class BountyLiveTest(unittest.TestCase):
         self.assertIn("实际以游戏内赏金板为准", reply.text)
 
 
+class RecoveredModulesTest(unittest.TestCase):
+    """三类原本显示暂不可用的模块现在有真实反馈。"""
+
+    def test_archon_reply_shows_chinese_boss(self):
+        reply = present.archon_reply({
+            "boss": "Archon Boreal", "faction": "Corpus",
+            "missions": [{"node": "Cervantes (Earth)", "type": "Spy"}],
+        })
+        self.assertIn("执刑官·玻瑞尔", reply.text)
+        self.assertIn("科普斯", reply.text)
+        self.assertIn("Cervantes", reply.text)
+        self.assertTrue(reply.image().startswith(b"\x89PNG"))
+
+    def test_circuit_reply_uses_weekly_choices(self):
+        reply = present.circuit_reply({
+            "state": "本周",
+            "choices": [
+                {"category": "normal", "choices": ["Garuda", "Baruuk", "Hildryn"]},
+                {"category": "hard", "choices": ["Lex", "Magistar", "Boltor"]},
+            ],
+        })
+        self.assertIn("本周灵化", reply.text)
+        self.assertIn("普通 · 战甲", reply.text)
+        self.assertIn("钢铁 · 武器", reply.text)
+        self.assertIn("Garuda", reply.text)
+        self.assertTrue(reply.image().startswith(b"\x89PNG"))
+
+    def test_steel_path_reply_shows_rotation_reward(self):
+        reply = present.steel_path_reply({
+            "currentReward": {"name": "组合枪裂罅 Mod", "cost": 75},
+            "rotation": [{"name": "x"}] * 8,
+            "expiry": "2030-01-01T00:00:00Z",
+            "incursions": {"expiry": "2030-01-01T00:00:00Z"},
+        })
+        self.assertIn("组合枪裂罅 Mod", reply.text)
+        self.assertIn("75 精华", reply.text)
+        self.assertIn("8 项", reply.text)
+        self.assertTrue(reply.image().startswith(b"\x89PNG"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -166,7 +166,8 @@ class WorldStateClient:
         self.using_fallback = False
         # ------------------------------------------------ 中转（补齐官方缺失模块）
         # warframestat 对 IDC IP 返回 403，但可以经公开中转（如 r.jina.ai）取到。
-        # 该数据常有数十分钟延迟，因此只用于补齐官方接口没有的模块，
+        # 该数据常有数十分钟延迟，因此只用于补齐官方接口没有/解析不到的模块；
+        # 钢铁侵袭、执刑官、无尽回廊已由官方字段 + 本地轮换表还原，不会再被覆盖。
         # 实时性要求高的内容（周期、突击、裂缝、奸商）仍以官方源为准。
         self.relay = str(config.get("relay") or "").strip()
         if self.relay and not self.relay.endswith("/"):
