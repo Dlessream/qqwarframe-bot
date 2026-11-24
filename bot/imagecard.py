@@ -2323,26 +2323,30 @@ def invasions_card(items: Sequence[Dict],
                    footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
     """入侵卡片：星球/节点、进度条、攻防双方奖励。"""
     count = max(1, len(items))
-    row_h = 172
+    row_h = 204
     height = 144 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
-    _ctext(draw, 30, "入侵任务", _font(40, bold=True), PURPLE_TEXT)
+    _ctext(draw, 30, "入侵任务", _font(42, bold=True), PURPLE_TEXT)
     _ctext(draw, 88, "使用命令 #订阅 可蹲守物品 · 部分信息会先于游戏出现",
-           _font(17), PURPLE_MUTED)
-    y = 132
+           _font(19), PURPLE_MUTED)
+    y = 136
     if not items:
         _ctext(draw, y + 28, "当前没有入侵", _font(22), PURPLE_MUTED)
     for item in items:
         box = (26, y, WIDTH - 26, y + row_h - 12)
-        _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
+        _rrect(draw, box, 18, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
+        # 与警报卡一致的居中内衬
+        inner = (148, y + 10, WIDTH - 148, y + row_h - 14)
+        _rrect(draw, inner, 14, fill=(92, 64, 124),
+               outline=(128, 99, 163), width=1)
         label = _fit(draw, str(item.get("label") or "—"),
-                     _font(24, bold=True), WIDTH - 96)
-        _ctext(draw, y + 10, label, _font(24, bold=True), PURPLE_TEXT)
+                     _font(28, bold=True), WIDTH - 340)
+        _ctext(draw, y + 14, label, _font(28, bold=True), PURPLE_TEXT)
         completion = float(item.get("completion") or 0)
-        _ctext(draw, y + 44, _purple_percent(completion),
-               _font(22, bold=True), PURPLE_GOLD)
-        bar_x, bar_y, bar_w, bar_h = 48, y + 78, WIDTH - 96, 8
+        _ctext(draw, y + 56, _purple_percent(completion),
+               _font(24, bold=True), PURPLE_GOLD)
+        bar_x, bar_y, bar_w, bar_h = 180, y + 96, WIDTH - 360, 8
         _rrect(draw, (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h), 4,
                fill=(62, 43, 87))
         filled = max(0, min(bar_w, int(bar_w * completion / 100.0)))
@@ -2352,15 +2356,15 @@ def invasions_card(items: Sequence[Dict],
         left_faction = str(item.get("left_faction") or "")
         right_faction = str(item.get("right_faction") or "")
         left_reward = _fit(draw, str(item.get("left_reward") or "—"),
-                           _font(17), 460)
+                           _font(18), 420)
         right_reward = _fit(draw, str(item.get("right_reward") or "—"),
-                            _font(17), 460)
-        _centered_pill_text(draw, y + 98, left_faction, left_reward,
-                            _font(17), PURPLE_MUTED,
-                            (104, 83, 133), PURPLE_TEXT, pill_size=16)
-        _centered_pill_text(draw, y + 134, right_faction, right_reward,
-                            _font(17), PURPLE_MUTED,
-                            (112, 82, 119), PURPLE_TEXT, pill_size=16)
+                            _font(18), 420)
+        _centered_pill_text(draw, y + 118, left_faction, left_reward,
+                            _font(18), PURPLE_MUTED,
+                            (104, 83, 133), PURPLE_TEXT, pill_size=17)
+        _centered_pill_text(draw, y + 156, right_faction, right_reward,
+                            _font(18), PURPLE_MUTED,
+                            (112, 82, 119), PURPLE_TEXT, pill_size=17)
         y += row_h
     y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -2383,66 +2387,60 @@ def _localize_relic_title(title) -> str:
 
 
 def relic_card(relic, footer: str = "数据 warframestat · warframe.market") -> bytes:
-    """遗物：名称 + 出入库 + 精炼 / 获取 / 奖励 / 杜卡德 / WM 均价。
+    """遗物：名称 + 出入库 + 精炼 / 价格说明 / 获取 / 行情汇总。
 
-    内容整体放大后收进居中的圆角面板，字号与行距统一；按用户要求去掉
-    稀有度/概率那一行，只保留奖励名称与行情。
+    按用户要求去掉奖励名（含 Allow Znip R1 这类条目名）与稀有度/概率行；
+    上方文字放大居中，行情按整颗遗物汇总成一行，避免多奖励时出现一排
+    无名称的孤立价格。
     """
     rewards = list(getattr(relic, "rewards", ()) or ())
-    count = max(1, len(rewards))
     locations = list(getattr(relic, "locations", ()) or ())
-    row_h = 132
     badge = str(getattr(relic, "vault_label", ""))
-    desc_y = 144 if badge else 110
-    y0 = desc_y + (112 if locations else 76)
-    panel_bottom = y0 + count * row_h + 6
+    desc_y = 152 if badge else 116
+    y0 = desc_y + (128 if locations else 92)
+    panel_bottom = y0 + 82
     height = panel_bottom + 96
 
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     panel = Image.new("RGBA", image.size, (0, 0, 0, 0))
     pd = ImageDraw.Draw(panel, "RGBA")
-    pd.rounded_rectangle((92, 18, WIDTH - 92, panel_bottom), radius=22,
+    pd.rounded_rectangle((110, 18, WIDTH - 110, panel_bottom), radius=24,
                          fill=(255, 255, 255, 14),
                          outline=(196, 174, 226, 48), width=1)
     image = Image.alpha_composite(image.convert("RGBA"), panel).convert("RGB")
     draw = ImageDraw.Draw(image)
 
     title = _localize_relic_title(getattr(relic, "title", "遗物"))
-    _ctext(draw, 30, title, _font(46, bold=True), PURPLE_TEXT)
+    _ctext(draw, 30, title, _font(48, bold=True), PURPLE_TEXT)
     if badge:
-        _centered_pill_row(draw, 96, [(badge, (112, 82, 119), PURPLE_GOLD, 18)])
+        _centered_pill_row(draw, 100, [(badge, (112, 82, 119), PURPLE_GOLD, 20)])
 
     refinement = str(getattr(relic, "refinement_label", "完整"))
     code = str(getattr(relic, "refinement", "Intact"))
     _ctext(draw, desc_y, "精炼：%s（%s）" % (refinement, code),
-           _font(20), PURPLE_MUTED)
-    _ctext(draw, desc_y + 38, "价格：WM 在线中/游戏中卖单最低 / 最高价",
-           _font(18), PURPLE_MUTED)
+           _font(24), PURPLE_TEXT)
+    _ctext(draw, desc_y + 44, "价格：WM 在线中/游戏中卖单最低 / 最高价",
+           _font(21), PURPLE_MUTED)
     if locations:
-        _ctext(draw, desc_y + 74, "获取：%s" % _fit(
-            draw, "、".join(locations[:8]), _font(17), WIDTH - 260),
-            _font(17), PURPLE_MUTED)
+        _ctext(draw, desc_y + 86, "获取：%s" % _fit(
+            draw, "、".join(locations[:8]), _font(20), WIDTH - 300),
+            _font(20), PURPLE_MUTED)
 
-    y = y0
-    for reward in rewards:
-        name = str(getattr(reward, "market_name", "")
-                   or getattr(reward, "name", "") or "—")
-        name = _fit(draw, name, _font(26, bold=True), WIDTH - 280)
-        _ctext(draw, y + 18, name, _font(26, bold=True), PURPLE_TEXT)
-        ducats = int(getattr(reward, "ducats", 0) or 0)
-        price_low = float(getattr(reward, "price_low", 0) or 0)
-        price_high = float(getattr(reward, "price_high", 0) or 0)
-        _centered_texts(draw, y + 72, [
-            ("%d 杜卡德" % ducats, _font(22, bold=True), PURPLE_GOLD),
-            ("最低 %.2fp" % price_low, _font(20), PURPLE_MUTED),
-            ("最高 %.2fp" % price_high, _font(20), PURPLE_MUTED),
-        ], gap=26)
-        _divider(draw, y + row_h - 12, 150, WIDTH - 150)
-        y += row_h
-    if not rewards:
-        _ctext(draw, y + 24, "这个遗物没有可读取的奖励数据。",
-               _font(20), PURPLE_MUTED)
-    y = _purple_footer(draw, panel_bottom + 14, footer)
+    if rewards:
+        ducats = max(int(getattr(r, "ducats", 0) or 0) for r in rewards)
+        lows = [float(getattr(r, "price_low", 0) or 0) for r in rewards]
+        highs = [float(getattr(r, "price_high", 0) or 0) for r in rewards]
+        low = min([v for v in lows if v > 0] or [0])
+        high = max([v for v in highs if v > 0] or [0])
+        _centered_texts(draw, y0 + 24, [
+            ("%d 杜卡德" % ducats, _font(24, bold=True), PURPLE_GOLD),
+            ("最低 %.2fp" % low if low else "最低 —", _font(21), PURPLE_MUTED),
+            ("最高 %.2fp" % high if high else "最高 —", _font(21), PURPLE_MUTED),
+        ], gap=30)
+    else:
+        _ctext(draw, y0 + 24, "这个遗物没有可读取的奖励数据。",
+               _font(21), PURPLE_MUTED)
+    y = _purple_footer(draw, panel_bottom + 16, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
@@ -2453,16 +2451,26 @@ def relic_reverse_card(query: str, target: str, rows,
     ``rows`` 为 [(relic, [命中的 RelicReward, ...]), ...]。
     """
     rows = list(rows or ())
-    row_h = 104
-    head_h = 148
-    height = head_h + len(rows) * row_h + 80
+    row_h = 116
+    head_h = 164
+    panel_bottom = head_h + len(rows) * row_h + 4
+    height = panel_bottom + 96
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
+
+    # 与遗物卡同一套居中面板，保证同类图片反馈观感一致
+    panel = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    pd = ImageDraw.Draw(panel, "RGBA")
+    pd.rounded_rectangle((110, 18, WIDTH - 110, panel_bottom), radius=24,
+                         fill=(255, 255, 255, 14),
+                         outline=(196, 174, 226, 48), width=1)
+    image = Image.alpha_composite(image.convert("RGBA"), panel).convert("RGB")
     draw = ImageDraw.Draw(image)
-    _ctext(draw, 28, "奖励反查", _font(40, bold=True), PURPLE_TEXT)
-    sub = _fit(draw, "%s  →  %s" % (query, target), _font(20), WIDTH - 2 * PAD)
-    _ctext(draw, 86, sub, _font(20), PURPLE_GOLD)
-    _ctext(draw, 118, "共 %d 个遗物可获得" % len(rows),
-           _font(17), PURPLE_MUTED)
+
+    _ctext(draw, 28, "奖励反查", _font(44, bold=True), PURPLE_TEXT)
+    sub = _fit(draw, "%s  →  %s" % (query, target), _font(22), WIDTH - 300)
+    _ctext(draw, 90, sub, _font(22), PURPLE_GOLD)
+    _ctext(draw, 126, "共 %d 个遗物可获得" % len(rows),
+           _font(19), PURPLE_MUTED)
     y = head_h
     for index, (relic, rewards) in enumerate(rows, 1):
         title = _localize_relic_title(getattr(relic, "title", "遗物"))
@@ -2470,8 +2478,8 @@ def relic_reverse_card(query: str, target: str, rows,
         heading = "%d. %s" % (index, title)
         if vault:
             heading += "  ·  " + vault
-        _ctext(draw, y + 8, _fit(draw, heading, _font(22, bold=True), WIDTH - 96),
-               _font(22, bold=True), PURPLE_TEXT)
+        _ctext(draw, y + 12, _fit(draw, heading, _font(25, bold=True), WIDTH - 260),
+               _font(25, bold=True), PURPLE_TEXT)
         parts = []
         for reward in rewards:
             name = str(getattr(reward, "market_name", "")
@@ -2480,11 +2488,11 @@ def relic_reverse_card(query: str, target: str, rows,
             chance = float(getattr(reward, "chance", 0) or 0)
             parts.append("%s (%s %.2f%%)" % (name, rarity, chance) if rarity
                          else "%s (%.2f%%)" % (name, chance))
-        detail = _fit(draw, "、".join(parts), _font(15), WIDTH - 2 * PAD - 20)
-        _ctext(draw, y + 48, detail, _font(15), PURPLE_MUTED)
-        _divider(draw, y + row_h - 12, PAD, WIDTH - PAD)
+        detail = _fit(draw, "、".join(parts), _font(18), WIDTH - 260)
+        _ctext(draw, y + 56, detail, _font(18), PURPLE_MUTED)
+        _divider(draw, y + row_h - 12, 150, WIDTH - 150)
         y += row_h
-    y = _purple_footer(draw, y + 8, footer)
+    y = _purple_footer(draw, panel_bottom + 16, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
 
 
