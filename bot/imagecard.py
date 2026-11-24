@@ -325,9 +325,10 @@ def _footer(draw, y: int, left: str, right: str = "QQ Warframe Bot",
             width: int = WIDTH) -> int:
     _divider(draw, y, PAD, width - PAD)
     font = _font(14)
-    draw.text((PAD, y + 12), left, font=font, fill=DIM)
-    tw, _ = _tsize(draw, right, font)
-    draw.text((width - PAD - tw, y + 12), right, font=font, fill=DIM)
+    text = "  ·  ".join(part for part in (left, right) if part)
+    text = _fit(draw, text, font, width - 2 * PAD)
+    tw, _ = _tsize(draw, text, font)
+    draw.text(((width - tw) // 2, y + 12), text, font=font, fill=DIM)
     return y + 42
 
 
@@ -339,14 +340,16 @@ def _header(draw, title: str, subtitle: str, chip: str, accent, top: int = 30,
     max_width = width - 2 * PAD - 150
     lines = _wrap(draw, title, title_font, max_width, max_lines=2)
     for line in lines:
-        draw.text((PAD, y), line, font=title_font, fill=TEXT)
+        lw, _ = _tsize(draw, line, title_font)
+        draw.text(((width - lw) // 2, y), line, font=title_font, fill=TEXT)
         y += 46
     if chip:
         cw, _ = _tsize(draw, chip, _font(16, bold=True))
         _chip(draw, width - PAD - cw - 26, top + 2, chip, accent)
     if subtitle:
-        draw.text((PAD, y + 3), _fit(draw, subtitle, _font(17), width - 2 * PAD),
-                  font=_font(17), fill=MUTED)
+        sub = _fit(draw, subtitle, _font(17), width - 2 * PAD)
+        sw, _ = _tsize(draw, sub, _font(17))
+        draw.text(((width - sw) // 2, y + 3), sub, font=_font(17), fill=MUTED)
         y += 28
     return y
 
@@ -458,16 +461,16 @@ def _trend_table(draw, y, stats, days: int = 15) -> int:
     first, last = points[0], points[-1]
     change = ((last.avg - first.avg) / first.avg * 100.0) if first.avg else 0.0
 
-    draw.text((PAD, y), "近 %d 天价格走势" % len(points),
+    trend_title = "近 %d 天价格走势" % len(points)
+    ttw, _ = _tsize(draw, trend_title, _font(19, bold=True))
+    draw.text(((WIDTH - ttw) // 2, y), trend_title,
               font=_font(19, bold=True), fill=TEXT)
     y += 32
     change_color = GREEN if change >= 0 else RED
-    draw.text((PAD, y), "均价 %.1fp ｜ 高 %.0fp ｜ 低 %.0fp ｜ 变化 " % (
-        avg, high, low), font=_font(15), fill=MUTED)
-    prefix_width, _ = _tsize(draw, "均价 %.1fp ｜ 高 %.0fp ｜ 低 %.0fp ｜ 变化 " % (
-        avg, high, low), _font(15))
-    draw.text((PAD + prefix_width, y), "%+.1f%%" % change,
-              font=_font(15, bold=True), fill=change_color)
+    prefix = "均价 %.1fp ｜ 高 %.0fp ｜ 低 %.0fp ｜ 变化 " % (avg, high, low)
+    summary = prefix + "%+.1f%%" % change
+    sw, _ = _tsize(draw, summary, _font(15))
+    draw.text(((WIDTH - sw) // 2, y), summary, font=_font(15), fill=MUTED)
     y += 30
 
     usable = WIDTH - 2 * PAD
@@ -478,7 +481,9 @@ def _trend_table(draw, y, stats, days: int = 15) -> int:
     header_font = _font(14, bold=True)
     x = PAD
     for index, header in enumerate(headers):
-        draw.text((x + 8, y), header, font=header_font, fill=DIM)
+        hw, _ = _tsize(draw, header, header_font)
+        draw.text((x + (widths[index] - hw) // 2, y), header,
+                  font=header_font, fill=DIM)
         x += widths[index]
     y += 28
     _divider(draw, y)
@@ -501,7 +506,9 @@ def _trend_table(draw, y, stats, days: int = 15) -> int:
         ]
         x = PAD
         for index, value in enumerate(values):
-            draw.text((x + 8, y + 4), _fit(draw, value, font, widths[index] - 16),
+            text = _fit(draw, value, font, widths[index] - 16)
+            vw, _ = _tsize(draw, text, font)
+            draw.text((x + (widths[index] - vw) // 2, y + 4), text,
                       font=font, fill=color)
             x += widths[index]
         y += row_height
@@ -652,11 +659,8 @@ def _analysis_grid(draw, y: int, headers: Sequence[str], widths: Sequence[int],
     for index, header in enumerate(headers):
         text = _fit(draw, header, header_font, widths[index] - 16)
         text_width, _ = _tsize(draw, text, header_font)
-        if aligns[index] == "right":
-            draw.text((x + widths[index] - 10 - text_width, y), text,
-                      font=header_font, fill=DIM)
-        else:
-            draw.text((x + 10, y), text, font=header_font, fill=DIM)
+        draw.text((x + (widths[index] - text_width) // 2, y), text,
+                  font=header_font, fill=DIM)
         x += widths[index]
     y += 28
     _divider(draw, y)
@@ -673,11 +677,8 @@ def _analysis_grid(draw, y: int, headers: Sequence[str], widths: Sequence[int],
             if colors:
                 color = colors.get((row_index, index), TEXT)
             text_width, _ = _tsize(draw, text, font)
-            if aligns[index] == "right":
-                draw.text((x + widths[index] - 12 - text_width, y + 4),
-                          text, font=font, fill=color)
-            else:
-                draw.text((x + 10, y + 4), text, font=font, fill=color)
+            draw.text((x + (widths[index] - text_width) // 2, y + 4),
+                      text, font=font, fill=color)
             x += widths[index]
         y += 36
     return y
@@ -810,12 +811,10 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
     header_font = _font(CELL_HEADER_FONT, bold=True)
     x = PAD
     for index, (name, _) in enumerate(columns):
-        if index < len(aligns) and aligns[index] == "right":
+        if name:
             text_width, _ = _tsize(draw, name, header_font)
-            draw.text((x + widths[index] - CELL_PAD_X - text_width, y), name,
+            draw.text((x + (widths[index] - text_width) // 2, y), name,
                       font=header_font, fill=DIM)
-        else:
-            draw.text((x + CELL_PAD_X, y), name, font=header_font, fill=DIM)
         x += widths[index]
     y += 32
     _divider(draw, y)
@@ -834,19 +833,18 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
             font = bold_font if cell.bold else text_font
             color = cell.color or TEXT
             text = _fit(draw, cell.text, font, widths[index] - 2 * CELL_PAD_X)
-            if index < len(aligns) and aligns[index] == "right":
-                text_width, _ = _tsize(draw, text, font)
-                draw.text((x + widths[index] - CELL_PAD_X - text_width,
-                           y + ROW_TEXT_DY), text, font=font, fill=color)
-            else:
-                draw.text((x + CELL_PAD_X, y + ROW_TEXT_DY), text,
-                          font=font, fill=color)
+            text_width, _ = _tsize(draw, text, font)
+            draw.text((x + (widths[index] - text_width) // 2, y + ROW_TEXT_DY),
+                      text, font=font, fill=color)
             x += widths[index]
         y += row_height
 
     if note:
-        draw.text((PAD, y + 8), _fit(draw, note, _font(16), WIDTH - 2 * PAD),
-                  font=_font(16), fill=MUTED)
+        note_font = _font(16)
+        note_text = _fit(draw, note, note_font, WIDTH - 2 * PAD)
+        nw, _ = _tsize(draw, note_text, note_font)
+        draw.text(((WIDTH - nw) // 2, y + 8), note_text,
+                  font=note_font, fill=MUTED)
         y += 38
 
     y = _footer(draw, y + 12, footer)
@@ -862,12 +860,12 @@ def _cell_parts(cell) -> Tuple[Optional[tuple], bool, str]:
 
 def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
                    footer: str, accent=GOLD, chip: str = "",
-                   note: str = "", center: bool = False) -> bytes:
+                   note: str = "", center: bool = True) -> bytes:
     """分组表格卡：每组一个小标题（右侧可带倒计时）＋ 若干行。
 
     sections: [{"label": 小标题, "badge": 右侧胶囊, "columns": [(表头, 比例), ...],
                 "rows": [[str | Cell, ...], ...]}, ...]
-    默认首列左对齐、末列右对齐；center=True 时表头与所有单元格居中。
+    默认表头与所有单元格居中；center=False 时首列左对齐、末列右对齐。
     """
     sections = list(sections or [])
     total_rows = sum(len(item.get("rows") or []) for item in sections)
@@ -890,9 +888,11 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
         label = str(item.get("label") or "")
         badge = str(item.get("badge") or "")
         if label:
-            draw.rectangle([PAD, y + 4, PAD + 4, y + 24], fill=accent)
-            draw.text((PAD + 14, y), _fit(draw, label, label_font, usable - 250),
-                      font=label_font, fill=TEXT)
+            label_text = _fit(draw, label, label_font, usable - 250)
+            lw, _ = _tsize(draw, label_text, label_font)
+            lx = (WIDTH - lw) // 2
+            draw.rectangle([lx - 14, y + 4, lx - 10, y + 24], fill=accent)
+            draw.text((lx, y), label_text, font=label_font, fill=TEXT)
             if badge:
                 badge_width, _ = _tsize(draw, badge, _font(16, bold=True))
                 _chip(draw, right - badge_width - 20, y - 2, badge, accent)
@@ -949,8 +949,11 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
         y += 20
 
     if note:
-        draw.text((PAD, y + 6), _fit(draw, note, _font(16), usable),
-                  font=_font(16), fill=MUTED)
+        note_font = _font(16)
+        note_text = _fit(draw, note, note_font, usable)
+        nw, _ = _tsize(draw, note_text, note_font)
+        draw.text(((WIDTH - nw) // 2, y + 6), note_text,
+                  font=note_font, fill=MUTED)
         y += 36
 
     y = _footer(draw, y + 10, footer)
@@ -1036,27 +1039,33 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
         badge = str(item.get("badge") or "")
         rows = list(item.get("rows") or [])
         if label:
-            draw.rectangle([PAD, y + 4, PAD + 5, y + 26], fill=accent)
-            draw.text((PAD + 16, y), _fit(draw, label, label_font, usable - 300),
-                      font=label_font, fill=TEXT)
+            label_text = _fit(draw, label, label_font, usable - 300)
+            lw, _ = _tsize(draw, label_text, label_font)
+            lx = (WIDTH - lw) // 2
+            draw.rectangle([lx - 14, y + 4, lx - 9, y + 26], fill=accent)
+            draw.text((lx, y), label_text, font=label_font, fill=TEXT)
             if badge:
                 badge_width, badge_height = _tsize(draw, badge, badge_font)
                 _chip(draw, right - badge_width - 24, y - 2, badge, accent,
                       font_size=14)
             y += 40
         if not rows:
-            draw.text((PAD + 16, y + 2), "这一天的排期还没算出来。",
+            empty = "这一天的排期还没算出来。"
+            ew, _ = _tsize(draw, empty, _font(15))
+            draw.text(((WIDTH - ew) // 2, y + 2), empty,
                       font=_font(15), fill=DIM)
             y += 40
             continue
 
-        # 列头：左右两列各画一次
+        # 列头：左右两列各画一次，四格标题居中于各自列位
+        head_slots = [(time_x, 48), (node_x, node_w),
+                      (mission_x, 66), (col_w - 54, 46)]
         for col in range(2):
             cx = PAD + col * (col_w + gap)
-            for name, dx in headers:
+            for (name, _dx), (slot_x, slot_w) in zip(headers, head_slots):
                 text_width, _ = _tsize(draw, name, head_font)
-                pos = cx + dx - text_width if dx > col_w - 60 else cx + dx
-                draw.text((pos, y), name, font=head_font, fill=DIM)
+                draw.text((cx + slot_x + (slot_w - text_width) // 2, y),
+                          name, font=head_font, fill=DIM)
         y += 24
         _divider(draw, y)
         y += 8
@@ -1081,27 +1090,31 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                 if mission_color:
                     draw.rectangle([cx + 4, y + 4, cx + 7, y + row_h - 14],
                                    fill=mission_color)
-                draw.text((cx + time_x, y + 3),
-                          _fit(draw, time_text, time_font, 48),
+                time_text = _fit(draw, time_text, time_font, 48)
+                tw, _ = _tsize(draw, time_text, time_font)
+                draw.text((cx + time_x + (48 - tw) // 2, y + 3), time_text,
                           font=time_font, fill=time_color or MUTED)
-                draw.text((cx + node_x, y + 2),
-                          _fit(draw, node_text, node_font, node_w),
-                          font=node_font,
-                          fill=node_color or TEXT)
-                draw.text((cx + mission_x, y + 3),
-                          _fit(draw, mission_text, mission_font, 80),
-                          font=mission_font,
-                          fill=mission_color or TEXT)
+                node_text = _fit(draw, node_text, node_font, node_w)
+                nw, _ = _tsize(draw, node_text, node_font)
+                draw.text((cx + node_x + (node_w - nw) // 2, y + 2), node_text,
+                          font=node_font, fill=node_color or TEXT)
+                mission_text = _fit(draw, mission_text, mission_font, 66)
+                mw, _ = _tsize(draw, mission_text, mission_font)
+                draw.text((cx + mission_x + (66 - mw) // 2, y + 3), mission_text,
+                          font=mission_font, fill=mission_color or TEXT)
                 rating_text = _fit(draw, rating_text_raw, rating_font, 46)
-                rating_width, _ = _tsize(draw, rating_text, rating_font)
-                draw.text((cx + col_w - 12 - rating_width, y + 3), rating_text,
+                rw, _ = _tsize(draw, rating_text, rating_font)
+                draw.text((cx + col_w - 54 + (46 - rw) // 2, y + 3), rating_text,
                           font=rating_font, fill=rating_color or MUTED)
             y += row_h
         y += 24
 
     if note:
-        draw.text((PAD, y + 4), _fit(draw, note, _font(16), usable),
-                  font=_font(16), fill=MUTED)
+        note_font = _font(16)
+        note_text = _fit(draw, note, note_font, usable)
+        nw, _ = _tsize(draw, note_text, note_font)
+        draw.text(((WIDTH - nw) // 2, y + 4), note_text,
+                  font=note_font, fill=MUTED)
         y += 34
 
     if buttons:
@@ -1897,8 +1910,11 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
         label = str(section.get("label") or "")
         remaining = str(section.get("remaining") or "")
         if label and label != title:
-            draw.rectangle([PAD, y + 5, PAD + 5, y + 29], fill=accent)
-            draw.text((PAD + 16, y), label, font=_font(22, bold=True), fill=TEXT)
+            lf = _font(22, bold=True)
+            lw, _ = _tsize(draw, label, lf)
+            lx = (WIDTH - lw) // 2
+            draw.rectangle([lx - 14, y + 5, lx - 9, y + 29], fill=accent)
+            draw.text((lx, y), label, font=lf, fill=TEXT)
             if remaining:
                 chip_width, _ = _tsize(draw, remaining, _font(16, bold=True))
                 _chip(draw, WIDTH - PAD - chip_width - 26, y - 2, remaining, accent)
@@ -1941,7 +1957,10 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
 
         variables = section.get("variables") or []
         if variables:
-            draw.text((PAD, y + 4), "全局变量", font=_font(21, bold=True), fill=TEXT)
+            vf = _font(21, bold=True)
+            vw, _ = _tsize(draw, "全局变量", vf)
+            draw.text(((WIDTH - vw) // 2, y + 4), "全局变量",
+                      font=vf, fill=TEXT)
             y += 38
             for item in variables:
                 name_text = str(item.get("name") or "—")
@@ -1964,8 +1983,10 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
             y += 8
 
     if note:
-        draw.text((PAD, y + 4), _fit(draw, note, _font(16), WIDTH - 2 * PAD),
-                  font=_font(16), fill=MUTED)
+        nf = _font(16)
+        nt = _fit(draw, note, nf, WIDTH - 2 * PAD)
+        nw, _ = _tsize(draw, nt, nf)
+        draw.text(((WIDTH - nw) // 2, y + 4), nt, font=nf, fill=MUTED)
         y += 34
     y = _footer(draw, y + 10, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -2056,8 +2077,11 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
     for group, rows in layout:
         label = str(group.get("label") or "")
         if label:
-            draw.rectangle([PAD, y + 6, PAD + 5, y + 30], fill=accent)
-            draw.text((PAD + 16, y + 2), label, font=_font(21, bold=True), fill=TEXT)
+            lf = _font(21, bold=True)
+            lw, _ = _tsize(draw, label, lf)
+            lx = (WIDTH - lw) // 2
+            draw.rectangle([lx - 14, y + 6, lx - 9, y + 30], fill=accent)
+            draw.text((lx, y + 2), label, font=lf, fill=TEXT)
             right_note = str(group.get("note") or "")
             if right_note:
                 width, _ = _tsize(draw, right_note, _font(15))
@@ -2089,8 +2113,10 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
         y += 10
 
     if note:
-        draw.text((PAD, y + 4), _fit(draw, note, _font(16), WIDTH - 2 * PAD),
-                  font=_font(16), fill=MUTED)
+        nf = _font(16)
+        nt = _fit(draw, note, nf, WIDTH - 2 * PAD)
+        nw, _ = _tsize(draw, nt, nf)
+        draw.text(((WIDTH - nw) // 2, y + 4), nt, font=nf, fill=MUTED)
         y += 34
 
     y = _footer(draw, y + 10, footer)

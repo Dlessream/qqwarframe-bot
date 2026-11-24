@@ -85,11 +85,13 @@ class ImageCardTest(unittest.TestCase):
         kwargs = dict(title="轮换商店", subtitle="三个商店的当期货架与倒计时",
                       sections=sections, footer="数据 wiki.warframe.com",
                       accent=imagecard.GOLD, chip="轮换")
-        left = imagecard.sections_table(**kwargs)
-        centered = imagecard.sections_table(center=True, **kwargs)
+        centered = imagecard.sections_table(**kwargs)
         self.assertEqual(png_size(centered)[0], 860)
         self.assertGreater(png_size(centered)[1], 300)
-        self.assertNotEqual(left, centered)
+        # 默认即居中；显式 center=True 与默认结果一致
+        self.assertEqual(centered, imagecard.sections_table(center=True, **kwargs))
+        # center=False 保留旧的左右对齐，应与默认不同
+        self.assertNotEqual(centered, imagecard.sections_table(center=False, **kwargs))
 
     def test_tall_table(self):
         rows = [["物品 %02d" % index, "%d" % (index * 10), "100,000"]
