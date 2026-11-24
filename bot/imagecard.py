@@ -1619,31 +1619,70 @@ def _help_groups(prefix: str):
     ]
 
 
-def _help_canvas(background, height: int, hero_h: int) -> "Image.Image":
-    """上半区只放官方 key art 原图（不加任何叠加元素），下半区为命令面板。"""
-    canvas = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
-    od = ImageDraw.Draw(overlay, "RGBA")
+# 帮助卡为横板，整卡尺寸固定；背景铺满整卡并压低透明度
+HELP_W = 1440
+HELP_H = 920
+HELP_BG_OPACITY = 0.40          # key art 不透明度，越低原图自带元素越淡
+HELP_BG_BLUR = 7                # 轻微模糊，进一步弱化 Logo / 按钮文字
+
+
+def _help_canvas(background, width: int, height: int) -> "Image.Image":
+    """横板帮助卡整卡背景：官方 key art 铺满 + 低透明度 + 轻微模糊 + 深色蒙版。
+
+    原图自带的 WARFRAME 标题 / 按钮 / 副标题通过「降透明度 + 模糊 + 蒙版」
+    三重处理退化为纯氛围底图，只保留画面色彩和构图。
+    """
+    canvas = _gradient(width, height, BG_TOP, BG_BOTTOM).convert("RGBA")
     if background is not None:
         try:
             bw, bh = background.size
-            scale = max(WIDTH / float(bw), hero_h / float(bh))
-            nw, nh = max(WIDTH, int(bw * scale)), max(hero_h, int(bh * scale))
+            scale = max(width / float(bw), height / float(bh))
+            nw = max(width, int(bw * scale))
+            nh = max(height, int(bh * scale))
             scaled = background.resize((nw, nh), Image.LANCZOS).convert("RGBA")
-            left = (nw - WIDTH) // 2
-            top = (nh - hero_h) // 2
-            hero = scaled.crop((left, top, left + WIDTH, top + hero_h))
-            canvas.paste(hero, (0, 0))
+            left = (nw - width) // 2
+            top = (nh - height) // 2
+            hero = scaled.crop((left, top, left + width, top + height))
+            if HELP_BG_BLUR > 0:
+                try:
+                    from PIL import ImageFilter
+                    hero = hero.filter(ImageFilter.GaussianBlur(HELP_BG_BLUR))
+                except Exception:
+                    pass
+            hero.putalpha(int(max(0.0, min(1.0, HELP_BG_OPACITY)) * 255))
+            canvas = Image.alpha_composite(canvas, hero)
         except Exception:
             pass
-    # 仅底部一条极淡渐变融入面板，主画面保持原图无遮挡
-    fade_start = max(0, hero_h - 28)
-    for y in range(fade_start, hero_h):
-        alpha = int(60 * (y - fade_start) / max(1, hero_h - fade_start - 1))
-        od.line([(0, y), (WIDTH, y)], fill=(8, 11, 18, alpha))
-    od.rectangle([0, hero_h, WIDTH, height], fill=(10, 13, 20, 238))
-    canvas = Image.alpha_composite(canvas, overlay)
-    return canvas
+
+    veil = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    vd = ImageDraw.Draw(veil, "RGBA")
+    for y in range(height):
+        ratio = y / max(1, height - 1)
+        alpha = int(154 - 30 * ratio)
+        vd.line([(0, y), (width, y)], fill=(8, 11, 18, alpha))
+    return Image.alpha_composite(canvas, veil)
+
+
+_HELP_COLUMN_OF = {
+    "市场行情": 0,
+    "紫卡与遗物": 0,
+    "世界状态": 1,
+    "仲裁排期": 2,
+    "订阅与工具": 2,
+}
+
+
+def _help_columns(groups, ncols: int = 3):
+    """把命令分组均衡分配到横板的三列，保证阅读顺序自然。"""
+    columns = [[] for _ in range(ncols)]
+    loads = [0] * ncols
+    for group in groups:
+        preferred = _HELP_COLUMN_OF.get(group[0])
+        if preferred is None or preferred >= ncols:
+            preferred = min(range(ncols), key=lambda i: (loads[i], i))
+        columns[preferred].append(group)
+        loads[preferred] += 40 + len(group[2]) * 40 + 16
+    return columns
 
 
 def _scene_canvas(background, height: int) -> "Image.Image":
@@ -1681,10 +1720,10 @@ def _help_emblem(draw, cx: int, cy: int, color) -> None:
 
 def help_card(prefix: str = "#", disabled=(), background=None,
               hero_title: str = "") -> bytes:
-    """Warframe 启动器风格的帮助菜单卡片。
+    """横板帮助菜单：官方 key art 低透明度铺满整卡，命令三列排布在其上。
 
-    background: 官方 key art（可选），铺在启动器主视觉区；
-    hero_title: 启动器主视觉副标题，通常取当前新闻标题，随游戏更新变化。
+    background: 官方 key art（可选），铺满整张卡片并降低不透明度；
+    hero_title: 保留参数兼容调用方，画面上不再单独渲染。
     """
     groups = _help_groups(prefix)
     disabled = set(disabled or ())
@@ -1705,79 +1744,81 @@ def help_card(prefix: str = "#", disabled=(), background=None,
         if kept:
             filtered.append((name, color, kept))
 
-    HERO_H = 420
-    PANEL_HEAD = 100
-    SECTION_H = 40
-    ROW_H = 36
-    GROUP_GAP = 14
-    content_h = sum(SECTION_H + len(rows) * ROW_H + GROUP_GAP
-                    for _, _, rows in filtered)
-    height = HERO_H + PANEL_HEAD + content_h + 76
-
-    canvas = _help_canvas(background, height, HERO_H)
-    overlay = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    columns = _help_columns(filtered, 3)
+    canvas = _help_canvas(background, HELP_W, HELP_H)
+    overlay = Image.new("RGBA", (HELP_W, HELP_H), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay, "RGBA")
+    text_ops = []
 
-    # ---- 顶部只保留官方 key art 原图，不叠加任何启动器元素 ----
-    draw = ImageDraw.Draw(canvas)
-
-    # ---- 命令面板 ----
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle([PAD, HERO_H + 22, PAD + 5, HERO_H + 48], fill=GOLD)
-    draw.text((PAD + 18, HERO_H + 18), "命令一览", font=_font(22, bold=True),
-              fill=TEXT)
-    draw.text((PAD + 18, HERO_H + 52), "命令可直接发送，不需要 # 前缀或 @ 机器人",
-              font=_font(14), fill=MUTED)
+    M = 42
+    # ---- 顶部标题条 ----
+    _rrect(od, (M, 22, HELP_W - M, 92), 12,
+           fill=(9, 12, 19, 158), outline=GOLD + (110,), width=1)
+    od.rectangle([M + 16, 40, M + 22, 76], fill=GOLD)
+    text_ops.append(((M + 34, 34), "命令一览", _font(27, bold=True), TEXT))
+    text_ops.append(((M + 190, 46), "命令可直接发送，不需要 # 前缀或 @ 机器人",
+                     _font(17), MUTED))
     chip_text = "HELP"
-    chip_font = _font(14, bold=True)
-    cw, ch = _tsize(draw, chip_text, chip_font)
-    _rrect(od, (WIDTH - PAD - cw - 24, HERO_H + 20, WIDTH - PAD,
-                HERO_H + 52 + ch), 8, fill=(235, 188, 96, 46),
-           outline=GOLD + (210,), width=1)
-    draw.text((WIDTH - PAD - cw - 12, HERO_H + 25), chip_text,
-              font=chip_font, fill=GOLD)
+    chip_font = _font(16, bold=True)
+    probe = ImageDraw.Draw(canvas)
+    cw, ch = _tsize(probe, chip_text, chip_font)
+    _rrect(od, (HELP_W - M - cw - 26, 38, HELP_W - M, 76), 8,
+           fill=(235, 188, 96, 42), outline=GOLD + (200,), width=1)
+    text_ops.append(((HELP_W - M - cw - 13, 43), chip_text, chip_font, GOLD))
 
-    y = HERO_H + PANEL_HEAD
-    cmd_font = _font(17, bold=True)
-    desc_font = _font(15)
-    section_font = _font(16, bold=True)
-    usable = WIDTH - 2 * PAD
-    cmd_w = int(usable * 1.1 / 3.25)
-    desc_x = PAD + cmd_w
+    # ---- 三列命令面板 ----
+    GAP = 22
+    col_w = (HELP_W - 2 * M - 2 * GAP) // 3
+    BODY_Y = 112
+    SECTION_H = 40
+    ROW_H = 40
+    GROUP_GAP = 16
+    cmd_font = _font(19, bold=True)
+    desc_font = _font(16)
+    section_font = _font(21, bold=True)
 
-    row_layout = []
-    for name, color, rows in filtered:
-        draw.rectangle([PAD, y, PAD + 5, y + 24], fill=color)
-        draw.text((PAD + 16, y - 2), name, font=section_font, fill=color)
-        tw, _ = _tsize(draw, name, section_font)
-        draw.line([(PAD + 24 + tw, y + 12), (WIDTH - PAD, y + 12)],
-                  fill=tuple(int(c * 0.42) for c in color), width=1)
-        y += SECTION_H
-        for index, (cmd, desc) in enumerate(rows):
-            if index % 2 == 0:
-                _rrect(od, (PAD - 8, y - 4, WIDTH - PAD + 8, y + ROW_H - 6), 7,
-                       fill=(24, 31, 44, 168))
-            row_layout.append((y, cmd, desc))
-            y += ROW_H
-        y += GROUP_GAP
+    for ci, column in enumerate(columns):
+        x = M + ci * (col_w + GAP)
+        y = BODY_Y
+        for name, color, rows in column:
+            panel_bottom = y + SECTION_H + len(rows) * ROW_H + 6
+            _rrect(od, (x - 12, y - 10, x + col_w + 12, panel_bottom), 12,
+                   fill=(9, 12, 19, 150), outline=LINE + (130,), width=1)
+            od.rectangle([x, y + 2, x + 5, y + 28], fill=color)
+            text_ops.append(((x + 16, y - 2), name, section_font, color))
+            tw, _ = _tsize(probe, name, section_font)
+            od.line([(x + 26 + tw, y + 14), (x + col_w - 4, y + 14)],
+                    fill=tuple(int(c * 0.45) for c in color) + (180,), width=1)
+            y += SECTION_H
+            for index, (cmd, desc) in enumerate(rows):
+                if index % 2 == 0:
+                    _rrect(od, (x, y - 2, x + col_w, y + ROW_H - 6), 6,
+                           fill=(28, 36, 50, 132))
+                text_ops.append(((x + 10, y - 1),
+                                 _fit(probe, cmd, cmd_font, col_w - 20),
+                                 cmd_font, GOLD))
+                text_ops.append(((x + 10, y + 20),
+                                 _fit(probe, desc, desc_font, col_w - 20),
+                                 desc_font, TEXT))
+                y += ROW_H
+            y += GROUP_GAP
 
     canvas = Image.alpha_composite(canvas, overlay)
     draw = ImageDraw.Draw(canvas)
-    for y, cmd, desc in row_layout:
-        draw.text((PAD + 4, y + 3), _fit(draw, cmd, cmd_font, cmd_w - 16),
-                  font=cmd_font, fill=GOLD)
-        draw.text((desc_x, y + 5), _fit(draw, desc, desc_font, usable - cmd_w - 8),
-                  font=desc_font, fill=TEXT)
+    for (x, y), text, font, fill in text_ops:
+        draw.text((x, y), text, font=font, fill=fill)
 
-    footer_font = _font(13)
-    draw.line([(PAD, y + 6), (WIDTH - PAD, y + 6)], fill=(90, 98, 110), width=1)
-    draw.text((PAD, y + 18), "平台：pc / ps / xbox / switch / mobile，默认 PC",
+    footer_font = _font(15)
+    draw.line([(M, HELP_H - 42), (HELP_W - M, HELP_H - 42)],
+              fill=(120, 128, 140, 170), width=1)
+    draw.text((M, HELP_H - 34), "平台：pc / ps / xbox / switch / mobile，默认 PC",
               font=footer_font, fill=DIM)
     right = "QQ Warframe Bot"
     rw, _ = _tsize(draw, right, footer_font)
-    draw.text((WIDTH - PAD - rw, y + 18), right, font=footer_font, fill=DIM)
+    draw.text((HELP_W - M - rw, HELP_H - 34), right,
+              font=footer_font, fill=DIM)
 
-    return _encode(canvas.crop((0, 0, WIDTH, min(height, y + 48))))
+    return _encode(canvas)
 
 # ---------------------------------------------------------------------- 科研卡
 def _tag_chip(draw, x: int, y: int, text: str, color) -> int:

@@ -67,9 +67,10 @@ class HelpCardTest(unittest.TestCase):
         png = imagecard.help_card("#")
         self.assertGreater(len(png), 1000)
         image = Image.open(io.BytesIO(png))
-        self.assertEqual(image.width, imagecard.WIDTH)
-        # 分组后卡片应明显高于一屏（说明全部分组都渲染了）
-        self.assertGreater(image.height, 1400)
+        # 帮助卡为横板，尺寸固定
+        self.assertEqual(image.width, imagecard.HELP_W)
+        self.assertEqual(image.height, imagecard.HELP_H)
+        self.assertGreater(image.width, image.height)
         groups = imagecard._help_groups("#")
         self.assertEqual([g[0] for g in groups],
                          ["市场行情", "紫卡与遗物", "世界状态", "仲裁排期", "订阅与工具"])
@@ -87,12 +88,12 @@ class HelpCardTest(unittest.TestCase):
     def test_disabled_commands_hidden(self):
         full = imagecard.help_card("#")
         hidden = imagecard.help_card("#", disabled=("wiki", "relic"))
-        # 禁用后行数减少，卡片高度应更小
+        # 横板尺寸固定，禁用命令后画面内容应发生变化
+        self.assertNotEqual(full, hidden)
         from PIL import Image
         import io
-        h_full = Image.open(io.BytesIO(full)).height
-        h_hidden = Image.open(io.BytesIO(hidden)).height
-        self.assertLess(h_hidden, h_full)
+        self.assertEqual(Image.open(io.BytesIO(hidden)).height,
+                         imagecard.HELP_H)
 
     def test_help_reply_provider_and_fallback(self):
         calls = []
