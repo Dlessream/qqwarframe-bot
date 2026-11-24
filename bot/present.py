@@ -2261,7 +2261,7 @@ def rotation_overview_reply(acrithis: dict, glast: dict, eleanor: dict,
             "轮换商店", "三个商店的当期货架与倒计时",
             [acrithis_section, glast_section, eleanor_section],
             "数据 wiki.warframe.com ｜ 玩家上报 ｜ %s" % _fresh(updated),
-            accent=imagecard.GOLD, chip="轮换", note=note))
+            accent=imagecard.GOLD, chip="轮换", note=note, center=True))
 
 
 def acrithis_reply(view: dict) -> Reply:

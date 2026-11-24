@@ -862,12 +862,12 @@ def _cell_parts(cell) -> Tuple[Optional[tuple], bool, str]:
 
 def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
                    footer: str, accent=GOLD, chip: str = "",
-                   note: str = "") -> bytes:
+                   note: str = "", center: bool = False) -> bytes:
     """分组表格卡：每组一个小标题（右侧可带倒计时）＋ 若干行。
 
     sections: [{"label": 小标题, "badge": 右侧胶囊, "columns": [(表头, 比例), ...],
                 "rows": [[str | Cell, ...], ...]}, ...]
-    每组最后一行按右对齐绘制，其余列左对齐。
+    默认首列左对齐、末列右对齐；center=True 时表头与所有单元格居中。
     """
     sections = list(sections or [])
     total_rows = sum(len(item.get("rows") or []) for item in sections)
@@ -908,8 +908,11 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
         x = PAD
         for index, (name, _) in enumerate(columns):
             if name:
-                if index == len(columns) - 1:
-                    name_width, _ = _tsize(draw, name, head_font)
+                name_width, _ = _tsize(draw, name, head_font)
+                if center:
+                    draw.text((x + (widths[index] - name_width) // 2, y),
+                              name, font=head_font, fill=DIM)
+                elif index == len(columns) - 1:
                     draw.text((x + widths[index] - CELL_PAD_X - name_width, y),
                               name, font=head_font, fill=DIM)
                 else:
@@ -929,8 +932,12 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
                 color, bold, value = _cell_parts(cell)
                 font = bold_font if bold else text_font
                 value = _fit(draw, value, font, widths[index] - 2 * CELL_PAD_X)
-                if index == len(widths) - 1:
-                    value_width, _ = _tsize(draw, value, font)
+                value_width, _ = _tsize(draw, value, font)
+                if center:
+                    draw.text((x + (widths[index] - value_width) // 2,
+                               y + ROW_TEXT_DY), value, font=font,
+                              fill=color or TEXT)
+                elif index == len(widths) - 1:
                     draw.text((x + widths[index] - CELL_PAD_X - value_width,
                                y + ROW_TEXT_DY), value, font=font,
                               fill=color or TEXT)

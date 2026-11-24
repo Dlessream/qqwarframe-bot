@@ -76,6 +76,21 @@ class ImageCardTest(unittest.TestCase):
             aligns=["left", "right", "right"])
         self.assertEqual(png_size(png)[0], 860)
 
+    def test_sections_table_center_alignment(self):
+        sections = [{
+            "label": "言录使 · 双衍王境", "badge": "剩 5 天 12 小时",
+            "columns": [("商品", 3.1), ("价格", 1.0)],
+            "rows": [["10,000 赤毒", "10 苦栓"], ["福马蓝图", "10 苦栓"]],
+        }]
+        kwargs = dict(title="轮换商店", subtitle="三个商店的当期货架与倒计时",
+                      sections=sections, footer="数据 wiki.warframe.com",
+                      accent=imagecard.GOLD, chip="轮换")
+        left = imagecard.sections_table(**kwargs)
+        centered = imagecard.sections_table(center=True, **kwargs)
+        self.assertEqual(png_size(centered)[0], 860)
+        self.assertGreater(png_size(centered)[1], 300)
+        self.assertNotEqual(left, centered)
+
     def test_tall_table(self):
         rows = [["物品 %02d" % index, "%d" % (index * 10), "100,000"]
                 for index in range(40)]
