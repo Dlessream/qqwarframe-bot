@@ -557,8 +557,8 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
               price_only: bool = False) -> bytes:
     """物品行情卡。"""
     height = 2100
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
 
     accent = GOLD
     y = _header(draw, item.name or item.slug, "英文：%s" % item.name_en
@@ -627,15 +627,15 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
         platform_label, time.strftime("%m-%d %H:%M"))
     y = _footer(draw, y + 6, left)
 
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height)
 
 
 def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
     """按钮触发：单独的近 15 天价格走势卡。"""
     points = list(getattr(stats, "history", None) or [])[-15:]
     height = max(720, 300 + len(points) * 32 + 170)
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, item.name or item.slug, "价格走势 · %s" % platform_label,
                 "TREND", GOLD)
     y += 18
@@ -647,7 +647,7 @@ def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
     left = "数据 warframe market · %s · %s" % (
         platform_label, time.strftime("%m-%d %H:%M"))
     y = _footer(draw, y + 10, left)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height)
 
 
 def item_desc_card(item, platform_label: str = "PC") -> bytes:
@@ -656,8 +656,8 @@ def item_desc_card(item, platform_label: str = "PC") -> bytes:
     if not desc:
         desc = "该物品在 warframe.market 暂无说明文本。"
     height = 900
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, item.name or item.slug,
                 "物品说明 · warframe.market 风格", "DESC", CYAN)
     y += 30
@@ -672,7 +672,7 @@ def item_desc_card(item, platform_label: str = "PC") -> bytes:
     y = box[3] + 30
     _ctext(draw, y, "来源：warframe.market 物品页说明文本", _font(15), DIM)
     y = _footer(draw, y + 44, "平台：%s" % platform_label)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height)
 
 
 # ---------------------------------------------------------------------- 紫卡范围
@@ -738,8 +738,8 @@ def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计�
     height = 200 + len(names) * 36 + len(negative_names) * 36 + 240
     height = max(820, height)
 
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
 
     subtitle = "倾向 %.2f（%s）｜ Lv.8" % (analysis.disposition, analysis.dots or "—")
     if analysis.name_en and analysis.name_en.lower() != analysis.name.lower():
@@ -808,7 +808,7 @@ def riven_range_card(analysis, footer: str = "数据 Warframe Wiki · 本地计�
         y += 25
 
     y = _footer(draw, y + 8, footer)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height)
 
 
 # ---------------------------------------------------------------------- 表格卡
@@ -833,8 +833,8 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
     aligns: 每列 "left" / "right"
     """
     height = max(760, 300 + len(rows) * (ROW_H + 4) + (48 if note else 0) + 150)
-    image = _scene_canvas(background, height)
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, title, subtitle, chip, accent)
     y += 20
 
@@ -884,7 +884,8 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
         y += 38
 
     y = _footer(draw, y + 12, footer)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height,
+                       base=_scene_canvas(background, height))
 
 
 def _cell_parts(cell) -> Tuple[Optional[tuple], bool, str]:
@@ -907,8 +908,8 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
     total_rows = sum(len(item.get("rows") or []) for item in sections)
     height = max(760, 360 + total_rows * (GROUP_ROW_H + 4)
                  + len(sections) * 100 + 150)
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, title, subtitle, chip, accent)
     y += 16
 
@@ -992,7 +993,7 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
         y += 36
 
     y = _footer(draw, y + 10, footer)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height)
 
 
 # 仲裁表底部的快捷筛选按钮（个人号无法点击，画出样式提示用户发对应命令）
@@ -1044,8 +1045,8 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
     height = max(760, 320 + len(days) * (78 + per_col * 42) + 150)
     if buttons:
         height += 96
-    image = _scene_canvas(background, height)
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, title, subtitle, chip, accent)
     y += 16
 
@@ -1162,13 +1163,49 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
         y += 14
 
     y = _footer(draw, y + 10, footer)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height,
+                       base=_scene_canvas(background, height))
 
 
 def _encode(image: "Image.Image") -> bytes:
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="PNG", optimize=True)
     return buffer.getvalue()
+
+
+def _card_panel(content: "Image.Image", height: int,
+                base: Optional["Image.Image"] = None, width: int = WIDTH,
+                margin: int = 18, top: int = 16, radius: int = 22,
+                min_height: int = 300) -> bytes:
+    """统一收尾：把透明内容层合成到「居中圆角面板 + 渐变/场景底」。
+
+    所有推送卡共用同一套圆角、留白和描边；面板高度按内容实际墨迹
+    自动收紧，避免固定高度留下的空白或裁掉圆角。
+    """
+    bbox = content.getbbox()
+    content_bottom = bbox[3] if bbox else height
+    # 面板底部至少留 16px，避免内容贴到画布边缘时被裁掉圆角，
+    # 也避免 total_h 超过内容画布后补出的透明区被转成黑边。
+    panel_bottom = min(height - 16, content_bottom + 18)
+    total_h = max(min_height, panel_bottom + 16)
+
+    if base is None:
+        base = _gradient(width, total_h, BG_TOP, BG_BOTTOM)
+    else:
+        base = base.convert("RGBA").crop((0, 0, width, min(total_h, base.height)))
+        if base.height < total_h:
+            padded = Image.new("RGBA", (width, total_h), (0, 0, 0, 0))
+            padded.alpha_composite(base, (0, 0))
+            base = padded
+
+    panel = Image.new("RGBA", (width, total_h), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(panel)
+    pd.rounded_rectangle((margin, top, width - margin, panel_bottom), radius,
+                         fill=(255, 255, 255, 12),
+                         outline=(150, 162, 182, 58), width=1)
+    base = Image.alpha_composite(base.convert("RGBA"), panel)
+    base.alpha_composite(content.crop((0, 0, width, min(height, total_h))), (0, 0))
+    return _encode(base)
 
 
 # ---------------------------------------------------------------------- 紫卡卡面
@@ -1424,8 +1461,8 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
     header_h = 168 + (44 if filters else 0) + (34 if note else 0)
     height = header_h + rows * ch + (rows - 1) * gap_y + 76
 
-    image = _gradient(width, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
 
     inclination = float(getattr(weapon, "disposition", 0) or 0)
     if status_counts is None:
@@ -1450,11 +1487,11 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
         row, col = divmod(index, cols)
         x = left + col * (cw + gap_x)
         top = header_h + row * (ch + gap_y)
-        image.alpha_composite(card, (x, top))
+        content.alpha_composite(card, (x, top))
 
     _footer(draw, height - 62, footer or "数据 warframe.market · 实时紫卡拍卖",
             width=width)
-    return _encode(image)
+    return _card_panel(content, height, width=width, margin=18, top=12)
 
 
 def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低价均价",
@@ -1467,15 +1504,16 @@ def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低
     top = 138
     bottom = 70
     height = top + len(rows) * row_h + bottom
-    image = _gradient(width, height, (52, 38, 82), (96, 76, 138)).convert("RGBA")
+    base = _gradient(width, height, (52, 38, 82), (96, 76, 138)).convert("RGBA")
 
     overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
     for i in range(18, 0, -1):
         od.ellipse([width / 2 - i * 26, 70 - i * 14, width / 2 + i * 26, 70 + i * 14],
                    fill=(190, 170, 235, 3))
-    image = Image.alpha_composite(image, overlay)
-    draw = ImageDraw.Draw(image)
+    base = Image.alpha_composite(base, overlay)
+    content = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
 
     title_font = _font(38, bold=True)
     _ctext(draw, 26, "紫卡排行", title_font, (250, 246, 255), width=width)
@@ -1489,7 +1527,7 @@ def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低
         y = top + (index - 1) * row_h
         if index % 2 == 0:
             bar = Image.new("RGBA", (width - 56, row_h - 6), (255, 255, 255, 10))
-            image.alpha_composite(bar, (28, y - 1))
+            content.alpha_composite(bar, (28, y - 1))
         color = (255, 214, 130) if index <= 3 else (236, 228, 248)
         num_font = _font(23, bold=True)
         draw.text((44, y + 6), "%02d" % rank, font=num_font, fill=color)
@@ -1498,7 +1536,7 @@ def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低
         if icon is not None:
             mask = Image.new("L", (34, 34), 0)
             ImageDraw.Draw(mask).ellipse([0, 0, 33, 33], fill=255)
-            image.paste(icon, (96, y + 3), mask)
+            content.paste(icon, (96, y + 3), mask)
         else:
             draw.ellipse([96, y + 3, 130, y + 37], fill=(70, 54, 100))
 
@@ -1516,7 +1554,8 @@ def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低
               fill=(178, 160, 214), width=1)
     foot = footer or "数据 warframe.market · 在线卖家第 3~8 低均价"
     _ctext(draw, height - 44, foot, _font(12), (206, 194, 224), width=width)
-    return _encode(image)
+    return _card_panel(content, height, base=base, width=width, margin=18,
+                       top=12)
 
 
 def riven_group_card(sections: Sequence[Tuple[str, object]],
@@ -1568,8 +1607,8 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
               chip: str = "WIKI") -> bytes:
     """维基词条卡：标题 + 自动换行正文 + 链接。"""
     height = 1900
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, title, "", chip, CYAN)
     y += 18
 
@@ -1628,7 +1667,8 @@ def wiki_card(title: str, body: str, url: str, footer: str = "",
            url_font, CYAN)
     y += 36
 
-    return _encode(image.crop((0, 0, WIDTH, min(height, _footer(draw, y, footer) + 10))))
+    _footer(draw, y, footer)
+    return _card_panel(content, height)
 
 
 def _help_groups(prefix: str):
@@ -1941,8 +1981,8 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
                   note: str = "") -> bytes:
     """科研卡：任务编号 + 偏差/风险名称与说明 + 全局变量。"""
     height = 3400
-    image = _gradient(WIDTH, height, BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, title, subtitle, chip, accent)
     y += 6
 
@@ -2034,7 +2074,7 @@ def research_card(title: str, subtitle: str, sections: Sequence[Dict],
         draw.text(((WIDTH - nw) // 2, y + 4), nt, font=nf, fill=MUTED)
         y += 34
     y = _footer(draw, y + 10, footer)
-    return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
+    return _card_panel(content, height)
 
 
 def build_table(title: str, subtitle: str, headers: Sequence[str],
@@ -2114,8 +2154,9 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
         estimate += 46 if group.get("label") else 0
         estimate += sum(36 + len(row["lines"]) * 25 + 16 for row in rows)
     estimate += 60 if note else 0
-    image = _gradient(WIDTH, max(760, estimate), BG_TOP, BG_BOTTOM).convert("RGBA")
-    draw = ImageDraw.Draw(image)
+    height = max(760, estimate)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
     y = _header(draw, title, subtitle, chip, accent) + 12
 
     reward_color = (141, 196, 224)
@@ -2165,7 +2206,7 @@ def bounty_board(title: str, subtitle: str, groups: Sequence[Dict],
         y += 34
 
     y = _footer(draw, y + 10, footer)
-    return _encode(image.crop((0, 0, WIDTH, min(estimate, y + 10))))
+    return _card_panel(content, height)
 
 
 # ---------------------------------------------------------------------- 警报 / 入侵
