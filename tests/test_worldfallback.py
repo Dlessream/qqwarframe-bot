@@ -397,5 +397,36 @@ class ClientFallbackTest(unittest.TestCase):
         self.assertIn("Cloudflare", str(ctx.exception))
 
 
+class RailjackStormTest(unittest.TestCase):
+    def test_grineer_nodes_are_always_skirmish(self):
+        """地球/土星/虚空之纱的 Grineer 比邻星域只有前哨战，
+        节点表若带进普通星图任务类型（生存/歼灭）按阵营纠正。"""
+        expiry = int((time.time() + 600) * 1000)
+        data = {"VoidStorms": [{
+            "Node": "CrewBattleNode900",
+            "ActiveMissionTier": "VoidT2",
+            "Expiry": {"$date": {"$numberLong": str(expiry)}},
+        }]}
+        nodes = {"CrewBattleNode900": {
+            "name": "Test Reach (Saturn)", "enemy": "Grineer",
+            "type": "Survival"}}
+        rows = worldfallback.official_void_storms(data, nodes)
+        self.assertEqual(rows[0]["missionType"], "Skirmish")
+        self.assertEqual(rows[0]["tier"], "Meso")
+
+    def test_corpus_nodes_keep_ground_mode(self):
+        expiry = int((time.time() + 600) * 1000)
+        data = {"VoidStorms": [{
+            "Node": "CrewBattleNode901",
+            "ActiveMissionTier": "VoidT1",
+            "Expiry": {"$date": {"$numberLong": str(expiry)}},
+        }]}
+        nodes = {"CrewBattleNode901": {
+            "name": "Luckless Expanse (Venus)", "enemy": "Corpus",
+            "type": "Survival"}}
+        rows = worldfallback.official_void_storms(data, nodes)
+        self.assertEqual(rows[0]["missionType"], "Survival")
+
+
 if __name__ == "__main__":
     unittest.main()

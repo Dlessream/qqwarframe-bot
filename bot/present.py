@@ -1338,6 +1338,20 @@ def storms_reply(raw) -> Reply:
         node_entries=node_entries)
 
 
+_RELIC_TIER_NUM = {"古纪": "T1", "前纪": "T2", "中纪": "T3", "后纪": "T4",
+                   "安魂": "T5"}
+
+
+def _relic_tier_label(tier_cn: str) -> str:
+    """遗物等级标签：普通档带 T 编号；全能裂缝在游戏内可选任意遗物。"""
+    if tier_cn == "全能":
+        return "全能裂缝 · 任意遗物"
+    num = _RELIC_TIER_NUM.get(tier_cn, "")
+    if num:
+        return "%s遗物 · %s" % (tier_cn, num)
+    return "%s遗物" % tier_cn if tier_cn and tier_cn != "—" else ""
+
+
 def fissures_reply(raw, hard: bool = False) -> Reply:
     rows = []
     now = time.time()
@@ -1358,12 +1372,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
         faction_cn = terms.localize_faction(enemy_raw)
         remain = countdown(parse_timestamp(row.get("expiry")))
         rows.append([node_cn, mission_cn, tier_cn, faction_cn, remain])
-        # 遗物等级带 T 编号：古纪T1 / 前纪T2 / 中纪T3 / 后纪T4
-        tier_num = {"古纪": "T1", "前纪": "T2", "中纪": "T3", "后纪": "T4",
-                    "安魂": "T5", "全能": "T6"}.get(tier_cn, "")
-        tier_label = ("%s遗物 · %s" % (tier_cn, tier_num)
-                      if tier_num else ("%s遗物" % tier_cn
-                                        if tier_cn and tier_cn != "—" else ""))
+        tier_label = _relic_tier_label(tier_cn)
         node_entries.append({
             "node": node_cn,
             "node_raw": str(row.get("node") or ""),
@@ -1371,6 +1380,7 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
             "tier": tier_label,
             "faction": enemy_raw,
             "faction_cn": faction_cn,
+            "native_faction": str(row.get("nodeEnemy") or enemy_raw),
             "remaining": remain,
             "steel": hard,
         })

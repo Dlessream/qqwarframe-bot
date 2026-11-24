@@ -161,6 +161,22 @@ class WorldPresentTest(unittest.TestCase):
         self.assertIn("古纪", reply.text)
         self.assertNotIn("Ani", reply.text)
 
+    def test_fissures_omnia_label(self):
+        """全能裂缝在游戏内可选任意遗物，不再写死 T6。"""
+        raw = [
+            {"tier": "Omnia", "missionType": "Void Cascade",
+             "node": "Tuvul Commons (Zariman)", "enemy": "Corrupted",
+             "expiry": "2030-01-01T00:00:00Z"},
+            {"tier": "Lith", "missionType": "Extermination",
+             "node": "E Gate (Venus)", "enemy": "Corrupted",
+             "expiry": "2030-01-01T00:00:00Z"},
+        ]
+        reply = present.fissures_reply(raw)
+        self.assertIn("堕落者", reply.text)
+        self.assertIn("全能", reply.text)
+        self.assertEqual(present._relic_tier_label("全能"), "全能裂缝 · 任意遗物")
+        self.assertEqual(present._relic_tier_label("古纪"), "古纪遗物 · T1")
+
     def test_circuit_shows_chinese_names(self):
         """无尽回廊的战甲写玩家别名 + 英文，武器写国服中文名。"""
         reply = present.circuit_reply({

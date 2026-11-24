@@ -140,9 +140,13 @@ def _board_canvas(scene: str, height: int, entries=None):
                                  imagecard.BG_BOTTOM).convert("RGBA")
     if entries:
         for i, entry in enumerate(entries):
-            # 优先用原始英文名（含星球括号）提取星球，回退到中文显示名
+            # 优先用原始英文名（含星球括号）提取星球，回退到中文显示名；
+            # 派系优先用节点原生阵营——裂缝里敌人虽显示堕落者，场景贴图
+            # 仍应是该星球原本的 tile set（赤毒要塞不是 Orokin 金厅）。
             name = str(entry.get("node_raw") or "") or str(entry.get("node") or "")
-            key = tilesets.scene_key(name, str(entry.get("faction") or ""))
+            faction_key = str(entry.get("native_faction")
+                              or entry.get("faction") or "")
+            key = tilesets.scene_key(name, faction_key)
             bg = tilesets.scene_image(key)
             if bg is not None and PIL_AVAILABLE:
                 tile = _scene_tile(bg, i * BOARD_H, height, BOARD_H)

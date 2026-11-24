@@ -137,6 +137,57 @@ class OfficialFissureTest(unittest.TestCase):
         self.assertEqual(rows[0]["tier"], "Lith")
         self.assertTrue(rows[0]["isHard"])
 
+    def _fissure_client(self, node, modifier="VoidT1"):
+        expiry = int((time.time() + 600) * 1000)
+        client = WorldStateClient({
+            "base_url": "http://example.invalid",
+            "language": "zh",
+            "official_proxy": "none",
+        })
+        client.official_http = FakeHttp({"ActiveMissions": [{
+            "Node": node,
+            "MissionType": "MT_EXTERMINATION",
+            "Modifier": modifier,
+            "Expiry": {"$date": {"$numberLong": str(expiry)}},
+        }]})
+        return client
+
+    def test_fissure_enemy_is_corrupted(self):
+        """裂缝会腐化敌人，游戏里显示的敌人恒为堕落者。"""
+        row = self._fissure_client("SolNode128").official_fissures()[0]
+        self.assertEqual(row["enemy"], "Corrupted")
+        # 场景贴图仍要按节点原生阵营选，所以原生阵营单独保留
+        self.assertEqual(row["nodeEnemy"], "Corpus")
+
+    def test_omnia_deimos_keeps_murmur(self):
+        """火卫二的 Omnia 裂缝以原生低语者为主。"""
+        row = self._fissure_client("SolNode717", "VoidT6").official_fissures()[0]
+        self.assertEqual(row["tier"], "Omnia")
+        self.assertEqual(row["enemy"], "The Murmur")
+
+    def test_omnia_zariman_is_corrupted(self):
+        row = self._fissure_client("SolNode230", "VoidT6").official_fissures()[0]
+        self.assertEqual(row["enemy"], "Corrupted")
+
+    def test_void_storms_use_official_channel(self):
+        """九重天单独走官方 VoidStorms，不依赖整包兜底快照。"""
+        expiry = int((time.time() + 600) * 1000)
+        client = WorldStateClient({
+            "base_url": "http://example.invalid",
+            "language": "zh",
+            "official_proxy": "none",
+        })
+        client.official_http = FakeHttp({"VoidStorms": [{
+            "Node": "CrewBattleNode519",
+            "ActiveMissionTier": "VoidT1",
+            "Expiry": {"$date": {"$numberLong": str(expiry)}},
+        }]})
+        rows = client.void_storms()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["node"], "Korm's Belt (Earth)")
+        self.assertEqual(rows[0]["tier"], "Lith")
+        self.assertTrue(rows[0]["isStorm"])
+
 
 if __name__ == "__main__":
     unittest.main()

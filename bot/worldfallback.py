@@ -370,14 +370,22 @@ def official_fissures(data: Dict[str, Any],
             continue
         node_id = str(row.get("Node") or "")
         node = nodes.get(node_id) or {}
-        node_name = terms.localize_node(str(node.get("name") or _node_name(nodes, node_id)))
+        raw_node = str(node.get("name") or "")
+        node_name = terms.localize_node(raw_node or _node_name(nodes, node_id))
+        tier = VOID_TIERS.get(str(row.get("Modifier") or ""), "—")
+        # 裂缝会腐化任务内敌人，游戏里敌人固定是堕落者（Corrupted）；
+        # 只有火卫二（阿尔布雷希特实验室）的 Omnia 裂缝以原生低语者为主。
+        enemy_en = ("The Murmur" if tier == "Omnia" and "Deimos" in raw_node
+                    else "Corrupted")
         result.append({
             "id": node_id,
             "node": node_name,
             "nodeKey": node_name,
             "missionType": _mission(row.get("MissionType")),
-            "enemy": terms.localize_faction(str(node.get("enemy") or "")),
-            "tier": VOID_TIERS.get(str(row.get("Modifier") or ""), "—"),
+            "enemy": enemy_en,
+            # 节点原生阵营：裂缝敌人虽是堕落者，场景贴图仍按原阵营的 tile set 选
+            "nodeEnemy": str(node.get("enemy") or ""),
+            "tier": tier,
             "expiry": _iso(end),
             "isHard": bool(row.get("Hard")),
             "isStorm": False,
@@ -433,15 +441,24 @@ def official_void_storms(data: Dict[str, Any],
             continue
         node_id = str(row.get("Node") or "")
         node = nodes.get(node_id) or {}
-        node_name = str(node.get("name") or _node_name(nodes, node_id))
+        raw_node = str(node.get("name") or "")
+        node_name = raw_node or _node_name(nodes, node_id)
         tier = VOID_TIERS.get(str(row.get("ActiveMissionTier") or ""), "—")
+        faction = str(node.get("enemy") or "")
+        mission = str(node.get("type") or "").strip()
+        # 地球 / 土星 / 虚空之纱的 Grineer 比邻星域在游戏里只有前哨战，
+        # 节点表偶尔会把普通星图任务类型（歼灭/防御…）带进来，这里按阵营纠正。
+        if faction.lower() == "grineer":
+            mission = "Skirmish"
+        if not mission:
+            mission = "Skirmish"
         result.append({
             "id": str((row.get("_id") or {}).get("$oid") or node_id),
             "node": node_name,
             "nodeKey": node_name,
-            "missionType": str(node.get("type") or "Skirmish"),
+            "missionType": mission,
             # 保留英文阵营名，交给 present 做「G系 / C系」风格本地化
-            "enemy": str(node.get("enemy") or ""),
+            "enemy": faction,
             "tier": tier,
             "tierNum": VOID_TIER_ORDER.get(tier, 9),
             "expiry": _iso(end),

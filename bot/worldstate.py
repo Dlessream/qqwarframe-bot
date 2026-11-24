@@ -404,6 +404,10 @@ class WorldStateClient:
         data = self.official_http.get_json(self.official_url)
         return worldfallback.official_fissures(data, self._load_nodes())
 
+    def official_void_storms(self) -> List[Dict[str, Any]]:
+        data = self.official_http.get_json(self.official_url)
+        return worldfallback.official_void_storms(data, self._load_nodes())
+
     def fissures(self) -> List[Dict[str, Any]]:
         """优先官方 ActiveMissions；失败/为空时回退 warframestat。"""
         if self.prefer_official_fissures:
@@ -418,7 +422,19 @@ class WorldStateClient:
         return data if isinstance(data, list) else []
 
     def void_storms(self) -> List[Dict[str, Any]]:
-        """虚空风暴：官方 VoidStorms 实时数据，缺口用中转补齐。"""
+        """虚空风暴：官方 VoidStorms 实时数据，缺口用中转补齐。
+
+        和裂缝一样单独走 30 秒缓存，不依赖整包兜底快照——否则兜底状态
+        某次构建缺字段时，九重天会长时间显示「暂无数据」。
+        """
+        if self.prefer_official_fissures:
+            try:
+                data = self.cache.get_or_set(
+                    "official_void_storms", self.official_void_storms, 30)
+                if data:
+                    return data
+            except Exception as exc:
+                LOGGER.warning("官方虚空风暴源失败，回退世界状态：%s", exc)
         try:
             state = self._fallback_state()
         except WorldStateError:
