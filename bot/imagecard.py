@@ -1441,8 +1441,8 @@ def riven_market_card(weapon, auctions, filters=(), note: str = "",
     if filters:
         y = _pills(draw, y, [("词条", " + ".join(filters))], PURPLE, width=width)
     if note:
-        draw.text((PAD, y), _fit(draw, note, _font(15), width - 2 * PAD),
-                  font=_font(15), fill=GOLD)
+        _ctext(draw, y, _fit(draw, note, _font(15), width - 2 * PAD),
+               _font(15), GOLD, width=width)
         y += 34
 
     for index, card in enumerate(cards):
@@ -1476,11 +1476,11 @@ def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低
     image = Image.alpha_composite(image, overlay)
     draw = ImageDraw.Draw(image)
 
-    title_font = _font(40, bold=True)
-    draw.text((36, 34), "紫卡排行", font=title_font, fill=(250, 246, 255))
-    sub_font = _font(14)
-    sw, _ = _tsize(draw, subtitle, sub_font)
-    draw.text((width - 36 - sw, 46), subtitle, font=sub_font, fill=(206, 194, 224))
+    title_font = _font(38, bold=True)
+    _ctext(draw, 26, "紫卡排行", title_font, (250, 246, 255), width=width)
+    sub_font = _font(15)
+    _ctext(draw, 74, _fit(draw, subtitle, sub_font, width - 72),
+           sub_font, (206, 194, 224), width=width)
     draw.line([(36, 106), (width - 36, 106)], fill=(178, 160, 214), width=1)
 
     for index, row in enumerate(rows, 1):
@@ -1514,7 +1514,7 @@ def riven_rank_card(rows, subtitle: str = "在线/游戏中卖家 · 第 3~8 低
     draw.line([(36, height - 58), (width - 36, height - 58)],
               fill=(178, 160, 214), width=1)
     foot = footer or "数据 warframe.market · 在线卖家第 3~8 低均价"
-    draw.text((36, height - 44), foot, font=_font(12), fill=(206, 194, 224))
+    _ctext(draw, height - 44, foot, _font(12), (206, 194, 224), width=width)
     return _encode(image)
 
 
@@ -1831,7 +1831,7 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     _rrect(od, (M, 30, HELP_W - M, 124), 14,
            fill=(9, 12, 19, 158), outline=GOLD + (110,), width=1)
     probe = ImageDraw.Draw(canvas)
-    title_font = _font(31, bold=True)
+    title_font = _font(27, bold=True)
     tw, _ = _tsize(probe, "命令一览", title_font)
     text_ops.append((((HELP_W - tw) // 2 - 18, 44), "命令一览", title_font, TEXT))
     sub_font = _font(17)
@@ -1853,9 +1853,9 @@ def help_card(prefix: str = "#", disabled=(), background=None,
     SECTION_H = HELP_SECTION_H
     ROW_H = HELP_ROW_H
     GROUP_GAP = HELP_GROUP_GAP
-    cmd_font = _font(21, bold=True)
-    desc_font = _font(17)
-    section_font = _font(24, bold=True)
+    cmd_font = _font(18, bold=True)
+    desc_font = _font(15)
+    section_font = _font(21, bold=True)
 
     for ci, column in enumerate(columns):
         x = M + ci * (col_w + GAP)
@@ -2192,6 +2192,59 @@ def _purple_right(draw, text: str, right: int, y: int, font, fill) -> None:
     draw.text((right - width, y), text, font=font, fill=fill)
 
 
+def _centered_pill_row(draw, y: int, items: Sequence[Tuple[str, tuple, tuple, int]],
+                       width: int = WIDTH, gap: int = 10) -> None:
+    """把多个胶囊作为一整行居中排列。
+
+    items: [(文本, 背景色, 前景色, 字号), ...]
+    """
+    placed = []
+    total = 0
+    for text, bg, fg, size in items:
+        font = _font(size, bold=True)
+        tw, th = _tsize(draw, text, font)
+        pw, ph = tw + 18, th + 10
+        placed.append((text, bg, fg, size, pw))
+        total += pw
+    total += gap * (len(placed) - 1)
+    x = (width - total) / 2.0
+    for text, bg, fg, size, pw in placed:
+        _purple_pill(draw, int(round(x)), y, text, bg, fg, font_size=size)
+        x += pw + gap
+
+
+def _centered_pill_text(draw, y: int, pill_text: str, text: str,
+                        text_font, text_fill, pill_bg, pill_fg,
+                        pill_size: int = 16, width: int = WIDTH,
+                        gap: int = 12) -> None:
+    """一个胶囊 + 一段文字作为整体水平居中。"""
+    pf = _font(pill_size, bold=True)
+    pw = _tsize(draw, pill_text, pf)[0] + 18 if pill_text else 0
+    tw = _tsize(draw, text, text_font)[0] if text else 0
+    total = pw + tw + (gap if pw and tw else 0)
+    x = (width - total) / 2.0
+    if pill_text:
+        _purple_pill(draw, int(round(x)), y, pill_text, pill_bg, pill_fg,
+                     font_size=pill_size)
+        x += pw + gap
+    if text:
+        draw.text((int(round(x)), y + 6), text, font=text_font, fill=text_fill)
+
+
+def _centered_texts(draw, y: int, segments: Sequence[Tuple[str, object, tuple]],
+                    width: int = WIDTH, gap: int = 12) -> None:
+    """多段不同字体/颜色的文字作为一整行水平居中。
+
+    segments: [(文本, 字体, 颜色), ...]
+    """
+    widths = [_tsize(draw, text, font)[0] for text, font, _ in segments]
+    total = sum(widths) + gap * (len(segments) - 1)
+    x = (width - total) / 2.0
+    for (text, font, color), sw in zip(segments, widths):
+        draw.text((int(round(x)), y), text, font=font, fill=color)
+        x += sw + gap
+
+
 def _purple_footer(draw, y: int, left: str,
                    right: str = "QQ Warframe Bot", width: int = WIDTH) -> int:
     """紫色卡的页脚：先加深色底衬，保证页脚文字在亮紫渐变上清晰。"""
@@ -2216,7 +2269,7 @@ def alerts_card(items: Sequence[Dict],
                 footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
     """警报卡片：任务、等级、派系、节点、奖励、剩余时间。"""
     count = max(1, len(items))
-    row_h = 138
+    row_h = 170
     height = 140 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
@@ -2229,25 +2282,22 @@ def alerts_card(items: Sequence[Dict],
         box = (26, y, WIDTH - 26, y + row_h - 12)
         _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
         mission = str(item.get("mission") or "未知任务")
-        draw.text((48, y + 16), mission, font=_font(26, bold=True),
-                  fill=PURPLE_GOLD)
-        mission_w, _ = _tsize(draw, mission, _font(26, bold=True))
-        chip_x = 48 + mission_w + 14
+        _ctext(draw, y + 12, mission, _font(24, bold=True), PURPLE_GOLD)
         level = str(item.get("level") or "")
-        if level:
-            w, _ = _purple_pill(draw, chip_x, y + 20, level,
-                                (104, 83, 133), PURPLE_TEXT, font_size=15)
-            chip_x += w + 10
         faction = str(item.get("faction") or "")
+        chips = []
+        if level:
+            chips.append((level, (104, 83, 133), PURPLE_TEXT, 15))
         if faction:
-            _purple_pill(draw, chip_x, y + 20, faction,
-                         (112, 82, 119), PURPLE_TEXT, font_size=15)
-        node = _fit(draw, str(item.get("node") or "—"), _font(19), 330)
-        _purple_right(draw, node, WIDTH - 48, y + 24, _font(19), PURPLE_TEXT)
+            chips.append((faction, (112, 82, 119), PURPLE_TEXT, 15))
+        if chips:
+            _centered_pill_row(draw, y + 48, chips)
+        node = _fit(draw, str(item.get("node") or "—"), _font(19), WIDTH - 96)
+        _ctext(draw, y + 84, node, _font(19), PURPLE_TEXT)
         reward = _fit(draw, str(item.get("reward") or "—"),
                       _font(18), WIDTH - 96)
-        _ctext(draw, y + 66, reward, _font(18), PURPLE_MUTED)
-        _ctext(draw, y + 100,
+        _ctext(draw, y + 114, reward, _font(18), PURPLE_MUTED)
+        _ctext(draw, y + 140,
                "剩余时间：" + str(item.get("remaining") or "—"),
                _font(17), PURPLE_GOLD)
         y += row_h
@@ -2259,7 +2309,7 @@ def invasions_card(items: Sequence[Dict],
                    footer: str = "数据 Warframe 世界状态 · 实时") -> bytes:
     """入侵卡片：星球/节点、进度条、攻防双方奖励。"""
     count = max(1, len(items))
-    row_h = 156
+    row_h = 172
     height = 144 + count * row_h + 80
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
@@ -2273,13 +2323,12 @@ def invasions_card(items: Sequence[Dict],
         box = (26, y, WIDTH - 26, y + row_h - 12)
         _rrect(draw, box, 16, fill=PURPLE_CARD, outline=PURPLE_BORDER, width=1)
         label = _fit(draw, str(item.get("label") or "—"),
-                     _font(24, bold=True), 540)
-        draw.text((48, y + 14), label, font=_font(24, bold=True),
-                  fill=PURPLE_TEXT)
+                     _font(24, bold=True), WIDTH - 96)
+        _ctext(draw, y + 10, label, _font(24, bold=True), PURPLE_TEXT)
         completion = float(item.get("completion") or 0)
-        _purple_right(draw, _purple_percent(completion), WIDTH - 48, y + 16,
-                      _font(23, bold=True), PURPLE_GOLD)
-        bar_x, bar_y, bar_w, bar_h = 48, y + 56, WIDTH - 96, 8
+        _ctext(draw, y + 44, _purple_percent(completion),
+               _font(22, bold=True), PURPLE_GOLD)
+        bar_x, bar_y, bar_w, bar_h = 48, y + 78, WIDTH - 96, 8
         _rrect(draw, (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h), 4,
                fill=(62, 43, 87))
         filled = max(0, min(bar_w, int(bar_w * completion / 100.0)))
@@ -2288,27 +2337,16 @@ def invasions_card(items: Sequence[Dict],
                    fill=PURPLE_GOLD)
         left_faction = str(item.get("left_faction") or "")
         right_faction = str(item.get("right_faction") or "")
-        left_x = 48
-        if left_faction:
-            w, _ = _purple_pill(draw, left_x, y + 82, left_faction,
-                                (104, 83, 133), PURPLE_TEXT, font_size=16)
-            left_x += w + 12
         left_reward = _fit(draw, str(item.get("left_reward") or "—"),
-                           _font(17), 300)
-        draw.text((left_x, y + 88), left_reward, font=_font(17),
-                  fill=PURPLE_MUTED)
-        right_x = WIDTH - 48
-        if right_faction:
-            fw, _ = _tsize(draw, right_faction, _font(16, bold=True))
-            right_x -= fw + 20
-            _purple_pill(draw, right_x, y + 82, right_faction,
-                         (112, 82, 119), PURPLE_TEXT, font_size=16)
-            right_x -= 12
+                           _font(17), 460)
         right_reward = _fit(draw, str(item.get("right_reward") or "—"),
-                            _font(17), max(120, right_x - 360))
-        rw, _ = _tsize(draw, right_reward, _font(17))
-        draw.text((right_x - rw, y + 88), right_reward, font=_font(17),
-                  fill=PURPLE_MUTED)
+                            _font(17), 460)
+        _centered_pill_text(draw, y + 98, left_faction, left_reward,
+                            _font(17), PURPLE_MUTED,
+                            (104, 83, 133), PURPLE_TEXT, pill_size=16)
+        _centered_pill_text(draw, y + 134, right_faction, right_reward,
+                            _font(17), PURPLE_MUTED,
+                            (112, 82, 119), PURPLE_TEXT, pill_size=16)
         y += row_h
     y = _purple_footer(draw, y + 8, footer)
     return _encode(image.crop((0, 0, WIDTH, min(height, y + 10))))
@@ -2318,53 +2356,48 @@ def relic_card(relic, footer: str = "数据 warframestat · warframe.market") ->
     """遗物：名称 + 出入库 + 精炼 / 奖励 / 概率 / 杜卡德 / WM 均价。"""
     rewards = list(getattr(relic, "rewards", ()) or ())
     count = max(1, len(rewards))
-    row_h = 116
+    row_h = 124
     locations = list(getattr(relic, "locations", ()) or ())
-    height = 170 + count * row_h + 80 + (28 if locations else 0)
+    height = 178 + count * row_h + 80 + (28 if locations else 0)
     image = _gradient(WIDTH, height, PURPLE_TOP, PURPLE_BOTTOM)
     draw = ImageDraw.Draw(image)
     title = getattr(relic, "title", "遗物")
-    _ctext(draw, 30, title, _font(42, bold=True), PURPLE_TEXT)
+    _ctext(draw, 26, title, _font(40, bold=True), PURPLE_TEXT)
     badge = str(getattr(relic, "vault_label", ""))
     if badge:
-        bw, _ = _tsize(draw, badge, _font(16, bold=True))
-        _purple_pill(draw, WIDTH - PAD - bw - 20, 42, badge,
-                     (112, 82, 119), PURPLE_GOLD, font_size=16)
+        _centered_pill_row(draw, 74, [(badge, (112, 82, 119), PURPLE_GOLD, 16)])
     refinement = str(getattr(relic, "refinement_label", "完整"))
     code = str(getattr(relic, "refinement", "Intact"))
-    _ctext(draw, 94, "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
-        refinement, code), _font(17), PURPLE_MUTED)
+    desc_y = 112 if badge else 84
+    _ctext(draw, desc_y,
+           "精炼：%s（%s） · WM 在线中/游戏中卖单最低 / 最高价" % (
+               refinement, code), _font(16), PURPLE_MUTED)
     if locations:
-        _ctext(draw, 122, "获取：%s" % _fit(
+        _ctext(draw, desc_y + 26, "获取：%s" % _fit(
             draw, "、".join(locations[:8]), _font(14), WIDTH - 2 * PAD),
             _font(14), PURPLE_MUTED)
-    y = 150 if locations else 144
+    y = (desc_y + 58) if locations else (desc_y + 34)
     for reward in rewards:
         name = str(getattr(reward, "market_name", "")
                    or getattr(reward, "name", "") or "—")
-        name = _fit(draw, name, _font(21, bold=True), 470)
-        draw.text((48, y + 12), name, font=_font(21, bold=True),
-                  fill=PURPLE_TEXT)
+        name = _fit(draw, name, _font(21, bold=True), WIDTH - 96)
+        _ctext(draw, y + 6, name, _font(21, bold=True), PURPLE_TEXT)
         rarity = str(getattr(reward, "rarity_label", "") or "")
         chance = float(getattr(reward, "chance", 0) or 0)
-        chip_x = 48
-        if rarity:
-            chip_w, _ = _purple_pill(draw, chip_x, y + 48, rarity,
-                                     (104, 83, 133), PURPLE_TEXT,
-                                     font_size=14)
-            chip_x += chip_w + 12
-        if chance:
-            draw.text((chip_x, y + 52), "概率 %.2f%%" % chance,
-                      font=_font(14), fill=PURPLE_MUTED)
+        chance_text = "概率 %.2f%%" % chance if chance else ""
+        if rarity or chance_text:
+            _centered_pill_text(draw, y + 38, rarity, chance_text,
+                                _font(15), PURPLE_MUTED,
+                                (104, 83, 133), PURPLE_TEXT, pill_size=14,
+                                gap=12)
         ducats = int(getattr(reward, "ducats", 0) or 0)
-        draw.text((WIDTH - 360, y + 18), "%d 杜卡德" % ducats,
-                  font=_font(18, bold=True), fill=PURPLE_GOLD)
         price_low = float(getattr(reward, "price_low", 0) or 0)
         price_high = float(getattr(reward, "price_high", 0) or 0)
-        draw.text((WIDTH - 246, y + 12), "最低 %.2fp" % price_low,
-                  font=_font(17), fill=PURPLE_MUTED)
-        draw.text((WIDTH - 246, y + 44), "最高 %.2fp" % price_high,
-                  font=_font(17), fill=PURPLE_MUTED)
+        _centered_texts(draw, y + 78, [
+            ("%d 杜卡德" % ducats, _font(18, bold=True), PURPLE_GOLD),
+            ("最低 %.2fp" % price_low, _font(17), PURPLE_MUTED),
+            ("最高 %.2fp" % price_high, _font(17), PURPLE_MUTED),
+        ], gap=22)
         _divider(draw, y + row_h - 14, 34, WIDTH - 34)
         y += row_h
     if not rewards:
@@ -2395,11 +2428,11 @@ def relic_reverse_card(query: str, target: str, rows,
     for index, (relic, rewards) in enumerate(rows, 1):
         title = str(getattr(relic, "title", "遗物"))
         vault = str(getattr(relic, "vault_label", ""))
-        draw.text((PAD, y + 8), "%d. %s" % (index, title),
-                  font=_font(22, bold=True), fill=PURPLE_TEXT)
+        heading = "%d. %s" % (index, title)
         if vault:
-            _purple_right(draw, vault, WIDTH - PAD, y + 12,
-                          _font(15, bold=True), PURPLE_GOLD)
+            heading += "  ·  " + vault
+        _ctext(draw, y + 8, _fit(draw, heading, _font(22, bold=True), WIDTH - 96),
+               _font(22, bold=True), PURPLE_TEXT)
         parts = []
         for reward in rewards:
             name = str(getattr(reward, "market_name", "")
@@ -2409,7 +2442,7 @@ def relic_reverse_card(query: str, target: str, rows,
             parts.append("%s (%s %.2f%%)" % (name, rarity, chance) if rarity
                          else "%s (%.2f%%)" % (name, chance))
         detail = _fit(draw, "、".join(parts), _font(15), WIDTH - 2 * PAD - 20)
-        draw.text((PAD + 18, y + 48), detail, font=_font(15), fill=PURPLE_MUTED)
+        _ctext(draw, y + 48, detail, _font(15), PURPLE_MUTED)
         _divider(draw, y + row_h - 12, PAD, WIDTH - PAD)
         y += row_h
     y = _purple_footer(draw, y + 8, footer)
