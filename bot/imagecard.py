@@ -205,6 +205,21 @@ def _tsize(draw, text: str, font) -> Tuple[int, int]:
         return draw.textsize(text, font=font)
 
 
+def _vcenter(draw, text: str, font, box_h: float, box_top: float = 0.0) -> int:
+    """返回 draw.text 的 y，使文字墨迹在 [box_top, box_top + box_h] 内垂直居中。
+
+    Pillow 默认以字体 ascent 顶部为 y 基准，墨迹实际从 y + bbox.top 开始，
+    因此需减去 bbox.top 才能精确居中（避免固定偏移在不同字号下偏下）。
+    """
+    try:
+        box = draw.textbbox((0, 0), text, font=font)
+        top, bottom = box[1], box[3]
+    except AttributeError:  # Pillow < 8
+        top, bottom = 0, _tsize(draw, text, font)[1]
+    glyph_h = bottom - top
+    return int(round(box_top + (box_h - glyph_h) / 2.0 - top))
+
+
 def _fit(draw, text: str, font, max_width: int) -> str:
     text = str(text or "")
     if not text:
@@ -508,7 +523,8 @@ def _trend_table(draw, y, stats, days: int = 15) -> int:
         for index, value in enumerate(values):
             text = _fit(draw, value, font, widths[index] - 16)
             vw, _ = _tsize(draw, text, font)
-            draw.text((x + (widths[index] - vw) // 2, y + 4), text,
+            ty = y + _vcenter(draw, text, font, row_height - 4, -4)
+            draw.text((x + (widths[index] - vw) // 2, ty), text,
                       font=font, fill=color)
             x += widths[index]
         y += row_height
@@ -677,7 +693,8 @@ def _analysis_grid(draw, y: int, headers: Sequence[str], widths: Sequence[int],
             if colors:
                 color = colors.get((row_index, index), TEXT)
             text_width, _ = _tsize(draw, text, font)
-            draw.text((x + (widths[index] - text_width) // 2, y + 4),
+            ty = y + _vcenter(draw, text, font, 36, -4)
+            draw.text((x + (widths[index] - text_width) // 2, ty),
                       text, font=font, fill=color)
             x += widths[index]
         y += 36
@@ -834,7 +851,8 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
             color = cell.color or TEXT
             text = _fit(draw, cell.text, font, widths[index] - 2 * CELL_PAD_X)
             text_width, _ = _tsize(draw, text, font)
-            draw.text((x + (widths[index] - text_width) // 2, y + ROW_TEXT_DY),
+            ty = y + _vcenter(draw, text, font, row_height - 7, -5)
+            draw.text((x + (widths[index] - text_width) // 2, ty),
                       text, font=font, fill=color)
             x += widths[index]
         y += row_height
@@ -933,16 +951,15 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
                 font = bold_font if bold else text_font
                 value = _fit(draw, value, font, widths[index] - 2 * CELL_PAD_X)
                 value_width, _ = _tsize(draw, value, font)
+                ty = y + _vcenter(draw, value, font, row_height - 7, -5)
                 if center:
-                    draw.text((x + (widths[index] - value_width) // 2,
-                               y + ROW_TEXT_DY), value, font=font,
-                              fill=color or TEXT)
+                    draw.text((x + (widths[index] - value_width) // 2, ty),
+                              value, font=font, fill=color or TEXT)
                 elif index == len(widths) - 1:
-                    draw.text((x + widths[index] - CELL_PAD_X - value_width,
-                               y + ROW_TEXT_DY), value, font=font,
-                              fill=color or TEXT)
+                    draw.text((x + widths[index] - CELL_PAD_X - value_width, ty),
+                              value, font=font, fill=color or TEXT)
                 else:
-                    draw.text((x + CELL_PAD_X, y + ROW_TEXT_DY), value,
+                    draw.text((x + CELL_PAD_X, ty), value,
                               font=font, fill=color or TEXT)
                 x += widths[index]
             y += row_height
@@ -1092,19 +1109,23 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                                    fill=mission_color)
                 time_text = _fit(draw, time_text, time_font, 48)
                 tw, _ = _tsize(draw, time_text, time_font)
-                draw.text((cx + time_x + (48 - tw) // 2, y + 3), time_text,
+                ty_time = y + _vcenter(draw, time_text, time_font, row_h - 6, -4)
+                draw.text((cx + time_x + (48 - tw) // 2, ty_time), time_text,
                           font=time_font, fill=time_color or MUTED)
                 node_text = _fit(draw, node_text, node_font, node_w)
                 nw, _ = _tsize(draw, node_text, node_font)
-                draw.text((cx + node_x + (node_w - nw) // 2, y + 2), node_text,
+                ty_node = y + _vcenter(draw, node_text, node_font, row_h - 6, -4)
+                draw.text((cx + node_x + (node_w - nw) // 2, ty_node), node_text,
                           font=node_font, fill=node_color or TEXT)
                 mission_text = _fit(draw, mission_text, mission_font, 66)
                 mw, _ = _tsize(draw, mission_text, mission_font)
-                draw.text((cx + mission_x + (66 - mw) // 2, y + 3), mission_text,
+                ty_mission = y + _vcenter(draw, mission_text, mission_font, row_h - 6, -4)
+                draw.text((cx + mission_x + (66 - mw) // 2, ty_mission), mission_text,
                           font=mission_font, fill=mission_color or TEXT)
                 rating_text = _fit(draw, rating_text_raw, rating_font, 46)
                 rw, _ = _tsize(draw, rating_text, rating_font)
-                draw.text((cx + col_w - 54 + (46 - rw) // 2, y + 3), rating_text,
+                ty_rating = y + _vcenter(draw, rating_text, rating_font, row_h - 6, -4)
+                draw.text((cx + col_w - 54 + (46 - rw) // 2, ty_rating), rating_text,
                           font=rating_font, fill=rating_color or MUTED)
             y += row_h
         y += 24

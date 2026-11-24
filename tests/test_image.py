@@ -93,6 +93,21 @@ class ImageCardTest(unittest.TestCase):
         # center=False 保留旧的左右对齐，应与默认不同
         self.assertNotEqual(centered, imagecard.sections_table(center=False, **kwargs))
 
+    def test_vcenter_places_glyph_in_box_middle(self):
+        from PIL import Image, ImageDraw
+        img = Image.new("RGB", (200, 100))
+        draw = ImageDraw.Draw(img)
+        font = imagecard._font(18)
+        text = "10,000 赤毒"
+        box_top, box_h = -5.0, 45.0  # 与表格行框一致
+        ty = imagecard._vcenter(draw, text, font, box_h, box_top)
+        box = draw.textbbox((0, 0), text, font=font)
+        # 墨迹实际顶/底 = ty + bbox.top / ty + bbox.bottom
+        ink_top, ink_bottom = ty + box[1], ty + box[3]
+        ink_center = (ink_top + ink_bottom) / 2.0
+        box_center = box_top + box_h / 2.0
+        self.assertLessEqual(abs(ink_center - box_center), 1.0)
+
     def test_tall_table(self):
         rows = [["物品 %02d" % index, "%d" % (index * 10), "100,000"]
                 for index in range(40)]
