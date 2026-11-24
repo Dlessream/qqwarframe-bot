@@ -295,6 +295,26 @@ class BountyStaticTest(unittest.TestCase):
         self.assertEqual(bountystatic.tiers("Ostrons"), [])
 
 
+class EmptyDataCardTest(unittest.TestCase):
+    """空数据卡片必须能出图，不能因表头为空除零。"""
+
+    def test_empty_cards_render_image(self):
+        cases = {
+            "events": lambda: present.events_reply([]),
+            "news": lambda: present.news_reply([]),
+            "deals": lambda: present.deals_reply([]),
+            "alerts": lambda: present.alerts_reply([]),
+            "invasions": lambda: present.invasions_reply([]),
+        }
+        for name, make in cases.items():
+            with self.subTest(card=name):
+                reply = make()
+                png = reply.image()
+                self.assertTrue(png.startswith(b"\x89PNG"), name)
+                img = Image.open(io.BytesIO(png))
+                self.assertGreater(img.height, 100, name)
+
+
 class BountyLiveTest(unittest.TestCase):
     """实时赏金用 rewardPoolDrops，固定档位明确标注为参考。"""
 

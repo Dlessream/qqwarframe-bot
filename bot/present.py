@@ -611,10 +611,26 @@ def _world_reply(title: str, subtitle: str, headers, rows,
             board = nodeboard.render(entries, scene or "fissure")
             if board:
                 return board
+        head = list(headers)
+        body = [list(row) for row in rows]
+        if not head:
+            # 空数据卡片（如暂无活动）也要能出图：给一个占位列，
+            # 否则 6.0 / len(head) 会除零。
+            head = ["状态"]
+            if ratios is None:
+                safe_ratios = [1.0]
+            else:
+                safe_ratios = list(ratios)
+        else:
+            safe_ratios = (list(ratios) if ratios
+                           else [max(1.0, 6.0 / len(head))] * len(head))
+        if not body:
+            # 补一行提示，避免只显示表头没有内容。
+            body = [["暂无数据"] + ["—"] * (len(head) - 1)]
         return imagecard.build_table(
-            title, subtitle, list(headers), rows, footer,
+            title, subtitle, head, body, footer,
             accent=accent or imagecard.GREEN, chip=chip, note=note,
-            ratios=ratios or [max(1.0, 6.0 / len(headers))] * len(headers),
+            ratios=safe_ratios,
             background=scenebg.scene_image(scene) if scene else None)
 
     return Reply(text=text, image=_image)
