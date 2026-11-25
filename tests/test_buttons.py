@@ -32,9 +32,9 @@ class KeyboardTest(unittest.TestCase):
         kb = keyboards.wm_keyboard("deadbeef")
         buttons = kb["content"]["rows"][0]["buttons"]
         self.assertEqual([b["render_data"]["label"] for b in buttons],
-                         ["价格走势", "对话文本"])
+                         ["行情", "对话文本"])
         self.assertEqual(buttons[0]["action"]["data"], "wm:trend:deadbeef")
-        self.assertEqual(buttons[1]["action"]["data"], "wm:desc:deadbeef")
+        self.assertEqual(buttons[1]["action"]["data"], "wm:chat:deadbeef")
 
     def test_reply_holds_keyboard(self):
         kb = keyboards.wm_keyboard("abc")
@@ -108,17 +108,27 @@ class ButtonRoutingTest(unittest.TestCase):
         self.assertEqual(seen, ["#仲裁表"])
 
     def test_wm_button_uses_stored_context(self):
-        from bot import present
+        from bot.market import Item, Order
         router = self._router()
-        item = type("Item", (), {
-            "name": "测试物品", "description": "说明文本",
-            "slug": "test", "name_en": "Test",
-        })()
+        item = Item(slug="test", name="测试物品", name_en="Test Item",
+                    description="说明文本")
+        sell = [Order("sell", 20, 2, "SellerOne", "ingame")]
+        buy = [Order("buy", 13, 1, "BuyerOne", "ingame")]
         token = router._store_button_context({
-            "item": item, "stats": None, "platform": "pc"})
-        replies_ = router.handle_button("wm:desc:%s" % token, object())
+            "item": item, "stats": None, "platform": "pc",
+            "sell": sell, "buy": buy})
+        replies_ = router.handle_button("wm:chat:%s" % token, object())
         self.assertEqual(len(replies_), 1)
-        self.assertIn("对话文本", replies_[0].text)
+        text = replies_[0].text
+        self.assertIn("私聊话术", text)
+        self.assertIn("/w SellerOne Hi! I wtb Test Item for 20p", text)
+        self.assertIn("/w BuyerOne Hi! I wts Test Item for 13p", text)
+        # 子消息继续带同一套按钮，可来回切换
+        self.assertEqual(replies_[0].keyboard["content"]["rows"][0]["buttons"][0]
+                         ["action"]["data"], "wm:trend:%s" % token)
+        # 旧版按钮数据仍可解析（历史消息里残留的 wm:desc）
+        legacy = router.handle_button("wm:desc:%s" % token, object())
+        self.assertIn("/w SellerOne", legacy[0].text)
         self.assertIsNone(router._get_button_context("bad-token"))
 
     def test_expired_button_context(self):

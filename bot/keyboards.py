@@ -44,10 +44,10 @@ def arbitration_keyboard() -> Dict[str, Any]:
 
 
 def wm_keyboard(token: str) -> Dict[str, Any]:
-    """wm 卡片底部按钮：价格走势与对话文本。"""
+    """wm 卡片底部按钮：行情（近 15 天天梯图）与对话文本（私聊话术）。"""
     return keyboard([
         [
-            button("wm-trend", "价格走势", "wm:trend:%s" % token, 1),
-            button("wm-desc", "对话文本", "wm:desc:%s" % token, 1),
+            button("wm-trend", "行情", "wm:trend:%s" % token, 1),
+            button("wm-chat", "对话文本", "wm:chat:%s" % token, 1),
         ],
     ])

@@ -49,19 +49,54 @@ def item_reply(item: Item, sell: Sequence[Order], buy: Sequence[Order],
 
 
 def price_trend_reply(item: Item, stats: Optional[MarketStats],
-                      platform: str = "pc") -> Reply:
-    """按钮「价格走势」：单独给出近 15 天走势卡。"""
+                      platform: str = "pc", keyboard=None) -> Reply:
+    """按钮「行情」：近 15 天日均价天梯图。"""
     label = platform_label(platform)
-    return Reply(text="【%s】价格走势 · %s" % (item.name, label),
+    points = list(getattr(stats, "history", None) or [])[-15:]
+    if len(points) >= 2:
+        average = sum(point.avg for point in points) / len(points)
+        highest = max(point.max_price or point.avg for point in points)
+        lowest = min(point.min_price or point.avg for point in points)
+        first, last = points[0], points[-1]
+        change = ((last.avg - first.avg) / first.avg * 100.0) if first.avg else 0.0
+        text = ("【%s】近 %d 天行情 · %s\n"
+                "均价 %.1fp ｜ 最高 %sp ｜ 最低 %sp ｜ 变化 %+.1f%%" % (
+                    item.name, len(points), label, average,
+                    render.fmt_price(highest), render.fmt_price(lowest), change))
+    else:
+        text = "【%s】暂无足够的价格历史（至少需要 2 天成交记录）。" % item.name
+    return Reply(text=text, keyboard=keyboard,
                  image=lambda: imagecard.price_trend_card(item, stats, label))
 
 
-def item_desc_reply(item: Item, platform: str = "pc") -> Reply:
-    """按钮「对话文本」：warframe.market 物品说明的对话式卡片。"""
+def whisper_reply(item: Item, sell: Sequence[Order], buy: Sequence[Order],
+                  platform: str = "pc", keyboard=None,
+                  limit: int = 7) -> Reply:
+    """按钮「对话文本」：可以直接复制到游戏聊天框的私聊话术。
+
+    在售订单 = 对方卖、我们买 → `I wtb …`；收购订单 = 对方买、我们卖 → `I wts …`。
+    物品名优先用英文原名，因为游戏里和外国玩家沟通按英文名最不容易出错。
+    """
     label = platform_label(platform)
-    return Reply(text="【%s】对话文本\n%s" % (
-        item.name, str(getattr(item, "description", "") or "").strip()[:500]),
-        image=lambda: imagecard.item_desc_card(item, label))
+    game_name = (getattr(item, "name_en", "") or item.name or item.slug).strip()
+    lines = ["【%s】私聊话术 · %s" % (item.name, label)]
+    if sell:
+        lines.append("")
+        lines.append("▍私聊卖家（我想买，%d 条）" % min(len(sell), limit))
+        for order in list(sell)[:limit]:
+            lines.append("/w %s Hi! I wtb %s for %dp" % (
+                order.user, game_name, order.platinum))
+    if buy:
+        lines.append("")
+        lines.append("▍私聊买家（我想卖，%d 条）" % min(len(buy), limit))
+        for order in list(buy)[:limit]:
+            lines.append("/w %s Hi! I wts %s for %dp" % (
+                order.user, game_name, order.platinum))
+    if not sell and not buy:
+        lines.append("暂无在线订单，稍后重试或换个平台看看。")
+    lines.append("")
+    lines.append("复制整行到游戏聊天框发送；对方回信后再组队交易。")
+    return Reply(text="\n".join(lines), keyboard=keyboard)
 
 
 def candidates_reply(query: str, hits: Sequence[SearchHit]) -> Reply:

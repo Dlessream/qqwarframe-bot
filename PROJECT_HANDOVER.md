@@ -337,3 +337,48 @@ db/schema.sql / db/build.py  本次数据库建设产物
   `STORM_REGIONS`（九重天节点，按名字是否在 `STORM_NODES` 判定）。
   `data/node_names_zh.json` 已加入 Dockerfile 的 `builtin-data` 打包清单
   （宿主机 `./data` 挂载缺文件时的兜底）。
+
+## 响应速度优化（2026-11-25）
+
+实测环境：腾讯云 124.220.229.109（4C/3.6G，带宽小），容器 `qqwarframe-bot`。
+结论：**慢不在 CPU/渲染，而在"请求数 × 每次握手的跨境延迟"和"图片 base64 上传"**。
+
+| 项 | 实测 |
+| --- | --- |
+| 服务器负载 | load 0.08，容器 CPU 0.03%，内存 135MB（不是瓶颈） |
+| 市场接口单请求 | /top 只有 5KB 也要 1.5~4s，TLS 握手 0.6~1.6s（跨境抖动大） |
+| 整包订单 /v2/orders/item/{slug} | 60~700KB，慢网下 1~3s |
+| 图片上传 | QQ 接口把图 base64 塞 JSON，640KB 载荷 2.26s、933KB 3.34s |
+| 世界状态主源 warframestat | 对本机机房 IP 一律 403，经 xray 更慢（2.3s） |
+
+已做的改动：
+1. `bot/net.py`：强制直连时用 `http.client` 长连接池（按线程隔离，复用被服务端关掉会自动重连），
+   去掉每请求一次 TLS 握手；403/407 的代理记 15 分钟，`_try_order` 把它排到最后。
+2. `bot/market.py`：`/top` 两边各有 3 单就不再补拉整包订单（原来 limit=7/8 必然触发）。
+3. `bot/commands.py`：查价的「详情 / 订单 / 48h 行情」并发；帮助背景先用本地 news 快照，
+   取新闻限时 3s（中转慢时原实现能拖到 76s）。
+4. `bot/imagecard.py` + `bot/nodeboard.py`：超过 200KB 的卡片转 256 色调色板 PNG
+   （文字仍锐利），裂缝 433→194KB、九重天 607→189KB，上传省 1~3s。
+5. `bot/worldstate.py`：主源 403 直接按 6 小时冷却，不再每 10 分钟白撞一次。
+6. 启动时预热帮助卡背景（`warm_help_background`）。
+
+`#查` 由 8.0s → 2~3s，`#战甲` 6.1s → 1.3~2.9s，`#帮助` 首次 7.5s/76s → 2.6s（预热后只差渲染）。
+冷缓存下 `#遗物` 仍要 4~7s（6 个奖励各一次 /top，受 3 rps 限流约束），`#仲裁` 首轮 ~9s（官方 + 中转）。
+
+## wm 卡片改版：行情按钮 + 对话文本（2026-11-25）
+
+- **卡片瘦身**：`imagecard.item_card` 删掉「行情」三宫格与 15 天明细表，
+  只留在售 / 收购两列报价 + 一行按钮提示 + 一句 wiki 说明。原来的
+  `_stat_block` / `_trend_table` 一并删除（已无调用）。
+- **按钮**（`bot/keyboards.py` 的 `wm_keyboard`）：
+  `行情` → `wm:trend:<token>`，`对话文本` → `wm:chat:<token>`。
+  旧的 `wm:desc:` 仍按对话文本处理，历史消息里的按钮点了也不会失效。
+- **行情 = 天梯图**：`imagecard.price_trend_card` + `_ladder_chart`
+  把近 15 天日均价画成阶梯折线（横向段=当天价位、竖线=换天跳变），
+  背后叠当日最高/最低区间竖条、阶梯下方金色渐变填充，右侧气泡标最新价。
+  刻度用 `_nice_ticks` 取 1/2/2.5/5×10^n 的整数价格，涨跌沿用国内涨红跌绿。
+- **对话文本 = 私聊话术**：`present.whisper_reply` 按订单生成
+  `/w 玩家 Hi! I wtb <英文物品名> for <价>p`（在售=我想买）与
+  `wts`（收购=我想卖），可直接复制到游戏聊天框。
+- 按钮上下文（`commands._store_button_context`）额外存 `sell` / `buy`；
+  子卡片回传同一套按钮，行情↔话术可反复切换，30 分钟内有效。

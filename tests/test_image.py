@@ -50,7 +50,8 @@ class ImageCardTest(unittest.TestCase):
         png = imagecard.item_card(sample_item(), [], [], None, "PC")
         self.assertGreater(len(png), 5000)
 
-    def test_item_card_with_trend(self):
+    def test_item_card_drops_stats_section(self):
+        """行情已挪到按钮，卡片只保留报价，高度应明显收窄。"""
         stats = sample_stats()
         stats.history = [
             PricePoint("2026-10-%02d" % day, 50.0 + day % 3, 10 + day,
@@ -58,7 +59,23 @@ class ImageCardTest(unittest.TestCase):
         ]
         png = imagecard.item_card(sample_item(), [], [], stats, "PC")
         self.assertEqual(png_size(png)[0], 860)
-        self.assertGreater(png_size(png)[1], 700)
+        # 旧版带 48h/90d 面板 + 15 行走势表，至少 700px 高
+        self.assertLess(png_size(png)[1], 560)
+
+    def test_price_trend_card_ladder(self):
+        stats = sample_stats()
+        stats.history = [
+            PricePoint("2026-10-%02d" % day, 50.0 + day % 3, 10 + day,
+                       48.0, 54.0) for day in range(1, 16)
+        ]
+        png = imagecard.price_trend_card(sample_item(), stats, "PC")
+        self.assertEqual(png_size(png)[0], 860)
+        self.assertGreater(png_size(png)[1], 500)
+
+    def test_price_trend_card_without_history(self):
+        png = imagecard.price_trend_card(sample_item(), None, "PC")
+        self.assertEqual(png_size(png)[0], 860)
+        self.assertGreater(png_size(png)[1], 200)
 
     def test_long_name_wraps(self):
         png = imagecard.item_card(

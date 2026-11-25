@@ -718,7 +718,7 @@ class CommandRouter:
 
         token = self._store_button_context({
             "item": item, "stats": stats, "platform": platform,
-            "price_only": price_only,
+            "price_only": price_only, "sell": list(sell), "buy": list(buy),
         })
         return present.item_reply(item, sell, buy, stats, platform,
                                   price_only=price_only,
@@ -744,23 +744,28 @@ class CommandRouter:
             return dict(entry["payload"])
 
     def handle_button(self, data: str, ctx) -> List[Reply]:
-        """处理消息按钮回调。data: a:命令 / wm:trend:token / wm:desc:token。"""
+        """处理消息按钮回调。data: a:命令 / wm:trend:token / wm:chat:token。"""
         data = str(data or "")
         if data.startswith("a:"):
             command = data[2:].strip()
             if not command:
                 return []
             return self.handle(self.prefixes[0] + command, ctx)
-        if data.startswith("wm:trend:") or data.startswith("wm:desc:"):
+        if data.startswith(("wm:trend:", "wm:chat:", "wm:desc:")):
             kind, token = data.split(":", 2)[1], data.split(":", 2)[2]
             payload = self._get_button_context(token)
             if not payload:
                 return [present.error_reply("按钮已过期，请重新发送 wm 查询。")]
             item = payload.get("item")
             platform = payload.get("platform", "pc")
+            # 子卡片也带上同一套按钮，来回切换不用重新查询。
+            keyboard = keyboards.wm_keyboard(token)
             if kind == "trend":
-                return [present.price_trend_reply(item, payload.get("stats"), platform)]
-            return [present.item_desc_reply(item, platform)]
+                return [present.price_trend_reply(
+                    item, payload.get("stats"), platform, keyboard=keyboard)]
+            return [present.whisper_reply(
+                item, payload.get("sell") or [], payload.get("buy") or [],
+                platform, keyboard=keyboard)]
         return []
 
     def _detail(self, item: Item) -> Item:

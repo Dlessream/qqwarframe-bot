@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import fnmatch
 import io
+import math
 import os
 import re
 import subprocess
@@ -19,11 +20,12 @@ import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
 try:  # Pillow 是可选依赖
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageChops, ImageDraw, ImageFont
 
     PIL_AVAILABLE = True
 except Exception:  # pragma: no cover - 环境缺 Pillow
     Image = None  # type: ignore
+    ImageChops = None  # type: ignore
     ImageDraw = None  # type: ignore
     ImageFont = None  # type: ignore
     PIL_AVAILABLE = False
@@ -479,80 +481,6 @@ def _format_price(value) -> str:
     return _format_int(number)
 
 
-def _stat_block(draw, x: int, width: int, y: int, label: str, value: str,
-                sub: str, color) -> None:
-    cx = x + width / 2.0
-    _ctext(draw, y, label, _font(15), DIM, cx=cx)
-    _ctext(draw, y + 24, value, _font(26, bold=True), color, cx=cx)
-    _ctext(draw, y + 62, _fit(draw, sub, _font(15), width), _font(15), MUTED, cx=cx)
-
-
-def _trend_table(draw, y, stats, days: int = 15) -> int:
-    points = list(getattr(stats, "history", None) or [])[-days:]
-    if len(points) < 2:
-        return y
-    ordered = list(reversed(points))
-    avg = sum(point.avg for point in points) / len(points)
-    high = max(point.max_price or point.avg for point in points)
-    low = min(point.min_price or point.avg for point in points)
-    first, last = points[0], points[-1]
-    change = ((last.avg - first.avg) / first.avg * 100.0) if first.avg else 0.0
-
-    trend_title = "近 %d 天价格走势" % len(points)
-    ttw, _ = _tsize(draw, trend_title, _font(19, bold=True))
-    draw.text(((WIDTH - ttw) // 2, y), trend_title,
-              font=_font(19, bold=True), fill=TEXT)
-    y += 32
-    change_color = GREEN if change >= 0 else RED
-    prefix = "均价 %.1fp ｜ 高 %.0fp ｜ 低 %.0fp ｜ 变化 " % (avg, high, low)
-    summary = prefix + "%+.1f%%" % change
-    sw, _ = _tsize(draw, summary, _font(15))
-    draw.text(((WIDTH - sw) // 2, y), summary, font=_font(15), fill=MUTED)
-    y += 30
-
-    usable = WIDTH - 2 * PAD
-    ratios = [0.8, 0.8, 0.7, 1.7]
-    total = sum(ratios)
-    widths = [int(usable * ratio / total) for ratio in ratios]
-    headers = ["日期", "均价", "成交量", "区间"]
-    header_font = _font(14, bold=True)
-    x = PAD
-    for index, header in enumerate(headers):
-        hw, _ = _tsize(draw, header, header_font)
-        draw.text((x + (widths[index] - hw) // 2, y), header,
-                  font=header_font, fill=DIM)
-        x += widths[index]
-    y += 28
-    _divider(draw, y)
-    y += 8
-
-    row_height = 32
-    font = _font(16)
-    for row_index, point in enumerate(ordered):
-        if row_index % 2 == 0:
-            _rrect(draw, (PAD - 5, y - 4, WIDTH - PAD + 5, y + row_height - 8),
-                   7, fill=PANEL)
-        latest = row_index == 0
-        color = GOLD if latest else TEXT
-        values = [
-            point.date[5:],
-            "%.1fp" % point.avg,
-            _format_int(point.volume),
-            "%s~%s" % (_format_price(point.min_price),
-                       _format_price(point.max_price)),
-        ]
-        x = PAD
-        for index, value in enumerate(values):
-            text = _fit(draw, value, font, widths[index] - 16)
-            vw, _ = _tsize(draw, text, font)
-            ty = y + _vcenter(draw, text, font, row_height - 4, -4)
-            draw.text((x + (widths[index] - vw) // 2, ty), text,
-                      font=font, fill=color)
-            x += widths[index]
-        y += row_height
-    return y + 18
-
-
 def item_card(item, sell, buy, stats, platform_label: str = "PC",
               price_only: bool = False) -> bytes:
     """物品行情卡。"""
@@ -589,33 +517,12 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
     draw.line([(divider_x, y - 4), (divider_x, max(left_y, right_y) - 8)], fill=LINE, width=1)
     y = max(left_y, right_y) + 10
 
+    # 行情（48 小时 / 90 天 / 逐日走势）已移到下方按钮，卡片只留最实用的报价。
     _divider(draw, y)
     y += 20
-    _ctext(draw, y, "行情", _font(17, bold=True), TEXT)
+    _ctext(draw, y, "点下方按钮：行情（15 天走势） · 对话文本（私聊话术）",
+           _font(15), DIM)
     y += 30
-
-    third = (WIDTH - 2 * PAD) // 3
-    if stats and stats.h48 and not stats.h48.empty:
-        _stat_block(draw, PAD, third, y, "48 小时均价",
-                    "%.1fp" % stats.h48.avg,
-                    "中位 %sp · %s 笔" % (_format_price(stats.h48.median),
-                                          _format_int(stats.h48.volume)), GOLD)
-    else:
-        _stat_block(draw, PAD, third, y, "48 小时", "—", "暂无成交", MUTED)
-
-    if stats and stats.d90 and not stats.d90.empty:
-        _stat_block(draw, PAD + third, third, y, "90 天中位",
-                    "%sp" % _format_price(stats.d90.median),
-                    "均价 %sp" % _format_price(stats.d90.avg), CYAN)
-        _stat_block(draw, PAD + 2 * third, third, y, "90 天区间",
-                    "%sp ~ %sp" % (_format_price(stats.d90.min_price),
-                                   _format_price(stats.d90.max_price)),
-                    "%s 笔成交" % _format_int(stats.d90.volume), GREEN)
-    else:
-        _stat_block(draw, PAD + third, third, y, "90 天", "—", "暂无成交", MUTED)
-
-    y += 92
-    y = _trend_table(draw, y, stats)
     if item.description and not price_only:
         desc = item.description.replace("\n", " ").strip()
         y += 4
@@ -630,48 +537,229 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
     return _card_panel(content, height)
 
 
-def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
-    """按钮触发：单独的近 15 天价格走势卡。"""
-    points = list(getattr(stats, "history", None) or [])[-15:]
-    height = max(720, 300 + len(points) * 32 + 170)
-    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(content)
-    y = _header(draw, item.name or item.slug, "价格走势 · %s" % platform_label,
-                "TREND", GOLD)
-    y += 18
+def _nice_ticks(low: float, high: float, target: int = 4):
+    """把 [low, high] 扩成 3~6 个整齐刻度（步长取 1/2/2.5/5 × 10^n）。"""
+    if high <= low:
+        high = low + 1
+    pad = (high - low) * 0.12
+    low, high = max(0.0, low - pad), high + pad
+    raw = (high - low) / max(1, target - 1)
+    magnitude = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
+    step = magnitude
+    for multiplier in (1, 2, 2.5, 5, 10):
+        step = magnitude * multiplier
+        if step >= raw:
+            break
+    start = math.floor(low / step) * step
+    ticks = []
+    index = 0
+    while index < 8:
+        value = start + index * step
+        if value > high + step * 0.5:
+            break
+        ticks.append(round(value, 4))
+        index += 1
+    return ticks, step < 1
+
+
+def _ladder_chart(content, draw, y: int, points, accent=GOLD) -> int:
+    """近 N 天日均价天梯图（阶梯折线 + 当日高低区间 + 渐变填充）。
+
+    全部线段都是水平/垂直的，不依赖抗锯齿也不会发虚；区间条用低透明度
+    竖条铺在阶梯后面，既能看出当天成交范围，又不抢主线。
+    """
     if len(points) < 2:
-        _ctext(draw, y + 10, "暂无足够的价格历史数据。", _font(16), MUTED)
-        y += 50
-    else:
-        y = _trend_table(draw, y, stats)
-    left = "数据 warframe market · %s · %s" % (
-        platform_label, time.strftime("%m-%d %H:%M"))
-    y = _footer(draw, y + 10, left)
-    return _card_panel(content, height)
+        _ctext(draw, y + 16, "暂无足够的价格历史（至少需要 2 天成交记录）。",
+               _font(16), MUTED)
+        return y + 56
+
+    x0 = PAD + 58
+    x1 = WIDTH - PAD - 12
+    plot_w = x1 - x0
+    plot_h = 300
+    top = y
+    bottom = top + plot_h
+
+    avgs = [max(0.0, float(point.avg or point.median or 0)) for point in points]
+    lows = [float(point.min_price or avg) for point, avg in zip(points, avgs)]
+    highs = [float(point.max_price or avg) for point, avg in zip(points, avgs)]
+    low = min(min(lows), min(avgs))
+    high = max(max(highs), max(avgs))
+    if high <= low:
+        high = low + 1
+    ticks, decimal = _nice_ticks(low, high)
+    if len(ticks) >= 2:
+        low, high = ticks[0], ticks[-1]
+    else:  # pragma: no cover - 防御
+        ticks, decimal = [low, high], False
+    span = max(0.001, high - low)
+
+    def vy(value: float) -> float:
+        return bottom - (value - low) / span * plot_h
+
+    # 横向网格 + 左侧价格刻度
+    grid_font = _font(13)
+    for value in ticks:
+        gy = int(round(vy(value)))
+        gx = x0
+        while gx < x1:
+            draw.line([(gx, gy), (min(gx + 5, x1), gy)], fill=(52, 62, 80), width=1)
+            gx += 10
+        label = ("%.1fp" if decimal else "%.0fp") % value
+        label_w, _ = _tsize(draw, label, grid_font)
+        draw.text((x0 - 12 - label_w,
+                   _vcenter(draw, label, grid_font, 16, gy - 8)),
+                  label, font=grid_font, fill=DIM)
+
+    step = plot_w / float(len(points))
+
+    # 当日最高~最低区间（阶梯背后的细竖条）
+    band = Image.new("RGBA", (plot_w, plot_h), (0, 0, 0, 0))
+    band_draw = ImageDraw.Draw(band)
+    bar_w = max(4, int(step * 0.24))
+    for index, point in enumerate(points):
+        cx = (index + 0.5) * step
+        band_top = vy(max(highs[index], avgs[index])) - top
+        band_bottom = vy(min(lows[index], avgs[index])) - top
+        band_draw.rectangle([cx - bar_w / 2.0, band_top,
+                             cx + bar_w / 2.0, band_bottom],
+                            fill=(130, 144, 168, 44))
+    content.alpha_composite(band, (x0, top))
+
+    # 阶梯正下方的渐变填充
+    polygon = [(0, plot_h)]
+    for index, value in enumerate(avgs):
+        local_y = vy(value) - top
+        polygon.append((index * step, local_y))
+        polygon.append((min(plot_w, (index + 1) * step), local_y))
+    polygon.append((plot_w, plot_h))
+
+    mask = Image.new("L", (plot_w, plot_h), 0)
+    ImageDraw.Draw(mask).polygon(polygon, fill=255)
+
+    fill = Image.new("RGBA", (plot_w, plot_h), (0, 0, 0, 0))
+    fill_draw = ImageDraw.Draw(fill)
+    for yy in range(plot_h):
+        alpha = int(round(86 * (1.0 - yy / float(plot_h)) ** 0.75)) + 4
+        fill_draw.line([(0, yy), (plot_w, yy)], fill=accent + (alpha,))
+    if ImageChops is not None:
+        fill.putalpha(ImageChops.multiply(fill.getchannel("A"), mask))
+    content.alpha_composite(fill, (x0, top))
+
+    # 阶梯折线
+    for index, value in enumerate(avgs):
+        left = x0 + index * step
+        right = x0 + min(plot_w, (index + 1) * step)
+        current = int(round(vy(value)))
+        draw.line([(left, current), (right, current)], fill=accent, width=3)
+        if index:
+            previous = int(round(vy(avgs[index - 1])))
+            draw.line([(left, previous), (left, current)], fill=accent, width=3)
+
+    # 每天的节点 + 最新一天高亮
+    for index, value in enumerate(avgs):
+        cx = x0 + (index + 0.5) * step
+        cy = int(round(vy(value)))
+        if index == len(avgs) - 1:
+            draw.ellipse([cx - 7, cy - 7, cx + 7, cy + 7], fill=accent)
+            draw.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=BG_TOP)
+        else:
+            draw.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=accent)
+
+    # 最新价气泡
+    bubble_font = _font(15, bold=True)
+    bubble_text = ("%.1f" % avgs[-1]).rstrip("0").rstrip(".") + "p"
+    text_w, text_h = _tsize(draw, bubble_text, bubble_font)
+    last_cx = x0 + (len(avgs) - 0.5) * step
+    last_cy = vy(avgs[-1])
+    bubble_w, bubble_h = text_w + 22, text_h + 14
+    bubble_x = min(max(last_cx - bubble_w / 2.0, x0), x1 - bubble_w)
+    bubble_y = last_cy - bubble_h - 16
+    if bubble_y < top - 6:
+        bubble_y = last_cy + 16
+    _rrect(draw, (bubble_x, bubble_y, bubble_x + bubble_w, bubble_y + bubble_h),
+           8, fill=PANEL_LIGHT, outline=accent)
+    draw.text((bubble_x + 11, bubble_y + 7), bubble_text,
+              font=bubble_font, fill=accent)
+
+    # 日期刻度
+    y = bottom + 10
+    date_font = _font(12)
+    label_every = max(1, int(round(len(points) / 8.0)))
+    for index, point in enumerate(points):
+        last = index == len(points) - 1
+        if index % label_every and not last:
+            continue
+        text = str(point.date)[5:]
+        text_w, _ = _tsize(draw, text, date_font)
+        cx = x0 + (index + 0.5) * step
+        cx = min(max(cx, PAD + text_w / 2.0), WIDTH - PAD - text_w / 2.0)
+        draw.text((cx - text_w / 2.0, y), text, font=date_font, fill=DIM)
+    y += 26
+
+    # 图例
+    legend_font = _font(13)
+    draw.rectangle([x0, y + 4, x0 + 20, y + 10], fill=accent)
+    draw.text((x0 + 28, y - 1), "日均价阶梯", font=legend_font, fill=MUTED)
+    draw.rectangle([x0 + 122, y + 4, x0 + 136, y + 10], fill=(130, 144, 168, 120))
+    draw.text((x0 + 144, y - 1), "当日区间", font=legend_font, fill=MUTED)
+    return y + 26
 
 
-def item_desc_card(item, platform_label: str = "PC") -> bytes:
-    """按钮触发：参考 warframe.market 物品页的对话式说明卡。"""
-    desc = str(getattr(item, "description", "") or "").replace("\n", " ").strip()
-    if not desc:
-        desc = "该物品在 warframe.market 暂无说明文本。"
-    height = 900
+def price_trend_card(item, stats, platform_label: str = "PC") -> bytes:
+    """按钮「行情」：近 15 天日均价天梯图 + 关键数字。"""
+    points = list(getattr(stats, "history", None) or [])[-15:]
+    height = 1100
     content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(content)
     y = _header(draw, item.name or item.slug,
-                "物品说明 · warframe.market 风格", "DESC", CYAN)
-    y += 30
-    _ctext(draw, y, "TENNO", _font(13, bold=True), GOLD)
-    y += 26
-    font = _font(18)
-    lines = _wrap(draw, desc, font, WIDTH - 2 * PAD - 60, max_lines=10)
-    box = (PAD, y - 8, WIDTH - PAD, y + len(lines) * 32 + 22)
-    _rrect(draw, box, 13, fill=PANEL_LIGHT, outline=(70, 84, 106), width=1)
-    for index, line in enumerate(lines):
-        _ctext(draw, y + index * 32, line, font, TEXT)
-    y = box[3] + 30
-    _ctext(draw, y, "来源：warframe.market 物品页说明文本", _font(15), DIM)
-    y = _footer(draw, y + 44, "平台：%s" % platform_label)
+                "行情 · 近 %d 天价格走势 · %s" % (len(points) or 15, platform_label),
+                "行情", GOLD)
+    y += 12
+
+    if len(points) >= 2:
+        average = sum(point.avg for point in points) / len(points)
+        highest = max(max(point.max_price or point.avg for point in points), average)
+        lowest = min(point.min_price or point.avg for point in points)
+        volume = sum(point.volume for point in points)
+        first, last = points[0], points[-1]
+        change = ((last.avg - first.avg) / first.avg * 100.0) if first.avg else 0.0
+        # 沿用国内涨红跌绿的读法
+        change_color = RED if change >= 0 else GREEN
+        summary_font = _font(16)
+        parts = [
+            ("均价 ", "%.1fp" % average, TEXT),
+            ("最高 ", "%.0fp" % highest, GOLD),
+            ("最低 ", "%.0fp" % lowest, CYAN),
+            ("合计 ", "%s 笔" % _format_int(volume), TEXT),
+            ("变化 ", "%+.1f%%" % change, change_color),
+        ]
+        widths = []
+        for label, value, _color in parts:
+            widths.append(_tsize(draw, label + value, summary_font)[0])
+        total_w = sum(widths) + 22 * (len(parts) - 1)
+        x = (WIDTH - total_w) / 2.0
+        for (label, value, color), width in zip(parts, widths):
+            draw.text((x, y), label, font=summary_font, fill=MUTED)
+            label_w = _tsize(draw, label, summary_font)[0]
+            draw.text((x + label_w, y), value, font=summary_font, fill=color)
+            x += width + 22
+        y += 36
+    else:
+        y += 8
+
+    y = _ladder_chart(content, draw, y, points, GOLD)
+
+    if item.description:
+        desc = item.description.replace("\n", " ").strip()
+        y += 2
+        _ctext(draw, y, "“%s”" % _fit(draw, desc, _font(14), WIDTH - 2 * PAD),
+               _font(14), DIM)
+        y += 26
+
+    left = "数据 warframe market · %s · %s" % (
+        platform_label, time.strftime("%m-%d %H:%M"))
+    y = _footer(draw, y + 8, left)
     return _card_panel(content, height)
 
 
