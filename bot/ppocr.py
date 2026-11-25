@@ -176,6 +176,29 @@ def _resize(image, width: int, height: int):
     return image.resize((width, height), Image.BILINEAR)
 
 
+def _enhance(image):
+    """暗背景 / 低对比度截图做一次保色彩拉伸（同 `enhanceRgba` 的 auto 模式）。
+
+    紫卡截图常常是半透明卡面叠在游戏场景上，直接归一化后字和底几乎分不开；
+    这一步只拉对比度、不动色相，识别率明显更稳。
+    """
+    np = _numpy()
+    if np is None:
+        return image
+    arr = np.asarray(image, dtype=np.float32)
+    lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+    # 用 1% / 99% 分位代替极值，避免个别高光/纯黑像素把范围拉满
+    low = float(np.percentile(lum, 1))
+    high = float(np.percentile(lum, 99))
+    if high - low > 170:
+        return image
+    scale = 235.0 / max(40.0, high - low)
+    out = np.clip((arr - low) * scale, 0, 255).astype(np.uint8)
+    from PIL import Image
+
+    return Image.fromarray(out, "RGB")
+
+
 def _det_tensor(np, image, max_side: int = DET_MAX_SIDE):
     width, height = image.size
     ratio = min(1.0, max_side / max(width, height)) if max(width, height) else 1.0
@@ -311,6 +334,7 @@ def recognize(png: bytes, max_side: int = DET_MAX_SIDE) -> List[TextLine]:
     orig_w, orig_h = image.size
     if orig_w < 32 or orig_h < 32:
         return []
+    image = _enhance(image)
     tensor, dst_w, dst_h = _det_tensor(np, image, max_side)
     session = _state["det"]
     try:

@@ -713,15 +713,22 @@ class BotApp:
             return
 
         parsed = self.router.parse(text, allow_bare=self.allow_bare) if text else None
+        explicit = any(text.startswith(prefix) for prefix in self.prefixes) if text else False
+        if has_image and at_me and not explicit and (
+                parsed is None or parsed[0] == "query"):
+            # 「@机器人 + 图」优先当紫卡截图分析：裸文字（如「执法者」）是武器名提示，
+            # 不是物品查询。写了 # 前缀的命令（#查 mesa）仍然照原样执行。
+            text = self.prefixes[0] + "紫卡分析" + ((" " + text) if text else "")
+            parsed = ("riven_scan", text.split(None, 1)[1]
+                      if " " in text else "")
         if parsed is None and text and at_me and self.behavior.get(
                 "respond_to_at", True):
             candidate = self.prefixes[0] + text
             parsed = self.router.parse(candidate)
             if parsed is not None:
                 text = candidate
-        if parsed is None and has_image:
-            # 只发图、或「@机器人 + 图片/文字」没对上命令时，当作紫卡截图分析：
-            # 文字部分当武器名提示（比如读不准时可以顺手写成「@机器人 执法者」）
+        if parsed is None and has_image and (at_me or not is_group):
+            # 只发一张图：单聊直接认，群里要 @机器人（不然别人发图也会被回）
             text = self.prefixes[0] + "紫卡分析" + ((" " + text) if text else "")
             parsed = ("riven_scan", text.split(None, 1)[1]
                       if " " in text else "")
@@ -1617,7 +1624,11 @@ class BotApp:
             if text.strip():
                 return text, at_me
 
-        raw_source = str(event.get("raw_message") or event.get("message") or "")
+        # 只有字符串才当原文；纯图片消息的 raw_message 是空的，别把 message
+        # 那个 list 的 repr 当成文字（否则「只发图」会变成一段乱文本）。
+        raw_source = event.get("raw_message")
+        if not isinstance(raw_source, str):
+            raw_source = ""
         raw = strip_cq(raw_source)
         if self.self_id and ("[CQ:at,qq=%s]" % self.self_id) in raw_source:
             at_me = True

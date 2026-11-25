@@ -177,3 +177,73 @@ class ModelFilesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImageMessageTest(unittest.TestCase):
+    """消息层：什么情况下把图片当作紫卡截图。"""
+
+    def _app(self):
+        from bot.app import BotApp
+        from bot.config import load_config
+
+        config = load_config("config.example.json")
+        config["auto_update"]["enabled"] = False
+        config["alerts"]["enabled"] = False
+        config["behavior"]["preload_items"] = False
+        config["behavior"]["cooldown_seconds"] = 0
+        config["behavior"]["group_policy"] = "blacklist"
+        config["behavior"]["whitelist_groups"] = []
+        config["behavior"]["blacklist_groups"] = []
+        config["web"]["enabled"] = False
+        app = BotApp(config)
+        app.self_id = "BOT"
+        app.qqbot = mock.Mock()
+        app.qqbot.reply_context.return_value = None
+        app._download_image = lambda url: b"PNG"
+        app.calls = []
+        app.router.handle = lambda text, ctx: (app.calls.append((text, ctx))
+                                               or [])
+        return app
+
+    def _event(self, group=True, at=True, text=""):
+        segments = []
+        if at:
+            segments.append({"type": "at", "data": {"qq": "BOT"}})
+        if text:
+            segments.append({"type": "text", "data": {"text": text}})
+        segments.append({"type": "image", "data": {"url": "http://x/y.png"}})
+        return {
+            "post_type": "message",
+            "message_type": "group" if group else "private",
+            "self_id": "BOT", "user_id": "U1",
+            "group_id": "G1" if group else "",
+            "message": segments,
+            "raw_message": "[CQ:at,qq=BOT]" if at else "",
+        }
+
+    def test_group_at_with_image(self):
+        app = self._app()
+        app.on_event(self._event())
+        self.assertEqual(app.calls[0][0], "#紫卡分析")
+        self.assertEqual(app.calls[0][1].image, b"PNG")
+
+    def test_bare_text_becomes_weapon_hint(self):
+        app = self._app()
+        app.on_event(self._event(text="执法者"))
+        self.assertEqual(app.calls[0][0], "#紫卡分析 执法者")
+
+    def test_explicit_command_kept(self):
+        app = self._app()
+        app.on_event(self._event(text="#查 mesa"))
+        self.assertEqual(app.calls[0][0], "#查 mesa")
+        self.assertIsNone(app.calls[0][1].image)
+
+    def test_group_image_without_at_ignored(self):
+        app = self._app()
+        app.on_event(self._event(at=False))
+        self.assertEqual(app.calls, [])
+
+    def test_private_image_works_without_at(self):
+        app = self._app()
+        app.on_event(self._event(group=False, at=False))
+        self.assertEqual(app.calls[0][0], "#紫卡分析")
