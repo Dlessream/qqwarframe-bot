@@ -13,7 +13,8 @@ def button(button_id: str, label: str, data: str,
            style: int = 1) -> Dict[str, Any]:
     return {
         "id": button_id,
-        "render_data": {"label": label, "style": style},
+        # visited_label 在旧版文档里是必填项，留空则点击后文字不变。
+        "render_data": {"label": label, "visited_label": label, "style": style},
         "action": {
             "type": 1,  # 回调按钮：data 回传到机器人后台
             "permission": {"type": 2},  # 所有人可点
