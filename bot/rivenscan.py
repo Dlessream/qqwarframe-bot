@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import difflib
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -846,16 +847,95 @@ def finalize(candidates: Sequence[Candidate],
 
 # ---------------------------------------------------------------------- 武器名
 _NOISE_RE = re.compile(r"[^a-z0-9\u4e00-\u9fff\-]+")
+_KEY_RE = re.compile(r"[^a-z0-9\u4e00-\u9fff]+")
+_ZH_RUN_RE = re.compile(r"[\u4e00-\u9fff]{2,10}")
+_LATIN_RUN_RE = re.compile(r"[a-z][a-z0-9']{2,}")
 
 
 def _clean(text: str) -> str:
     return _NOISE_RE.sub("", str(text or "").lower())
 
 
+def _key(text: str) -> str:
+    """比对键：空格、连字符全去掉（`Plaga-satiata` → `plagasatiata`）。"""
+    return _KEY_RE.sub("", str(text or "").lower())
+
+
+def _segments(text: str) -> List[str]:
+    """把一行拆成「可能是武器名」的片段，长的排前面。
+
+    卡面把武器名和紫卡名挤在同一行（`冰凇 Plaga-satiata`、`执法者 Laci-cron`），
+    整行拿去比相似度永远比不上——中文名和拉丁词分开逐个比才有机会认出来。
+    """
+    raw = str(text or "")
+    found: List[str] = []
+    for match in _ZH_RUN_RE.finditer(raw):
+        found.append(_key(match.group()))
+    for match in _LATIN_RUN_RE.finditer(raw.lower()):
+        found.append(match.group())
+    found = [item for item in found if item]
+    found.sort(key=lambda item: -len(item))
+    return found
+
+
+# 模糊匹配下限。两字国服武器名（冰凇、龙涎、祸根…）只差一个字时
+# difflib 只给 0.5，按常规阈值永远认不出来，所以两字名另开一条判定。
+_FUZZY_MIN = 0.6
+_FUZZY_TIE = 0.03
+
+
+def _closeness(query: str, name: str) -> float:
+    """相似度 0~1；两字名差一个字也算命中（OCR 常把「冰凇」读成「冰松」）。"""
+    if not query or not name:
+        return 0.0
+    if query == name:
+        return 1.0
+    if abs(len(query) - len(name)) > 2:
+        return 0.0
+    ratio = difflib.SequenceMatcher(None, query, name).ratio()
+    if len(query) == len(name) == 2 and query[0] == name[0]:
+        return max(ratio, 0.75)
+    return ratio
+
+
+def _fuzzy_weapon(rows: Sequence[Tuple[str, str]], weapons):
+    """在「整行」和「拆出来的片段」里按相似度找武器；几把打平就不猜。"""
+    pool: List[Tuple[str, object]] = []
+    seen = set()
+    for weapon in weapons.values():
+        for name in (weapon.name, weapon.name_en):
+            key = _key(name)
+            if len(key) >= 2 and (key, id(weapon)) not in seen:
+                seen.add((key, id(weapon)))
+                pool.append((key, weapon))
+
+    hits: List[Tuple[float, object, str]] = []
+    for text, cleaned in rows:
+        for probe in [cleaned] + _segments(text):
+            for key, weapon in pool:
+                score = _closeness(probe, key)
+                if score >= _FUZZY_MIN:
+                    hits.append((score, weapon, text))
+    if not hits:
+        return None, "", "none"
+
+    top = max(score for score, _weapon, _text in hits)
+    best: Dict[int, Tuple[object, str]] = {}
+    for score, weapon, text in hits:
+        if score >= top - _FUZZY_TIE:
+            best.setdefault(id(weapon), (weapon, text))
+    if len(best) > 1:
+        # 两字名只差一个字时可能同时对上好几把（比如「冰凇」被读成「冰松」，
+        # 「霜松」也存在），这种时候宁可不猜，让用户回一句武器名
+        return None, next(iter(best.values()))[1], "ambiguous"
+    weapon, text = next(iter(best.values()))
+    return weapon, text, "fuzzy"
+
+
 def guess_weapon(lines: Sequence[str], resolver, weapons=None):
     """从 OCR 行里猜武器：先精确查，再按「包含」，最后模糊（允许错一两个字）。
 
-    返回 (武器, 原文, 可信度)，可信度是 exact / contains / fuzzy / none。
+    返回 (武器, 原文, 可信度)，可信度是 exact / contains / fuzzy / ambiguous / none。
     """
     rows = []
     for line in lines:
@@ -882,20 +962,9 @@ def guess_weapon(lines: Sequence[str], resolver, weapons=None):
             return weapon, text, "contains"
 
     if weapons:
-        import difflib
-
-        pool = []
-        index = {}
-        for weapon in weapons.values():
-            for name in (weapon.name, weapon.name_en):
-                key = _clean(name)
-                if len(key) >= 2:
-                    pool.append(key)
-                    index[key] = weapon
-        for text, cleaned in rows:
-            hits = difflib.get_close_matches(cleaned, pool, n=1, cutoff=0.6)
-            if hits:
-                return index[hits[0]], text, "fuzzy"
+        weapon, text, how = _fuzzy_weapon(rows, weapons)
+        if weapon is not None or how == "ambiguous":
+            return weapon, text, how
     return None, rows[0][0] if rows else "", "none"
 
 
@@ -943,8 +1012,12 @@ def scan(png: bytes, resolver, analyzer_factory, weapons=None,
     if weapon is None:
         # 武器没认出来时也把词条带回去，让用户能手动补武器名
         result.pairs = [(item.name, item.value) for item in read_result.candidates]
-        result.notes.append("没认出武器名，可以发「#紫卡 <武器>」先看范围，"
-                           "或直接告诉我武器名再发一次截图")
+        if result.weapon_match == "ambiguous":
+            result.notes.append("武器名「%s」和好几把武器都很像，我不好猜，"
+                                "回我准确名字最快" % (result.weapon_text or "?"))
+        else:
+            result.notes.append("没认出武器名，可以发「#紫卡 <武器>」先看范围，"
+                               "或直接告诉我武器名再发一次截图")
         return result
 
     result.weapon = weapon

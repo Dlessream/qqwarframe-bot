@@ -122,6 +122,25 @@ class WeaponGuessTest(unittest.TestCase):
         self.assertIs(hit, self.weapons["cron"])
         self.assertEqual(how, "fuzzy")
 
+    def test_two_char_name_typo_with_riven_name(self):
+        """「冰凇」被读成「冰松」，且和紫卡名挤在同一行，也要认出来。"""
+        weapons = {"verglas": weapon("verglas", "冰凇", "Verglas")}
+        hit, text, how = rivenscan.guess_weapon(
+            ["18 /", "冰松 Plaga-satiata", "+109.8% 多重射击"],
+            lambda value: None, weapons)
+        self.assertIs(hit, weapons["verglas"])
+        self.assertEqual(how, "fuzzy")
+        self.assertEqual(text, "冰松 Plaga-satiata")
+
+    def test_ambiguous_two_char_name_not_guessed(self):
+        """两字名同时像好几把武器时宁可弃权，不能瞎指一把。"""
+        weapons = {"verglas": weapon("verglas", "冰凇", "Verglas"),
+                   "other": weapon("other", "冰澜", "Other")}
+        hit, _text, how = rivenscan.guess_weapon(
+            ["冰松"], lambda value: None, weapons)
+        self.assertIsNone(hit)
+        self.assertEqual(how, "ambiguous")
+
     def test_stat_lines_ignored(self):
         """带数字/百分号的行不能当武器名。"""
         hit, _text, _how = rivenscan.guess_weapon(
@@ -157,6 +176,20 @@ class ScanTest(unittest.TestCase):
         result = self._scan(FULL_CARD, hint="执法者")
         self.assertTrue(result.ok)
         self.assertEqual(result.weapon_match, "hint")
+
+    def test_scan_two_char_name_typo(self):
+        """两字武器名读错一个字，也要接着走完分析，而不是报「没认出武器名」。"""
+        verglas = weapon("verglas", "冰凇", "Verglas", disposition=1.3)
+        card = ("冰松 Plaga-satiata\n+109.8% 多重射击\n+110% 异常状态伤害\n"
+                "+193.6% 伤害\n-43.6% 弹匣容量")
+        with mock.patch.object(ppocr, "recognize", return_value=lines(card)):
+            result = rivenscan.scan(b"png", lambda value: None,
+                                    lambda: RivenAnalyzer(),
+                                    weapons={"verglas": verglas})
+        self.assertTrue(result.ok)
+        self.assertEqual(result.weapon.name, "冰凇")
+        self.assertEqual(result.config, "3+1")
+        self.assertTrue(any("相似度" in note for note in result.notes))
 
     def test_scan_blank_image(self):
         with mock.patch.object(ppocr, "recognize", return_value=[]):
