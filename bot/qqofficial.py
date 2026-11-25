@@ -525,32 +525,49 @@ class QQOfficialClient:
             result["event_id"] = str(event["qq_event_id"])
         return result
 
+    # 被动回复窗口：平台是 5 分钟，这里留 20 秒余量。按钮点击常常发生在
+    # 卡片发出后几十秒，用 3.5 秒会把好好的被动窗口浪费掉、被迫走主动消息。
+    PASSIVE_WINDOW = 280.0
+
     def _reply_fields(self, chat_id: str,
                       reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """优先使用消息自带的上下文；订阅推送等无上下文时用最近一条消息。"""
-        if reply_ctx:
+        """回复字段。
+
+        - `reply_ctx` 是字典：按里面给的 msg_id 被动回复；
+        - `reply_ctx` 是空字典 `{}`：**明确要求主动消息**（不带任何被动字段）；
+        - `reply_ctx is None`：用该会话最近一条用户消息被动回复（超窗口则主动）。
+        """
+        if reply_ctx is not None:
             fields = {key: value for key, value in reply_ctx.items()
                       if key in ("msg_id", "event_id", "msg_seq")}
             msg_id = str(fields.get("msg_id") or "")
             if msg_id:
-                # 每发一条都换 msg_seq，否则同一条被动消息的第二次回复会
-                # 被平台当成重复消息拦掉（40054005）。
-                with self._ctx_lock:
-                    key = "%s/%s" % (chat_id, msg_id)
-                    seq = max(int(self._ctx_seq.get(key) or 0),
-                              int(fields.get("msg_seq") or 0)) + 1
-                    self._ctx_seq[key] = seq
-                fields["msg_seq"] = seq
+                fields["msg_seq"] = self._next_seq(chat_id, msg_id,
+                                                   fields.get("msg_seq"))
             return fields
         with self._ctx_lock:
             item = self._reply_ctx.get(str(chat_id))
-            if not item or time.time() - item["at"] > 3500:
+            if not item or time.time() - item["at"] > self.PASSIVE_WINDOW:
                 return {}
-            item["seq"] = int(item.get("seq") or 0) + 1
-            result = {"msg_id": item["msg_id"], "msg_seq": item["seq"]}
-            if item.get("event_id"):
-                result["event_id"] = item["event_id"]
-            return dict(result)
+            msg_id = item["msg_id"]
+        result = {"msg_id": msg_id,
+                  "msg_seq": self._next_seq(chat_id, msg_id, item.get("seq"))}
+        if item.get("event_id"):
+            result["event_id"] = item["event_id"]
+        return result
+
+    def _next_seq(self, chat_id: str, msg_id: str, floor: Any = 0) -> int:
+        """同一条被动消息（msg_id）每回一条都要换 msg_seq，否则 40054005 去重。
+
+        所有发送路径共用同一张序号表，卡片和按钮回复不会再撞号。
+        """
+        with self._ctx_lock:
+            key = "%s/%s" % (chat_id, msg_id)
+            seq = max(int(self._ctx_seq.get(key) or 0), int(floor or 0)) + 1
+            self._ctx_seq[key] = seq
+            if len(self._ctx_seq) > 1000:
+                self._ctx_seq = dict(list(self._ctx_seq.items())[-500:])
+            return seq
 
     # ------------------------------------------------------------------ REST
     def _headers(self) -> Dict[str, str]:

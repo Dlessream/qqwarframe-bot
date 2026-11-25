@@ -753,6 +753,7 @@ class BotApp:
         data = str(event.get("button_data") or "")
         if not data:
             return
+        self.log.info("按钮点击：id=%s… data=%s", interaction_id[:8], data[:48])
         self.self_id = str(event.get("self_id") or self.self_id)
         context = Context(
             user_id=user_id, group_id=group_id, is_group=is_group,
@@ -764,12 +765,10 @@ class BotApp:
             self.log.exception("按钮命令处理失败：%s", exc)
             replies = [present.error_reply("按钮操作失败，请重新发送命令。")]
         if replies:
-            # 互动事件的 id 用于「被动消息发送」，字段名是 msg_id；
-            # 之前填在 event_id 上会被平台拒（40034025 请求参数event_id无效），
-            # 表现为点按钮后什么都不出来。
-            reply_ctx = {"msg_id": interaction_id} if interaction_id else {}
+            # 互动事件 id 不能当 msg_id 用（平台报 40034024 msg_id 无效或越权），
+            # 所以按钮结果走「回复该会话最近一条用户消息」，那边没窗口了再退主动消息。
             self._reply(replies, is_group,
-                        group_id if is_group else user_id, user_id, reply_ctx)
+                        group_id if is_group else user_id, user_id, None)
 
     def _group_lists(self) -> Tuple[set, set]:
         whitelist = {str(item).strip() for item in
@@ -1694,17 +1693,31 @@ class BotApp:
         prefix = "[CQ:at,qq=%s] " % at_user if at_user else ""
         # 被动回复上下文可能在平台侧失效（40034025 event_id 无效、msg_id 过期、
         # msg_seq 重复…）。一旦被拒就退化成主动消息重发，别让用户点了按钮没反应。
-        ctx: Dict[str, Any] = {"value": dict(reply_ctx) if reply_ctx else None}
+        ctx: Dict[str, Any] = {"value": dict(reply_ctx) if reply_ctx else reply_ctx}
 
         def call(fn, *args, **kwargs):
-            try:
-                return fn(ctx["value"], *args, **kwargs)
-            except QQOfficialError as exc:
-                if ctx["value"] and _passive_rejected(exc):
-                    self.log.warning("被动回复被拒（%s），改为主动消息重发", exc)
-                    ctx["value"] = None
-                    return fn(None, *args, **kwargs)
-                raise
+            """按「指定上下文 → 最近用户消息 → 主动消息」逐级尝试。
+
+            互动事件不提供被动窗口（拿 interaction id 当 msg_id 会报
+            40034024），所以按钮结果要靠第二级（回复最近那条用户消息），
+            那条也被拒（比如 5 次配额用完、40054005 去重）才退到主动消息。
+            """
+            if ctx["value"] is None:
+                attempts: List[Any] = [None, {}]
+            elif ctx["value"]:
+                attempts = [ctx["value"], None, {}]
+            else:  # {} 表示明确要主动消息
+                attempts = [{}]
+            last: Optional[QQOfficialError] = None
+            for context in attempts:
+                try:
+                    return fn(context, *args, **kwargs)
+                except QQOfficialError as exc:
+                    if not _passive_rejected(exc):
+                        raise
+                    last = exc
+                    self.log.warning("发送被拒（%s），换发送方式重试", exc)
+            raise last if last else QQOfficialError("发送失败")
 
         def send_card(context, png, keyboard):
             sender = (getattr(self.qqbot, "send_group_card", None) if is_group

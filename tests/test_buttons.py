@@ -118,26 +118,33 @@ class ImageKeyboardDeliveryTest(unittest.TestCase):
         self.assertEqual([call[0] for call in app.qqbot.calls], ["image"])
 
     def test_passive_rejected_retries_as_active(self):
-        """被动回复被平台拒（40034025 event_id 无效）时要改用主动消息重发。"""
+        """被动回复被拒时要逐级降级，最后用主动消息送达。"""
         class Strict(self.Capture):
+            def __init__(self):
+                super().__init__(card=False)
+                self.ctxs = []
+
             def send_group_text(self, group_id, text, reply_ctx=None,
                                 keyboard=None):
                 from bot.qqofficial import QQOfficialError
-                if reply_ctx:
+                self.ctxs.append(reply_ctx)
+                if reply_ctx != {}:  # 除主动消息外一律拒绝
                     raise QQOfficialError(
-                        "/messages 失败：请求参数event_id无效 / 错误码 40034025")
+                        "/messages 失败：请求参数msg_id无效或越权 / 错误码 40034024")
                 self.calls.append(("text", text, keyboard))
 
         app = self._app(card=False)
         app.qqbot = Strict()
-        reply = replies.Reply(text="行情结果", image=lambda: None, keyboard=None)
+        reply = replies.Reply(text="行情结果")
         self.assertTrue(app._deliver(True, "G1", reply,
                                      reply_ctx={"msg_id": "IID"}))
-        self.assertEqual([call[0] for call in app.qqbot.calls], ["text"])
+        # 先按指定 msg_id（拒）-> 再按最近消息（拒）-> 最后主动消息（成）
+        self.assertEqual(app.qqbot.ctxs, [{"msg_id": "IID"}, None, {}])
+        self.assertEqual(len(app.qqbot.calls), 1)
 
 
 class InteractionReplyContextTest(unittest.TestCase):
-    """互动事件的 id 要作为 msg_id 被动回复，填 event_id 会被平台拒。"""
+    """互动事件不提供被动窗口：按钮结果只能回最近用户消息或发主动消息。"""
 
     def _app(self):
         from bot.app import BotApp
@@ -155,12 +162,12 @@ class InteractionReplyContextTest(unittest.TestCase):
         app.image_enabled = False
         return app
 
-    def test_button_reply_uses_msg_id(self):
+    def test_button_reply_ignores_interaction_id(self):
         app = self._app()
         captured = {}
 
         def fake_deliver(is_group, chat_id, reply, at_user="", reply_ctx=None):
-            captured["ctx"] = dict(reply_ctx or {})
+            captured["ctx"] = reply_ctx
             return True
 
         app._deliver = fake_deliver
@@ -171,8 +178,8 @@ class InteractionReplyContextTest(unittest.TestCase):
             "button_data": "wm:trend:tok", "button_id": "wm-trend",
             "qq_interaction_id": "INT-1", "qq_envelope_id": "INTERACTION_CREATE:1",
         })
-        self.assertEqual(captured["ctx"], {"msg_id": "INT-1"})
-        self.assertNotIn("event_id", captured["ctx"])
+        # 不能把 interaction id 当 msg_id（40034024），交给"最近用户消息"逻辑
+        self.assertIsNone(captured["ctx"])
 
 
 class InteractionEventTest(unittest.TestCase):
