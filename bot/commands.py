@@ -9,6 +9,7 @@ import hashlib
 import logging
 import os
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -1156,29 +1157,53 @@ class CommandRouter:
         背景是官方 key art，首次要下载+缩放，实测一次 7 秒多；
         放在启动线程里预热，用户第一次发「帮助」就不用等。
         """
-        self._help_bg_provider()
+        self._help_bg_provider(allow_fetch=False)
 
-    def _help_bg_provider(self):
-        """给帮助菜单提供当前官方 key art 背景；任何失败都返回 None 降级。"""
+    def _supplement_news(self) -> Optional[List[Dict]]:
+        """读本地快照里的新闻列表（聚合源被墙时 worldstate 会补到这儿）。"""
         try:
             from . import datafiles
-            news = None
-            if self.worldstate is not None:
-                try:
-                    news = self.worldstate.fetch("news")
-                except Exception:
-                    news = None
-            # 聚合源被墙时 worldstate 会把 news 补进本地 supplement 文件
-            if not news:
-                path = datafiles.resolve(
-                    os.path.join("data", "worldstate_supplement.json"))
-                if os.path.isfile(path):
-                    import json
-                    with open(path, encoding="utf-8") as handle:
-                        raw = json.load(handle)
-                    if isinstance(raw, dict):
-                        data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
-                        news = data.get("news") or raw.get("news")
+            path = datafiles.resolve(
+                os.path.join("data", "worldstate_supplement.json"))
+            if not os.path.isfile(path):
+                return None
+            import json
+            with open(path, encoding="utf-8") as handle:
+                raw = json.load(handle)
+            if not isinstance(raw, dict):
+                return None
+            data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+            news = data.get("news") or raw.get("news")
+            return news if isinstance(news, list) else None
+        except Exception:
+            return None
+
+    def _fetch_news_quickly(self, timeout: float = 3.0) -> Optional[List[Dict]]:
+        """给「帮助」用的限时取新闻：慢链路（中转）不能把卡片拖到几十秒。"""
+        if self.worldstate is None:
+            return None
+        box: Dict[str, List[Dict]] = {}
+
+        def run() -> None:
+            try:
+                news = self.worldstate.fetch("news")
+            except Exception:
+                return
+            if isinstance(news, list):
+                box["news"] = news
+
+        thread = threading.Thread(target=run, name="help-news", daemon=True)
+        thread.start()
+        thread.join(max(0.1, timeout))
+        return box.get("news")
+
+    def _help_bg_provider(self, allow_fetch: bool = True):
+        """给帮助菜单提供当前官方 key art 背景；任何失败都返回 None 降级。"""
+        try:
+            # 先用本地快照：为了背景图去等聚合源，慢的时候能拖到一分钟
+            news = self._supplement_news()
+            if not news and allow_fetch:
+                news = self._fetch_news_quickly()
             return self.help_background.get(news)
         except Exception as exc:
             self.log.debug("帮助背景加载跳过：%s", exc)
