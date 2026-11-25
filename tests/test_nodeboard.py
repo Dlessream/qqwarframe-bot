@@ -58,17 +58,29 @@ class NodeboardTest(unittest.TestCase):
     def test_render_empty_returns_none(self):
         self.assertIsNone(nodeboard.render([], "fissure"))
 
+    def test_render_all_entries(self):
+        """条目必须全量出图，不能像以前那样只留 4 条。"""
+        if not nodeboard.PIL_AVAILABLE:
+            self.skipTest("no Pillow")
+        import io
+        from PIL import Image
+        entries = [dict(self.entries[0], node="节点 %02d" % i) for i in range(16)]
+        png = nodeboard.render(entries, "fissure", title="普通裂缝")
+        img = Image.open(io.BytesIO(png))
+        self.assertEqual(img.height,
+                         nodeboard.HEAD_H + nodeboard.ROW_H * 16 + 12)
+
     def test_render_caps_boards(self):
         if not nodeboard.PIL_AVAILABLE:
             self.skipTest("no Pillow")
-        entries = self.entries * 10
+        entries = self.entries * 40
         png = nodeboard.render(entries, "fissure")
         self.assertIsNotNone(png)
-        # 高度不应随超过上限的条目继续增长
+        # 只在超过安全上限时才截断，高度按上限封顶
         import io
         from PIL import Image
         img = Image.open(io.BytesIO(png))
-        self.assertEqual(img.height, nodeboard.BOARD_H * nodeboard.MAX_BOARDS)
+        self.assertEqual(img.height, nodeboard.ROW_H * nodeboard.MAX_BOARDS + 12)
 
 
 if __name__ == "__main__":

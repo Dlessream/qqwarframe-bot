@@ -608,7 +608,8 @@ def _world_reply(title: str, subtitle: str, headers, rows,
 
     def _image():
         if entries:
-            board = nodeboard.render(entries, scene or "fissure")
+            board = nodeboard.render(entries, scene or "fissure",
+                                     title=title, subtitle=subtitle)
             if board:
                 return board
         head = list(headers)
@@ -1364,6 +1365,12 @@ def fissures_reply(raw, hard: bool = False) -> Reply:
                  if not item.get("isHard") and not item.get("isStorm")
                  and parse_timestamp(item.get("expiry")) > now]
     node_entries = []
+    # 按遗物等级（古纪→前纪→中纪→后纪→全能→安魂）再按剩余时间排序，
+    # 条目多时也能一眼扫完，和游戏内裂缝列表的顺序一致。
+    tier_order = {"Lith": 1, "Meso": 2, "Neo": 3, "Axi": 4,
+                  "Omnia": 5, "Requiem": 6, "Void": 7}
+    items.sort(key=lambda item: (tier_order.get(str(item.get("tier") or ""), 9),
+                                 parse_timestamp(item.get("expiry"))))
     for row in items:
         enemy_raw = str(row.get("enemy") or "—")
         node_cn = terms.localize_node(str(row.get("node") or "—"))

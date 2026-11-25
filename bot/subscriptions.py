@@ -711,8 +711,12 @@ class SubscriptionService:
             fresh = [event for event in events
                      if event["key"] not in seen and _match(sub.keyword, event["text"])]
             if fresh and sub.active:
+                # 裂缝/九重天一轮可能同时新增多条，截断后又被标记已见会永久丢失，
+                # 所以这两类不做条数限制（卡片本身按条目数自适应高度）。
+                limit = len(fresh) if sub.kind in ("fissure", "storm") \
+                    else self.push_limit
                 try:
-                    replies = self.render(sub.kind, fresh[:self.push_limit])
+                    replies = self.render(sub.kind, fresh[:limit])
                 except Exception as exc:  # noqa: BLE001
                     self.log.warning("订阅出图失败（%s）：%s", sub.kind, exc)
                     replies = []

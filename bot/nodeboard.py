@@ -1,10 +1,11 @@
 """节点背景板风格的推送卡片。
 
-每个节点一条「背景板」：游戏内任务场景铺底 + 该节点所属派系的透明徽记
-（居中）+ 任务类型 / 遗物等级 / 节点名 / 派系+等级 / 剩余时间，全部居中对齐。
+每个节点一行：左侧是该节点所属星球+派系的游戏内任务场景缩略图，右侧是
+节点名 / 任务类型 / 遗物等级 / 派系+等级 / 剩余时间。行高固定，条目多时
+只增加图片高度、绝不截断——裂缝、钢铁裂缝、九重天、仲裁排期都要出全量。
 
-设计来源：用户提供的游戏内节点界面截图。徽记严格使用游戏原图/等比例重绘，
-不做艺术改动；奥罗金徽记由游戏截图抠出（bot/assets/factions/orokin.png）。
+徽记严格使用游戏原图/等比例重绘，不做艺术改动；奥罗金徽记由游戏截图
+抠出（bot/assets/factions/orokin.png）。
 
 Pillow 不可用时返回 None，由上层降级为原表格卡。
 """
@@ -24,11 +25,13 @@ except Exception:  # pragma: no cover
     ImageFont = None  # type: ignore
     PIL_AVAILABLE = False
 
-from . import scenebg, tilesets
+from . import tilesets
 
 WIDTH = 860
-BOARD_H = 400          # 单节点背景板高度
-MAX_BOARDS = 4         # 一次推送最多堆叠的节点数（避免图片过高）
+ROW_H = 140            # 单行高度（紧凑行，保证一屏能看全十条以上）
+MAX_BOARDS = 40        # 安全上限：正常实时数据远小于此，超出才会截断
+HEAD_H = 112           # 有标题时的头部高度
+THUMB_W, THUMB_H = 168, 96
 CX = WIDTH // 2
 
 _FAC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -111,127 +114,177 @@ def _center_text(draw, text, cy, fnt, fill) -> None:
     draw.text((x, y), text, font=fnt, fill=fill)
 
 
-def _scene_tile(bg, top: int, height: int, tile_h: int):
-    """把一张场景图按 cover 方式裁成 (WIDTH, tile_h) 贴到 canvas 的 top 处。"""
+def _fit(draw, text, fnt, max_w: int) -> str:
+    """超宽文字截断加省略号。"""
+    text = str(text or "")
+    if max_w <= 0:
+        return ""
+    try:
+        if draw.textlength(text, font=fnt) <= max_w:
+            return text
+        while text and draw.textlength(text + "…", font=fnt) > max_w:
+            text = text[:-1]
+    except Exception:  # pragma: no cover - 老版本 Pillow
+        return text
+    return (text + "…") if text else "…"
+
+
+def _left_text(draw, x, cy, text, fnt, fill) -> int:
+    """左对齐、垂直居中绘制，返回文字宽度。"""
+    b = draw.textbbox((0, 0), text, font=fnt)
+    draw.text((x - b[0], cy - (b[3] - b[1]) // 2 - b[1]),
+              text, font=fnt, fill=fill)
+    return b[2] - b[0]
+
+
+def _right_text(draw, right, cy, text, fnt, fill) -> int:
+    """右对齐、垂直居中绘制，返回文字宽度。"""
+    b = draw.textbbox((0, 0), text, font=fnt)
+    w = b[2] - b[0]
+    draw.text((right - w - b[0], cy - (b[3] - b[1]) // 2 - b[1]),
+              text, font=fnt, fill=fill)
+    return w
+
+
+def _tier_pill(draw, x, cy, text, max_w: int = 0) -> int:
+    """遗物等级胶囊，返回宽度；超宽时先缩字号再截断，保证任务列能对齐。"""
+    fnt = _font(17, bold=True)
+    if max_w:
+        b = draw.textbbox((0, 0), text, font=fnt)
+        if b[2] - b[0] + 24 > max_w:
+            fnt = _font(15, bold=True)
+        b = draw.textbbox((0, 0), text, font=fnt)
+        if b[2] - b[0] + 20 > max_w:
+            text = _fit(draw, text, fnt, max_w - 22)
+    b = draw.textbbox((0, 0), text, font=fnt)
+    tw, th = b[2] - b[0], b[3] - b[1]
+    px, py = 12, 6
+    box = (x, cy - (th + 2 * py) // 2,
+           x + tw + 2 * px, cy + (th + 2 * py) // 2)
+    draw.rounded_rectangle(box, radius=(th + 2 * py) // 2,
+                           fill=(14, 56, 66), outline=(92, 206, 214), width=1)
+    draw.text((x + px - b[0], box[1] + py - b[1]), text, font=fnt,
+              fill=(158, 236, 240))
+    return tw + 2 * px
+
+
+def _thumb(bg, w: int = THUMB_W, h: int = THUMB_H):
+    """把场景图裁成圆角缩略图（cover + 暗色蒙版）。"""
     bw, bh = bg.size
-    scale = max(WIDTH / float(bw), tile_h / float(bh))
-    nw, nh = max(WIDTH, int(bw * scale)), max(tile_h, int(bh * scale))
-    scaled = bg.resize((nw, nh), Image.LANCZOS).convert("RGBA")
-    left = (nw - WIDTH) // 2
-    off = (nh - tile_h) // 2
-    # 限制在目标板高度内，避免溢出到相邻节点
-    tile = scaled.crop((left, off, left + WIDTH, off + tile_h))
-    veil = Image.new("RGBA", (WIDTH, tile_h), (0, 0, 0, 0))
-    vd = ImageDraw.Draw(veil, "RGBA")
-    for y in range(tile_h):
-        a = int(112 + 72 * (y / max(1, tile_h - 1)))
-        vd.line([(0, y), (WIDTH, y)], fill=(6, 10, 17, a))
-    return Image.alpha_composite(tile, veil)
+    scale = max(w / float(bw), h / float(bh))
+    nw, nh = max(w, int(bw * scale)), max(h, int(bh * scale))
+    img = bg.resize((nw, nh), Image.LANCZOS).convert("RGBA")
+    left, top = (nw - w) // 2, (nh - h) // 2
+    img = img.crop((left, top, left + w, top + h))
+    img = Image.alpha_composite(img, Image.new("RGBA", (w, h), (8, 12, 20, 44)))
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1),
+                                           radius=12, fill=255)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
 
 
-def _board_canvas(scene: str, height: int, entries=None):
-    """每块板按自己节点的星球+派系铺对应场景图；无条目时回退整卡场景。
+def _scene_of(entry: dict):
+    """按节点原始名 + 节点原生阵营选场景图。
 
-    entries 提供时，逐块用 tilesets.scene_image() 选图并贴到对应板区；
-    否则（兼容旧调用）用 scenebg 的整卡场景。
+    裂缝里敌人虽统一显示堕落者，场景贴图仍应是该星球原本的 tile set
+    （赤毒要塞不能套成奥罗金金厅）。
     """
-    from . import imagecard
-    canvas = imagecard._gradient(WIDTH, height, imagecard.BG_TOP,
-                                 imagecard.BG_BOTTOM).convert("RGBA")
-    if entries:
-        for i, entry in enumerate(entries):
-            # 优先用原始英文名（含星球括号）提取星球，回退到中文显示名；
-            # 派系优先用节点原生阵营——裂缝里敌人虽显示堕落者，场景贴图
-            # 仍应是该星球原本的 tile set（赤毒要塞不是 Orokin 金厅）。
-            name = str(entry.get("node_raw") or "") or str(entry.get("node") or "")
-            faction_key = str(entry.get("native_faction")
-                              or entry.get("faction") or "")
-            key = tilesets.scene_key(name, faction_key)
-            bg = tilesets.scene_image(key)
-            if bg is not None and PIL_AVAILABLE:
-                tile = _scene_tile(bg, i * BOARD_H, height, BOARD_H)
-                canvas.alpha_composite(tile, (0, i * BOARD_H))
-        return canvas
-    # 兼容旧调用：整卡一张场景
-    bg = scenebg.scene_image(scene) if scene else None
-    if bg is None:
-        return canvas
-    bw, bh = bg.size
-    scale = max(WIDTH / float(bw), height / float(bh))
-    nw, nh = max(WIDTH, int(bw * scale)), max(height, int(bh * scale))
-    scaled = bg.resize((nw, nh), Image.LANCZOS).convert("RGBA")
-    left = (nw - WIDTH) // 2
-    top = (nh - height) // 2
-    image = scaled.crop((left, top, left + WIDTH, top + height))
-    veil = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
-    vd = ImageDraw.Draw(veil, "RGBA")
-    for y in range(height):
-        a = int(112 + 72 * (y / max(1, height - 1)))
-        vd.line([(0, y), (WIDTH, y)], fill=(6, 10, 17, a))
-    return Image.alpha_composite(image, veil)
+    name = str(entry.get("node_raw") or "") or str(entry.get("node") or "")
+    faction_key = str(entry.get("native_faction") or entry.get("faction") or "")
+    return tilesets.scene_image(tilesets.scene_key(name, faction_key))
 
 
-def _draw_board(canvas, top: int, entry: dict) -> None:
-    """在 canvas 的 [top, top+BOARD_H) 区域画一块节点背景板。"""
-    h = BOARD_H
-    # 徽记居中偏上，半透明融入场景
-    em = _emblem(entry.get("faction", ""))
-    if em is not None:
-        size = 168
-        e = em.resize((size, size), Image.LANCZOS) if em.size != (size, size) else em
-        canvas.alpha_composite(e, (CX - size // 2, top + 8))
+def _draw_row(canvas, top: int, entry: dict) -> None:
+    """在 canvas 的 [top, top+ROW_H) 区域画一行节点信息。"""
+    # 半透明底板必须画在独立的透明图层再合成：Pillow 的 rounded_rectangle
+    # 遇到四元组颜色会直接覆盖像素 alpha，转 RGB 后会变成一块白板。
+    panel = Image.new("RGBA", (WIDTH, ROW_H), (0, 0, 0, 0))
+    ImageDraw.Draw(panel, "RGBA").rounded_rectangle(
+        (16, 5, WIDTH - 16, ROW_H - 7), radius=16,
+        fill=(255, 255, 255, 16), outline=(255, 255, 255, 30), width=1)
+    canvas.alpha_composite(panel, (0, top))
+
+    bg = _scene_of(entry)
+    if bg is not None and PIL_AVAILABLE:
+        thumb = _thumb(bg)
+        canvas.alpha_composite(thumb, (26, top + (ROW_H - THUMB_H) // 2))
 
     d = ImageDraw.Draw(canvas)
-    steel = bool(entry.get("steel"))
-    node = str(entry.get("node") or "—")
-    mission = str(entry.get("mission") or "—")
-    tier = str(entry.get("tier") or "").strip()
-    level = str(entry.get("level") or "").strip()
-    enemy = faction_en(entry)
+
+    x = 26 + THUMB_W + 18
+    right = WIDTH - 34
+    cy1 = top + 46
+    cy2 = top + 96
+
+    # 第一行：节点名（左） + 剩余时间（右）
     remaining = str(entry.get("remaining") or "").strip()
-
-    header = ("钢铁裂缝 · " if steel else "") + node
-    _center_text(d, header, top + 196, _font(24, bold=True), (235, 188, 96))
-    _center_text(d, mission, top + 230, _font(29, bold=True), (242, 245, 250))
-
-    if tier:
-        tf = _font(19, bold=True)
-        b = d.textbbox((0, 0), tier, font=tf)
-        tw, th = b[2] - b[0], b[3] - b[1]
-        ty = top + 262
-        px, py = 18, 7
-        d.rounded_rectangle((CX - tw // 2 - px, ty - py,
-                             CX + tw // 2 + px, ty + th + py),
-                            radius=13, fill=(14, 56, 66),
-                            outline=(92, 206, 214), width=1)
-        d.text((CX - tw // 2 - b[0], ty - b[1]), tier, font=tf,
-               fill=(158, 236, 240))
-
-    meta_parts = [p for p in ((enemy if enemy else ""),
-                              ("等级 " + level if level else "")) if p]
-    if meta_parts:
-        _center_text(d, " · ".join(meta_parts), top + 316, _font(21),
-                     (214, 223, 236))
+    rem_w = 0
     if remaining:
-        _center_text(d, "剩余 " + remaining, top + h - 30, _font(22, bold=True),
-                     (235, 188, 96))
+        rem_w = _right_text(d, right, cy1, "剩余 " + remaining,
+                            _font(20, bold=True), (235, 188, 96))
+    node_font = _font(24, bold=True)
+    node = _fit(d, str(entry.get("node") or "—"), node_font,
+                right - x - rem_w - 24)
+    _left_text(d, x, cy1, node, node_font, (242, 245, 250))
+
+    # 第二行右侧：徽记 + 派系英文 + 等级
+    enemy = faction_en(entry)
+    level = str(entry.get("level") or "").strip()
+    meta = " · ".join(part for part in (
+        enemy, ("等级 " + level) if level else "") if part)
+    meta_font = _font(16)
+    meta_w = int(d.textlength(meta, font=meta_font)) if meta else 0
+    em = _emblem(str(entry.get("native_faction") or entry.get("faction") or ""))
+    em_size = 26
+    group_w = meta_w + ((em_size + 8) if (em is not None and meta) else 0)
+    gx = right - group_w
+    if em is not None and meta:
+        canvas.alpha_composite(em.resize((em_size, em_size), Image.LANCZOS),
+                               (gx, cy2 - em_size // 2))
+        gx += em_size + 8
+    if meta:
+        _left_text(d, gx, cy2, meta, meta_font, (198, 210, 228))
+
+    # 第二行左侧：遗物等级胶囊 + 任务类型
+    # 胶囊占固定宽度（190px），任务列从固定位置开始，各行才能对齐成一条线。
+    tier = str(entry.get("tier") or "").strip()
+    mission_x = x + 190
+    if tier:
+        _tier_pill(d, x, cy2, tier, max_w=mission_x - x - 6)
+    mission = str(entry.get("mission") or "—")
+    mission_font = _font(21, bold=True)
+    _left_text(d, mission_x, cy2,
+               _fit(d, mission, mission_font, right - group_w - 18 - mission_x),
+               mission_font, (228, 234, 246))
 
 
-def render(entries: Sequence[Dict], scene: str = "fissure") -> Optional[bytes]:
-    """把节点列表渲染为纵向堆叠的背景板卡片 PNG。失败返回 None。"""
+def render(entries: Sequence[Dict], scene: str = "fissure",
+           title: str = "", subtitle: str = "") -> Optional[bytes]:
+    """把节点列表渲染为 PNG 卡片；条目全量出图，不截断。失败返回 None。"""
     if not PIL_AVAILABLE or not entries:
         return None
     import io
 
+    from . import imagecard
+
     items = list(entries)[:MAX_BOARDS]
-    height = BOARD_H * len(items)
-    canvas = _board_canvas(scene, height, entries=items).convert("RGBA")
-    for i, entry in enumerate(items):
-        if i:
-            d = ImageDraw.Draw(canvas)
-            d.line([(0, i * BOARD_H), (WIDTH, i * BOARD_H)],
-                   fill=(210, 220, 235, 70), width=2)
-        _draw_board(canvas, i * BOARD_H, entry)
+    head = HEAD_H if title else 0
+    height = head + ROW_H * len(items) + 12
+    canvas = imagecard._gradient(WIDTH, height, imagecard.BG_TOP,
+                                 imagecard.BG_BOTTOM).convert("RGBA")
+    draw = ImageDraw.Draw(canvas)
+    if title:
+        title_font = _font(38, bold=True)
+        _center_text(draw, _fit(draw, title, title_font, WIDTH - 80), 46,
+                     title_font, (242, 245, 250))
+        if subtitle:
+            sub_font = _font(17)
+            _center_text(draw, _fit(draw, subtitle, sub_font, WIDTH - 100), 88,
+                         sub_font, (172, 184, 208))
+    for index, entry in enumerate(items):
+        _draw_row(canvas, head + index * ROW_H, entry)
     buf = io.BytesIO()
     canvas.convert("RGB").save(buf, format="PNG")
     return buf.getvalue()

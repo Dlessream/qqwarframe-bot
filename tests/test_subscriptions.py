@@ -219,6 +219,21 @@ class ServiceTest(unittest.TestCase):
         self.assertNotIn("Mantle", reply.text)         # 只推新增的那条
         self.assertEqual(self.service.poll(), [])      # 不重复推
 
+    def test_many_new_fissures_not_truncated(self):
+        """一轮新增多条裂缝时不能按 push_limit 截断，否则会被标记已见后丢失。"""
+        self.world.fissure_rows = [fissure(ident="base")]
+        sub, _ = self.store.add("group", "1", "9", "fissure")
+        self.service.seed(sub)
+        self.service.poll()
+        rows = [fissure(ident="base")]
+        rows += [fissure(ident="n%d" % i, node="Node %d" % i) for i in range(10)]
+        self.world.fissure_rows = rows
+        pushes = self.service.poll()
+        self.assertEqual(len(pushes), 1)
+        reply = pushes[0][1]
+        for i in range(10):
+            self.assertIn("Node %d" % i, reply.text)
+
     def test_eidolon_night_and_speed_events(self):
         now = time.time()
         self.world.fields[""] = {"cetusCycle": {

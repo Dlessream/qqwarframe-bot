@@ -177,6 +177,20 @@ class WorldPresentTest(unittest.TestCase):
         self.assertEqual(present._relic_tier_label("全能"), "全能裂缝 · 任意遗物")
         self.assertEqual(present._relic_tier_label("古纪"), "古纪遗物 · T1")
 
+    def test_fissure_rows_sorted_by_tier(self):
+        """裂缝按遗物等级（古纪→后纪→全能→安魂）排序，方便扫读。"""
+        raw = [
+            {"tier": "Requiem", "missionType": "Defense", "node": "ReqNode",
+             "enemy": "Corrupted", "expiry": "2030-01-01T00:00:00Z"},
+            {"tier": "Axi", "missionType": "Defense", "node": "AxiNode",
+             "enemy": "Corrupted", "expiry": "2030-01-01T00:00:00Z"},
+            {"tier": "Lith", "missionType": "Capture", "node": "LithNode",
+             "enemy": "Corrupted", "expiry": "2030-01-01T00:00:00Z"},
+        ]
+        reply = present.fissures_reply(raw)
+        order = [reply.text.index(name) for name in ("LithNode", "AxiNode", "ReqNode")]
+        self.assertEqual(order, sorted(order))
+
     def test_circuit_shows_chinese_names(self):
         """无尽回廊的战甲写玩家别名 + 英文，武器写国服中文名。"""
         reply = present.circuit_reply({
