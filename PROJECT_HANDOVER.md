@@ -494,3 +494,29 @@ db/schema.sql / db/build.py  本次数据库建设产物
 - 卡片发送走「素材 + Markdown」，`_deliver` 返回 True 即图文与按钮同一条消息；素材路径失败才退回
   「富媒体图片 + 带键盘短文本」。
 - 复现脚本：`probe_wm_buttons.py`（命令层 + 渲染）、`send_real_wm_card.py`（往测试群真发一张卡）。
+
+### 按钮往返点击验证（2026-11-25 23:00）
+
+走**真实调用点** `app._on_interaction`（不是直调 `handle_button`），只把 `_deliver` 换成记录器：
+
+```
+主卡 #查 Mesa Prime 一套  3.09s  82,804 字节  按钮 True  hint=▼ 行情走势 · 私聊话术
+1. 行情     0.10s  图 46,278  按钮 True  同 token  被动回复 id 正确
+2. 对话文本 0.00s  纯文本     按钮 True  同 token  被动回复 id 正确
+3. 行情     0.09s  图 46,278  按钮 True  同 token  被动回复 id 正确
+4. 对话文本 0.00s  纯文本     按钮 True  同 token  被动回复 id 正确
+四次形态：['图+按钮', '纯文本+按钮', '图+按钮', '纯文本+按钮']，token 全程一致
+```
+
+结论：两个按钮可无限次来回切，token 不消耗、子卡都带全套按钮，纯文本回复（话术）也会把键盘
+挂在最后一段；`reply_ctx["event_id"]` 就是本次 interaction_id（被动回复不会串）。
+
+**踩坑备忘（下次别再被误导）**：`BotApp` 默认读的是 `config.json` 里的**真实白名单**，
+脚本里改 `blacklist_groups` 不够，`whitelist_groups` 非空时测试群 ID 会被 `_group_allowed`
+拦掉、表现为「点了没任何回复」。探测脚本要同时清空白名单或直接换成配置里的群 ID。
+
+**已知限制**：按钮上下文 token 存在**进程内存**（`_button_contexts`，30 分钟过期）。
+从一次性脚本发的卡片（如 `send_real_wm_card.py`）token 随进程消失，真机点会提示
+「按钮已过期」——这是预期行为，不是 bug。真机验证要让**在线机器人**发卡：群里发
+`#查 Mesa Prime 一套`，再点按钮。若要让旧卡片/重启后仍可点，需要把 token 做成自包含
+（slug + platform，点击时重新查市场）。
