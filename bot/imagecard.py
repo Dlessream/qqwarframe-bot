@@ -538,27 +538,34 @@ def item_card(item, sell, buy, stats, platform_label: str = "PC",
 
 
 def _nice_ticks(low: float, high: float, target: int = 4):
-    """把 [low, high] 扩成 3~6 个整齐刻度（步长取 1/2/2.5/5 × 10^n）。"""
-    if high <= low:
-        high = low + 1
-    pad = (high - low) * 0.12
-    low, high = max(0.0, low - pad), high + pad
-    raw = (high - low) / max(1, target - 1)
-    magnitude = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
+    """在 [low, high] 里取 3~5 个整齐刻度（步长 1/2/2.5/5 × 10^n）。
+
+    只返回区间内部的整数刻度，不强行把坐标轴拉到 0：这样 20~70p 的
+    物品不会因为「取整到 0」白占掉半张图。
+    """
+    span = max(0.001, high - low)
+    raw = span / max(1, target)
+    magnitude = 10 ** math.floor(math.log10(raw))
     step = magnitude
     for multiplier in (1, 2, 2.5, 5, 10):
         step = magnitude * multiplier
         if step >= raw:
             break
-    start = math.floor(low / step) * step
-    ticks = []
-    index = 0
-    while index < 8:
-        value = start + index * step
-        if value > high + step * 0.5:
+    step = max(step, 1.0)  # 白金都是整数，刻度优先按 1p 起步
+    ticks: List[float] = []
+    for _attempt in range(3):
+        start = math.ceil(low / step) * step
+        ticks = []
+        index = 0
+        while index < 8:
+            value = start + index * step
+            if value > high + step * 1e-6:
+                break
+            ticks.append(round(value, 4))
+            index += 1
+        if len(ticks) >= 3:
             break
-        ticks.append(round(value, 4))
-        index += 1
+        step /= 2.0
     return ticks, step < 1
 
 
@@ -587,11 +594,10 @@ def _ladder_chart(content, draw, y: int, points, accent=GOLD) -> int:
     high = max(max(highs), max(avgs))
     if high <= low:
         high = low + 1
+    pad = (high - low) * 0.16
+    low = max(0.0, low - pad)
+    high = high + pad * 0.85
     ticks, decimal = _nice_ticks(low, high)
-    if len(ticks) >= 2:
-        low, high = ticks[0], ticks[-1]
-    else:  # pragma: no cover - 防御
-        ticks, decimal = [low, high], False
     span = max(0.001, high - low)
 
     def vy(value: float) -> float:
