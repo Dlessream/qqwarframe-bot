@@ -786,9 +786,13 @@ wm 电男头
   - 源码目录（有 `.git`）执行 `git pull --ff-only`；
   - Docker/发布包（无 `.git`）自动下载 GitHub 最新源码包，备份旧 `bot/web`，
     替换代码但**保留 `config.json`、`data/aliases.json`、缓存、日志**，然后自动重启进程；
-  - 源码包依次尝试 `codeload.github.com`、`github.com/archive`、GitHub API tarball，
+  - 下载走流式写入并实时上报进度，后台线程执行，控制台按“步骤 + 百分比 + MB”轮询显示，
+    不会再把按钮卡在“更新中…”；
+  - 源码包优先走加速镜像 `ghfast.top`（实测 1.8 MB/s，直连 GitHub 只有 10~40 KB/s），
+    失败再依次回落 `codeload.github.com`、`github.com/archive`、GitHub API tarball，
     并支持代理候选回退，单条线路超时不会拖死整次更新；
-  - 网络环境特殊时可在 `web.update.archive_urls` 配置镜像地址（支持 `{repo}` / `{branch}` 占位）；
+  - 网络环境特殊时可在 `web.update.archive_urls` 配置镜像地址（支持 `{repo}` / `{branch}` 占位；
+    一旦显式配置，就完全按配置的顺序尝试，不再自动加加速镜像）；
 - 自更新失败会自动回滚并给出手动命令，不会把服务卡死。
 
 Docker 更新（会写入当前 git commit）：
