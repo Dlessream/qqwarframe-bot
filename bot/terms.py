@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+from typing import Dict, Optional
 
 from . import wiki_zh
 
@@ -116,29 +118,67 @@ STORM_REGIONS = {
     "Pluto": "冥王星比邻星域", "Veil": "面纱比邻星域",
 }
 
+#: 航道星舰（九重天）节点译名：官方中文客户端的星图名。
+#: 官方 PublicExport 不含比邻星域，因此这份表按官方更新公告 / 中文 wiki 的
+#: DropTable 词表逐条维护——公告里出现的都是客户端原文，例如
+#: 「金星比邻星域：全新的生存任务节点，无垠华盖」「外域星轴现在是间谍节点」。
 STORM_NODES = {
+    # 地球 / 金星比邻星域
+    "Sover Strait": "深眠峡道",
     "Bendar Cluster": "本达尔星团",
+    "Iota Temple": "虚无神殿",
+    "Ogal Cluster": "奥加尔星团",
+    "Posit Cluster": "异想星团",
+    "Rian Belt": "莱安地带",
+    "Nodo Gap": "诺朵星峡",
+    "Vand Cluster": "水域星团",
+    "Korm's Belt": "克姆地带",
+    "Minhast Station": "敏哈斯特站点",
+    "Phanghoul Satellites": "畔诡卫星",
+    "Jex Lanes": "杰克斯之道",
     "Beacon Shield Ring": "卫标星环",
     "Enkidu Ice Drifts": "初裔冰渍区",
-    "Vand Cluster": "水域星团",
-    "Profit Margin": "利益外缘",
-    "H-2 Cloud": "H-2 星云",
+    "Vesper Strait": "维斯珀峡道",
+    "Bifrost Echo": "虹桥回声",
     "Nu-gua Mines": "女娲之矿",
-    "Ogal Cluster": "奥加尔星团",
-    "Mordo Cluster": "魔多星团",
     "Orvin-Haarc": "欧文－哈克",
-    "Seven Sirens": "七魅之息",
+    "Luckless Expanse": "无垠华盖",
+    # 土星 / 海王星比邻星域
+    "Lupal Pass": "卢帕星道",
+    "Vila Gap": "暂息星峡",
+    "Spiro Gap": "斯旋星峡",
+    "Mordo Cluster": "魔多星团",
+    "H-2 Cloud": "H-2 星云",
     "R-9 Cloud": "R-9 星云",
-    "Brom Cluster": "布罗姆星团",
-    "Sambir Cloud": "桑比尔星云",
-    "Fenton's Field": "芬顿原野",
-    "Lu-yan": "露燕",
-    "Obol Crossing": "欧泊十字",
+    "Nsu Grid": "恩斯尤区格",
+    "Brom Cluster": "薄暮星团",
+    "Arva Vector": "时空坐标",
+    "Falling Glory": "落没之耀",
+    "Sovereign Grasp": "星主之握",
+    "Mammon's Prospect": "诱惑之景",
+    # 冥王星 / 面纱比邻星域
+    "Profit Margin": "利益外缘",
+    "Seven Sirens": "七魅之息",
+    "Obol Crossing": "冥渡",
+    "Peregrine Axis": "外域星轴",
+    "Khufu Envoy": "胡夫之遣",
+    "Fenton's Field": "芬顿之地",
+    "Ruse War Field": "诡道战场",
+    "Ganalen's Grave": "加纳仑之墓",
+    "Kasio's Rest": "卡希欧安息处",
     "Sjur Hive": "斯尤尔巢穴",
-    "Kasio's Rest": "卡西奥安息处",
-    "Luckless Expanse": "不遇荒原",
+    "Lu-yan": "鹿岩",
+    "Numina": "努秘",
+    "Calabash": "蒲芦",
+    "Arc Silver": "曲银之地",
+    "Erato": "深情之域",
+    "Sabmir Cloud": "萨米尔星云",
     "Tamavas": "塔玛瓦斯",
     "Beaconsfield": "比肯斯菲尔德",
+    "Rya": "莱亚",
+    "Flexa": "弗雷沙",
+    "Gian Point": "吉安点",
+    "Free Flight": "自由航行",
 }
 
 STORM_MISSIONS = {
@@ -155,9 +195,9 @@ def localize_storm_node(text: str) -> str:
     raw = str(text or "").strip()
     match = re.match(r"^(.*?)\s*\(([^()]+)\)$", raw)
     if not match:
-        return STORM_NODES.get(raw, localize_node(raw))
+        return _localize_node_name(raw)
     name, region = match.group(1).strip(), match.group(2).strip()
-    localized_name = STORM_NODES.get(name, name)
+    localized_name = _localize_node_name(name)
     localized_region = STORM_REGIONS.get(region, localize_location(region))
     return "%s - %s" % (localized_region, localized_name)
 
@@ -455,17 +495,72 @@ PLACES = {
 
 
 def localize_node(text: str) -> str:
-    """Vallis (Mars) → Vallis（火星）。"""
+    """Apollodorus (Mercury) → 阿波罗多罗斯撞击坑（水星）。
+
+    节点名优先查官方简体中文客户端的星图名（`data/node_names_zh.json`，
+    由 `tools/build_node_names.py` 从 DE 公开导出生成）；官方没汉化的节点
+    （Tessera、Venera…）保持英文，与玩家在游戏里看到的完全一致，不臆造译名。
+    航道星舰节点另见 `STORM_NODES`。
+    """
     if not text:
         return ""
-    text = text.replace("(", "（").replace(")", "）")
+    raw = str(text or "").strip().replace("(", "（").replace(")", "）")
+    match = re.match(r"^(.*?)（([^（）]+)）$", raw)
+    if not match:
+        return _localize_node_name(raw)
+    name, place = match.group(1).strip(), match.group(2).strip()
+    return "%s（%s）" % (_localize_node_name(name),
+                        _localize_place(place, storm=name in STORM_NODES))
+
+
+def _localize_place(place: str, storm: bool = False) -> str:
+    """括号里的地点：比邻星域/星球/中继站都要能认。
+
+    九重天节点的括号是比邻星域（Earth → 地球比邻星域），普通节点的括号是
+    星球（Earth → 地球），所以要先按节点类型决定优先查哪张表。
+    """
+    raw = str(place or "").strip()
+    if not raw:
+        return ""
+    tables = (STORM_REGIONS, PLANETS) if storm else (PLANETS, STORM_REGIONS)
+    for table in tables:
+        if raw in table:
+            return table[raw]
+    return localize_location(raw)
+
+
+def _localize_node_name(name: str) -> str:
+    """节点名本体 → 中文；查不到就保留英文原名。"""
+    raw = str(name or "").strip()
+    if not raw:
+        return ""
+    hit = STORM_NODES.get(raw) or _node_names_zh().get(raw)
+    if hit:
+        return hit
+    # 兜底：地名子串（Necralisk / Cambion Drift 这类）
+    result = raw
     for english, chinese in PLACES.items():
-        if english.lower() in text.lower():
-            text = re.sub(re.escape(english), chinese, text, flags=re.I)
+        if english.lower() in result.lower():
+            result = re.sub(re.escape(english), chinese, result, flags=re.I)
+    return result
 
-    def replace_planet(match):
-        name = match.group(1)
-        return "（%s）" % PLANETS.get(name, name)
 
-    text = re.sub(r"（([A-Za-z ]+)）", replace_planet, text)
-    return re.sub(r"\s+（", "（", text).strip()
+_NODE_NAMES_ZH: Optional[Dict[str, str]] = None
+
+
+def _node_names_zh() -> Dict[str, str]:
+    """官方星图节点译名（只在首次调用时读盘，失败就当空表）。"""
+    global _NODE_NAMES_ZH
+    if _NODE_NAMES_ZH is None:
+        data: Dict[str, str] = {}
+        try:
+            from . import datafiles
+
+            with open(datafiles.resolve("data/node_names_zh.json"),
+                      encoding="utf-8") as handle:
+                raw = json.load(handle).get("nodes") or {}
+            data = {str(k): str(v) for k, v in raw.items() if v}
+        except Exception:  # 文件缺失/损坏都不该拖垮推送
+            data = {}
+        _NODE_NAMES_ZH = data
+    return _NODE_NAMES_ZH

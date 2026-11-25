@@ -316,3 +316,24 @@ db/schema.sql / db/build.py  本次数据库建设产物
   合并后重建容器；GitHub 最终推送成功（`be87a0c..7bef93c`）。
 - 注意：去水印采用「同图上方画面羽化覆盖」而非 OpenCV（本机 pip 装不上 cv2），
   放大检查右下角已无「AI生成 / WORKBUDDY」字样。
+
+## 星图节点译名（2026-11-25）
+
+- **普通星图节点**：译名来自 DE 公开导出（`content.warframe.com/PublicExport/`
+  的 `ExportRegions_{en,zh}.json`，按 `uniqueName` 对齐），即**官方简体中文
+  客户端里显示的名字**。已落到 `data/node_names_zh.json`（76 条，只收
+  「中文名≠英文名」的节点），由 `tools/build_node_names.py` 生成，
+  `python tools/build_node_names.py --check` 可校验是否需要更新。
+- **注意**：官方中文客户端里**大部分节点仍然显示英文原名**（Tessera、Venera、
+  Nabuk、Cambria…），这些不要去音译，否则卡片会和游戏内对不上。真正汉化过的
+  例如 Apollodorus→阿波罗多罗斯撞击坑、Mithra→光理塔、Tharsis→萨西斯高原、
+  Tuvul Commons→涂沃主厅。
+- **航道星舰（九重天）节点**：官方导出不含比邻星域，译名手工维护在
+  `bot/terms.py` 的 `STORM_NODES`（来源：官方更新公告 + 灰机 wiki DropTable
+  词表，如「金星比邻星域：全新的生存任务节点，无垠华盖」）。整体 57 条，
+  形状为 `地球比邻星域 - 克姆地带`。
+- 实现：`terms.localize_node()` 拆「名字（括号地点）」→ 名字查
+  `STORM_NODES` / `_node_names_zh()`，地点查 `PLANETS`（普通节点）或
+  `STORM_REGIONS`（九重天节点，按名字是否在 `STORM_NODES` 判定）。
+  `data/node_names_zh.json` 已加入 Dockerfile 的 `builtin-data` 打包清单
+  （宿主机 `./data` 挂载缺文件时的兜底）。

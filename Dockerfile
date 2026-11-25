@@ -43,7 +43,8 @@ RUN mkdir -p /app/builtin-data \
                 bounty_objectives.json bounty_rewards.json bounty_static.json \
                 bounty_rotations.json \
                 names_zh.json wiki_zh.json frame_nicknames.json warframe_alias.json \
-                aliases.json component_aliases.json frame_aliases.json sol_nodes.json; do \
+                aliases.json component_aliases.json frame_aliases.json sol_nodes.json \
+                node_names_zh.json; do \
          if [ -f "/app/data/$f" ]; then cp "/app/data/$f" /app/builtin-data/; fi; \
        done
 

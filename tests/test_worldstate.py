@@ -101,7 +101,8 @@ class ArbitrationTest(unittest.TestCase):
         payload = {"node": "Mithra (Void)", "type": "Defense",
                    "enemy": "Corpus", "expiry": future(600)}
         arbitration = make_client(payload).arbitration()
-        self.assertEqual(arbitration.node, "Mithra（虚空）")
+        # 官方中文客户端里 Mithra 已汉化为「光理塔」，卡片与游戏内保持一致
+        self.assertEqual(arbitration.node, "光理塔（虚空）")
         self.assertEqual(arbitration.mission, "防御")
         self.assertEqual(arbitration.enemy, "科普斯")
 
