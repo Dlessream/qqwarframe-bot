@@ -77,12 +77,17 @@ class WeaponTableTest(unittest.TestCase):
         self.assertEqual(weapons["rubico"].disposition_label, "低")
         self.assertEqual(weapons["soma"].disposition_label, "中")
 
-    def test_disposition_override(self):
+    def test_disposition_override_keeps_weapon_values(self):
+        """配置里的「统一倾向」只作用于分组视图，不能改写武器自己的倾向。
+
+        以前这里会把 1.2 写进每个 RivenWeapon，单把武器的区间跟着整体偏移
+        （1.3 的武器被当成 1.2），数值看着不准、严重的还会被判超范围。
+        """
         client = RivenClient(FakeMarket(), disposition_override=1.2)
         weapons = client.weapons()
-        for weapon in weapons.values():
-            self.assertEqual(weapon.disposition, 1.2)
-            self.assertEqual(weapon.disposition_label, "中")
+        self.assertEqual(client.disposition_override, 1.2)
+        self.assertEqual(weapons["rubico"].disposition, 0.95)
+        self.assertEqual(weapons["rubico"].disposition_label, "低")
 
     def test_cache(self):
         market = FakeMarket()

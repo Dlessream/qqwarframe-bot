@@ -516,7 +516,9 @@ class RivenClient:
         except (TypeError, ValueError):
             self.disposition_override = None
         if self.disposition_override is not None:
-            self.log.info("紫卡倾向已全局覆盖为 %.2f", self.disposition_override)
+            # 只作用于「按组看范围」；单把武器（含截图分析）始终用市场里的实际倾向
+            self.log.info("分组紫卡范围统一按倾向 %.2f 计算（单把武器用实际倾向）",
+                          self.disposition_override)
         self._lock = threading.Lock()
         self._weapons: Optional[Dict[str, RivenWeapon]] = None
         self._weapons_at = 0.0
@@ -627,9 +629,12 @@ class RivenClient:
                     name_en=english_name,
                     riven_type=str(row.get("rivenType") or ""),
                     group=str(row.get("group") or ""),
-                    disposition=(self.disposition_override
-                                 if self.disposition_override is not None
-                                 else raw_disposition),
+                    # 武器对象始终带**自己**的倾向：单把武器的范围、评分、截图分析
+                    # 都必须按它算。分组视图要「统一倾向」是另一回事，由
+                    # `RivenAnalyzer(disposition)` 显式传入，不能在这里改武器数据
+                    # ——以前这里把配置里的 1.2 写进来，1.3 的冰凇被当成 1.2，
+                    # 区间整体偏低约 8%，数值看着「不准」、严重的还会被判超范围丢掉。
+                    disposition=raw_disposition,
                     mastery_rank=int(row.get("reqMasteryRank") or 0),
                     disposition_raw=raw_disposition,
                     thumb=str(localized.get("thumb") or english.get("thumb") or ""),
