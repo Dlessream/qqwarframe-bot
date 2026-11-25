@@ -477,3 +477,20 @@ db/schema.sql / db/build.py  本次数据库建设产物
 **如果修完还弹**：说明平台把事件投递到服务端本身就吃掉 3 秒（跨境），callback 按钮
 在群里无解，届时把「行情 / 对话文本」换成 `action.type=2` 指令按钮（点击后把
 `@机器人 #走势 …` 填进输入框，用户按发送；不产生 INTERACTION_CREATE，不会 loading/超时）。
+
+## 按钮链路端到端验证（2026-11-25 22:57）
+
+回执修好后（`53c8c36`）在容器内直接跑命令层验证，绕开 QQ 点击，确认三条分支都对：
+
+| 分支 | 结果 |
+|---|---|
+| `#查 Mesa Prime 一套` 主卡 | 1 条回复，2.65s，`button_hint=▼ 行情走势 · 私聊话术`，keyboard 里两个按钮 `wm:trend:<token>` / `wm:chat:<token>` |
+| `wm:trend:<token>` | 0.00s（数据已在上下文里），文本「均价 54.3p ｜ 最高 120p ｜ 最低 35p ｜ 变化 -1.0%」，天梯图 PNG 46KB，带同款按钮 |
+| `wm:chat:<token>` | 0.00s，纯文本：卖家 5 条 `/w xxx Hi! I wtb Mesa Prime Set for 49p`、买家 5 条 `wts`，带同款按钮（可切回行情） |
+| `wm:trend:deadbeef` | 「按钮已过期，请重新发送 wm 查询。」 |
+
+- 两个子卡都复用同一个 token（`_button_contexts` 30 分钟过期），来回切换不重新查市场。
+- 文字路径（话术）也会把键盘挂在**最后一段**（`app._deliver` 1742 行），所以纯文本同样有按钮。
+- 卡片发送走「素材 + Markdown」，`_deliver` 返回 True 即图文与按钮同一条消息；素材路径失败才退回
+  「富媒体图片 + 带键盘短文本」。
+- 复现脚本：`probe_wm_buttons.py`（命令层 + 渲染）、`send_real_wm_card.py`（往测试群真发一张卡）。
