@@ -46,10 +46,15 @@ class QQOfficialError(Exception):
 
 
 def _event_delay(stamp: Any) -> Optional[float]:
-    """平台事件时间戳（RFC3339）到现在差多少秒，用来量投递延迟。"""
+    """平台事件时间戳（RFC3339 或毫秒时间戳）到现在差多少秒。"""
     text = str(stamp or "").strip()
     if not text:
         return None
+    if text.isdigit():
+        value = float(text)
+        if value > 1e11:  # 毫秒
+            value /= 1000.0
+        return max(0.0, time.time() - value)
     try:
         moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
@@ -194,6 +199,7 @@ class QQOfficialClient:
         self._ctx_seq: Dict[str, int] = {}
         self._ctx_lock = threading.Lock()
         self._purge_at = 0.0
+        self._interaction_shape_logged = False
         self._material_queue: Optional[queue.Queue] = None
         self._executor = ThreadPoolExecutor(max_workers=4,
                                             thread_name_prefix="qqofficial")
@@ -422,6 +428,12 @@ class QQOfficialClient:
         if event is None:
             return
         if event.get("post_type") == "interaction":
+            if not self._interaction_shape_logged:
+                # 只打一次：确认互动事件的真实字段（回执 ID 取 d.id 还是信封 id）
+                self._interaction_shape_logged = True
+                data = payload.get("d") if isinstance(payload.get("d"), dict) else {}
+                self.log.info("互动事件字段：envelope=%s d=%s",
+                              sorted(payload.keys()), sorted(data.keys()))
             # 回执只有 3 秒窗口：在读循环里直接发，不进线程池排队。
             self.ack_interaction(event)
         self.remember_reply_context(event)
@@ -628,10 +640,21 @@ class QQOfficialClient:
         try:
             self.respond_interaction(interaction_id, 0)
         except QQOfficialError as exc:
-            self.log.warning("回应按钮互动失败：%s", exc)
-            return
+            # 少数情况下事件体里没有 id，退回网关信封的 id 再试一次；
+            # 两者都失败才放弃（回执只有 3 秒窗口，最多重试一次）。
+            envelope_id = str(event.get("qq_envelope_id") or "")
+            if not envelope_id or envelope_id == interaction_id:
+                self.log.warning("回应按钮互动失败：%s", exc)
+                return
+            try:
+                self.respond_interaction(envelope_id, 0)
+                interaction_id = envelope_id
+            except QQOfficialError as exc2:
+                self.log.warning("回应按钮互动失败：%s / %s", exc, exc2)
+                return
         delay = _event_delay(event.get("qq_timestamp"))
-        self.log.info("按钮回执：投递延迟 %s，回执耗时 %.2fs",
+        self.log.info("按钮回执：id=%s… 投递延迟 %s，回执耗时 %.2fs",
+                      interaction_id[:8],
                       "%.2fs" % delay if delay is not None else "未知",
                       time.time() - started)
 

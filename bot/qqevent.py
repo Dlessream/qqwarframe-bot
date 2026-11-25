@@ -36,7 +36,10 @@ def interaction_event(payload: Dict[str, Any], self_id: str = "",
     group_id = _text_of(data.get("group_openid")) if is_group else ""
     user_id = (_text_of(data.get("group_member_openid"))
                if is_group else _text_of(data.get("user_openid")))
-    event_id = _text_of(payload.get("id"))
+    # 互动事件 ID 必须取事件体里的 id（d.id）：网关信封的 id 是平台内部序号
+    # （形如 INTERACTION_CREATE:xxx），拿它回执 /interactions/{id} 平台照样返回
+    # 200 {}，但不生效，客户端依旧弹「请求第三方失败」。
+    event_id = _text_of(data.get("id")) or _text_of(payload.get("id"))
     if not event_id or not user_id:
         return None
     return {
@@ -51,8 +54,10 @@ def interaction_event(payload: Dict[str, Any], self_id: str = "",
         "qq_event": "INTERACTION_CREATE",
         "qq_event_id": event_id,
         "qq_interaction_id": event_id,
+        "qq_envelope_id": _text_of(payload.get("id")),
         # 平台事件时间戳，用来量投递延迟（互动回执只有 3 秒窗口）
-        "qq_timestamp": _text_of(payload.get("timestamp")),
+        "qq_timestamp": _text_of(payload.get("timestamp")
+                                 or data.get("timestamp")),
     }
 
 

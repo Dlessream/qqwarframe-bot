@@ -123,6 +123,7 @@ class InteractionEventTest(unittest.TestCase):
         payload = {
             "t": "INTERACTION_CREATE", "id": "evt-123",
             "d": {
+                "id": "INT-UUID-1",
                 "type": 11, "scene": "group", "group_openid": "G1",
                 "group_member_openid": "U1", "application_id": "1905720698",
                 "data": {"type": 11, "resolved": {
@@ -135,6 +136,15 @@ class InteractionEventTest(unittest.TestCase):
         self.assertEqual(event["group_id"], "G1")
         self.assertEqual(event["user_id"], "U1")
         self.assertEqual(event["button_data"], "a:仲裁表")
+        # 回执必须用事件体里的 id（d.id），信封 id 平台只返回 200 但不生效
+        self.assertEqual(event["qq_interaction_id"], "INT-UUID-1")
+        self.assertEqual(event["qq_envelope_id"], "evt-123")
+
+    def test_missing_body_id_falls_back_to_envelope(self):
+        payload = {"t": "INTERACTION_CREATE", "id": "evt-123",
+                   "d": {"type": 11, "scene": "c2c", "user_openid": "U1",
+                         "data": {"resolved": {"button_data": "a:帮助"}}}}
+        event = qqevent.to_onebot_event(payload)
         self.assertEqual(event["qq_interaction_id"], "evt-123")
 
     def test_non_click_interaction_ignored(self):

@@ -453,3 +453,27 @@ db/schema.sql / db/build.py  本次数据库建设产物
 那就得把按钮换成 `action.type=2`（指令按钮：点击后把 `@机器人 命令` 填进输入框，
 群里要用户自己按发送；单聊可 `enter=true` 自动发），这条路不产生 INTERACTION_CREATE，
 不会有 loading 和超时提示。
+
+## 按钮回执真正的原因：ID 取错了层（2026-11-25 22:56）
+
+上一版把回执改走 `api.sgroup.qq.com` 并就地发送后，真机依旧转圈后弹「请求第三方失败」。
+日志显示回执本身只花 **0.30s**，远低于 3 秒窗口，所以不是超时，是**回执打到了一个
+平台不认识的 ID**——`api.bot.qq.com` / `sgroup` 对 `/interactions/{任意假 ID}` 都返回
+`200 {}`，所以「不报错 ≠ 生效」。
+
+**根因**：`qqevent.interaction_event()` 里 `qq_interaction_id` 取的是**网关信封**的
+`payload["id"]`（形如 `INTERACTION_CREATE:xxxx`），而官方文档明确「interaction_id
+从 INTERACTION_CREATE 事件的 `id` 字段获取」，指的是事件体 `d.id`。两者不是一回事。
+
+**修复**：
+- `qq_interaction_id` 改为 `d.id`，缺失才回退信封 id；另外保留 `qq_envelope_id`，
+  回执首次失败时用它再试一次（回执只有 3 秒，最多重试一次）。
+- 同一个 id 也用于被动回复（`app._on_interaction` 的 `reply_ctx={"event_id": id}`），
+  所以之前「结果还是出来了」其实是被动回复失败后回退成主动消息。
+- 日志加 `id=<前 8 位>`；首次收到互动事件时打一条「互动事件字段：envelope=[…] d=[…]」，
+  以后再有人怀疑字段层级，看这条就知道。
+- `_event_delay` 支持毫秒时间戳（`d.timestamp` 可能是数字），投递延迟不再显示「未知」。
+
+**如果修完还弹**：说明平台把事件投递到服务端本身就吃掉 3 秒（跨境），callback 按钮
+在群里无解，届时把「行情 / 对话文本」换成 `action.type=2` 指令按钮（点击后把
+`@机器人 #走势 …` 填进输入框，用户按发送；不产生 INTERACTION_CREATE，不会 loading/超时）。
