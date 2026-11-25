@@ -2,7 +2,12 @@ version: "3.8"
 
 services:
   bot:
-    build: .
+    build:
+      context: .
+      # 把当前提交写进镜像里的 .build_commit：否则后台永远拿旧值
+      # 和远端比较，每次打开都提示"有新版本"，白下一遍十几 MB 源码包。
+      args:
+        BUILD_COMMIT: ${BUILD_COMMIT:-}
     container_name: qqwarframe-bot
     restart: unless-stopped
     # Linux 下用 host 网络最简单：容器里的 127.0.0.1 就是宿主机

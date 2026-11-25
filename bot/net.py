@@ -12,6 +12,7 @@ import errno
 import gzip
 import json
 import logging
+import os
 import socket
 import ssl
 import threading
@@ -304,6 +305,88 @@ class HttpClient:
                 raise last_error
 
         raise last_error or HttpError("请求失败", url=url)
+
+    def download(self, url: str, dest: str,
+                 headers: Optional[Dict[str, str]] = None,
+                 progress=None,
+                 max_bytes: int = 0,
+                 chunk_size: int = 262144) -> int:
+        """流式下载到文件，返回字节数。
+
+        与 ``request`` 的区别：不把整个响应读进内存（源码包十几 MB），
+        并且每写一块回调 ``progress(got, total)``，便于前端显示进度；
+        ``total`` 为 0 表示服务端没给 Content-Length。
+        超过 ``max_bytes`` 直接中止，避免被异常大文件拖死。
+        """
+        request_headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "application/octet-stream",
+            "Accept-Encoding": "identity",
+            "Connection": "close",
+        }
+        if headers:
+            request_headers.update({str(k): str(v) for k, v in headers.items()})
+
+        order = self._try_order()
+        last_error: Optional[HttpError] = None
+        for position, index in enumerate(order):
+            opener = self._opener_for(index)
+            got = 0
+            done = False
+            try:
+                req = urllib.request.Request(url, headers=request_headers)
+                with opener.open(req, timeout=self.timeout) as response:
+                    try:
+                        total = int(response.headers.get("Content-Length") or 0)
+                    except (TypeError, ValueError):
+                        total = 0
+                    with open(dest, "wb") as handle:
+                        while True:
+                            chunk = response.read(chunk_size)
+                            if not chunk:
+                                break
+                            handle.write(chunk)
+                            got += len(chunk)
+                            if max_bytes and got > max_bytes:
+                                raise HttpError(
+                                    "文件超过 %d 字节上限" % max_bytes, url=url)
+                            if progress is not None:
+                                try:
+                                    progress(got, total)
+                                except Exception:  # 进度回调不该影响下载
+                                    pass
+                done = True
+                if index != self._index:
+                    self.log.info("代理已切换为 %s",
+                                  self._describe(self.proxies[index]))
+                    self._switch_to(index)
+                return got
+            except urllib.error.HTTPError as exc:
+                last_error = HttpError("HTTP %d %s" % (exc.code, exc.reason),
+                                       status=exc.code, url=url)
+                if (not self.auto_switch or position >= len(order) - 1
+                        or not self._should_switch(last_error)):
+                    raise last_error
+                self.log.warning("%s 下载失败（%s），切换代理 -> %s",
+                                 self._describe(self.proxies[index]), last_error,
+                                 self._describe(self.proxies[order[position + 1]]))
+            except (urllib.error.URLError, socket.timeout, ssl.SSLError,
+                    OSError) as exc:
+                reason = getattr(exc, "reason", exc)
+                last_error = HttpError("网络错误：%s" % reason, status=0, url=url)
+                if is_unreachable(reason) or not self.auto_switch \
+                        or position >= len(order) - 1:
+                    raise last_error
+                self.log.warning("%s 下载失败（%s），切换代理 -> %s",
+                                 self._describe(self.proxies[index]), last_error,
+                                 self._describe(self.proxies[order[position + 1]]))
+            finally:
+                if not done and os.path.exists(dest):
+                    try:
+                        os.remove(dest)
+                    except OSError:
+                        pass
+        raise last_error or HttpError("下载失败", url=url)
 
     # ------------------------------------------------------------------ 便捷
     def get_json(self, url: str, headers: Optional[Dict[str, str]] = None) -> Any:

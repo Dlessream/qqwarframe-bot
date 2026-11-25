@@ -194,6 +194,15 @@
     updateChip.className = "chip " + (update.available ? "chip-gold" : "chip-blue");
 
     renderUpdateBanner(update);
+    const lastUpdate = (update.progress || {}).last_update;
+    if (lastUpdate && lastUpdate.ok && lastUpdate.time &&
+        Date.now() / 1000 - lastUpdate.time < 300) {
+      const key = "qqwf_update_done_" + lastUpdate.time;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        toast("已更新到 " + shortHash(lastUpdate.commit));
+      }
+    }
     const remotePrompt = update.available && update.remote_commit !== state.dismissedRemote;
     const localPrompt = update.local_changed && !state.dismissedLocal;
     if ((remotePrompt || localPrompt) && !state.autoPrompted) {
@@ -264,6 +273,77 @@
     state.modalAction = null;
   }
 
+  let updatePoll = null;
+  let updatePollToken = 0;
+
+  function describeProgress(progress) {
+    const data = progress || {};
+    const step = data.step || "更新";
+    if (data.total > 0) {
+      return step + " " + (data.percent || 0) + "%（" +
+        (data.got / 1048576).toFixed(1) + " / " +
+        (data.total / 1048576).toFixed(1) + " MB）";
+    }
+    if (data.got > 0) {
+      return step + "（已下载 " + (data.got / 1048576).toFixed(1) + " MB）";
+    }
+    return step + "…";
+  }
+
+  function stopUpdatePoll() {
+    if (updatePoll) {
+      clearInterval(updatePoll);
+      updatePoll = null;
+    }
+  }
+
+  function pollUpdate(token) {
+    stopUpdatePoll();
+    let misses = 0;
+    const startedAt = Date.now();
+    updatePoll = setInterval(async () => {
+      if (token !== updatePollToken) { stopUpdatePoll(); return; }
+      let status = null;
+      try {
+        status = await api("/api/status");
+        misses = 0;
+      } catch (exc) {
+        if (exc.message === "UNAUTHORIZED") { stopUpdatePoll(); return; }
+        // 更新成功后会重启进程，接口短暂不可达是正常现象
+        misses += 1;
+        setText("modalText", "服务正在重启…");
+        if (misses >= 3) {
+          stopUpdatePoll();
+          toast("更新完成，正在重新加载");
+          setTimeout(() => location.reload(), 1200);
+        }
+        return;
+      }
+      const update = (status && status.update) || {};
+      const progress = update.progress || {};
+      state.status = status;
+      setText("modalText", describeProgress(progress));
+      if (progress.state === "done") {
+        stopUpdatePoll();
+        toast(progress.message || "更新完成，正在重启");
+        setTimeout(() => location.reload(), 2000);
+        return;
+      }
+      if (progress.state === "error") {
+        stopUpdatePoll();
+        toast("更新失败：" + (progress.message || "未知错误"));
+        const confirm = $("modalConfirm");
+        confirm.disabled = false;
+        confirm.textContent = "重试更新";
+        return;
+      }
+      if (Date.now() - startedAt > 180000) {
+        stopUpdatePoll();
+        setText("modalText", "更新耗时较长，后台仍在继续；完成后服务会自动重启。");
+      }
+    }, 900);
+  }
+
   async function applyRemote() {
     const confirm = $("modalConfirm");
     confirm.disabled = true;
@@ -284,6 +364,12 @@
         toast("更新失败：" + (result.message || "未知错误"));
         confirm.disabled = false;
         confirm.textContent = "立即更新";
+        return;
+      }
+      if (result.started || result.running) {
+        updatePollToken += 1;
+        setText("modalText", result.message || "正在下载最新源码…");
+        pollUpdate(updatePollToken);
         return;
       }
       toast(result.message || "更新成功，正在重启");

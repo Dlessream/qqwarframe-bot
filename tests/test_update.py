@@ -3,6 +3,7 @@ import json
 import os
 import tarfile
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -180,6 +181,11 @@ class ArchiveFallbackTest(unittest.TestCase):
         self.assertEqual(checker.archive_urls,
                          ("https://mirror.example/{repo}/{branch}.tgz",))
 
+    def test_default_urls_try_accelerator_first(self):
+        checker = UpdateChecker({"repo": "example/repo"}, proxy="none")
+        self.assertTrue(checker.archive_urls[0].startswith("https://ghfast.top/"))
+        self.assertIn("codeload.github.com", checker.archive_urls[1])
+
     def test_all_download_urls_fail_returns_manual(self):
         class FakeFail:
             def request(self, url, headers=None, method="GET", body=None):
@@ -190,8 +196,8 @@ class ArchiveFallbackTest(unittest.TestCase):
         result = checker._archive_update()
         self.assertFalse(result["ok"])
         self.assertTrue(result["manual"])
-        self.assertIn("codeload.github.com", result["message"])
         self.assertIn("github.com/example/repo", result["message"])
+        self.assertIn("codeload.github.com", result["message"])
 
     def test_falls_back_to_second_url(self):
         with tempfile.TemporaryDirectory() as root:
@@ -219,8 +225,57 @@ class ArchiveFallbackTest(unittest.TestCase):
                     result = checker._archive_update()
             self.assertTrue(result["ok"], result)
             self.assertEqual(len(calls), 2)
-            self.assertIn("codeload.github.com", calls[0])
-            self.assertIn("github.com/example/repo/archive", calls[1])
+            self.assertTrue(calls[0].startswith("https://ghfast.top/"))
+            self.assertIn("codeload.github.com", calls[1])
+
+
+class UpdateProgressTest(unittest.TestCase):
+    def test_streaming_download_reports_progress(self):
+        checker = UpdateChecker({"repo": "example/repo"}, proxy="none")
+
+        class FakeHttp:
+            def download(self, url, dest, headers=None, progress=None,
+                         max_bytes=0):
+                with open(dest, "wb") as handle:
+                    handle.write(b"x" * 100)
+                progress(100, 400)
+                return 100
+
+        checker.http = FakeHttp()
+        with tempfile.TemporaryDirectory() as tmp:
+            size = checker._fetch_archive("https://example/a.tgz",
+                                          os.path.join(tmp, "a.tgz"))
+        self.assertEqual(size, 100)
+        self.assertEqual(checker.progress["percent"], 25)
+        self.assertEqual(checker.progress["got"], 100)
+
+    def test_start_update_runs_in_background(self):
+        checker = UpdateChecker({"repo": "example/repo"}, proxy="none")
+        finished = threading.Event()
+
+        def fake_apply():
+            checker._set_progress(state="running", step="下载源码",
+                                  got=5, total=10)
+            return {"ok": True, "restart": True, "message": "ok"}
+
+        with mock.patch.object(checker, "apply_update", side_effect=fake_apply):
+            result = checker.start_update(on_done=finished.set)
+        self.assertTrue(result["started"])
+        self.assertTrue(finished.wait(3))
+        snapshot = checker.progress_snapshot()
+        self.assertEqual(snapshot["percent"], 50)
+        self.assertEqual(snapshot["step"], "下载源码")
+
+    def test_start_update_rejects_when_busy(self):
+        checker = UpdateChecker({"repo": "example/repo"}, proxy="none")
+        checker._lock.acquire()
+        try:
+            result = checker.start_update()
+        finally:
+            checker._lock.release()
+        self.assertFalse(result["started"])
+        self.assertTrue(result["running"])
+
 
 
 if __name__ == "__main__":

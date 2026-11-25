@@ -502,7 +502,7 @@ class AdminServer:
                         self._json({"ok": False, "message": "缺少确认参数。"},
                                    HTTPStatus.BAD_REQUEST)
                         return
-                    result = server.app.apply_update()
+                    result = server.app.start_update()
                     self._json({"ok": bool(result.get("ok")), **result})
                     return
 

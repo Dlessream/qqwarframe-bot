@@ -69,3 +69,4 @@ data/baro_names_zh.json.tmp
 
 # 帮助菜单动态背景运行时缓存
 data/helpbg/
+.update_result.json

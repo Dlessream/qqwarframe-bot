@@ -581,6 +581,14 @@ class BotApp:
             self._schedule_restart()
         return result
 
+    def start_update(self) -> Dict[str, Any]:
+        """后台启动更新，立刻返回；进度走 /api/status 的 update.progress。"""
+        if self.update_checker is None:
+            return {"ok": False, "started": False,
+                    "message": "更新检查未启用。"}
+        return self.update_checker.start_update(
+            on_done=self._schedule_restart)
+
     def request_restart(self) -> None:
         self._schedule_restart()
 

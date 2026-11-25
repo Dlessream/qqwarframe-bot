@@ -43,6 +43,22 @@ ARCHIVE_URLS = (
     "https://api.github.com/repos/{repo}/tarball/{branch}",
 )
 
+# 国内服务器直连 codeload 实测只有 10~40 KB/s，12 MB 的源码包要 7 分钟以上，
+# 还经常半路 IncompleteRead 重来。加速镜像实测 1.8 MB/s（快 40 倍以上），
+# 放在最前面；镜像不可用时再回落到上面三条官方入口。
+ARCHIVE_ACCEL = (
+    "https://ghfast.top/https://github.com/{repo}/archive/refs/heads/{branch}.tar.gz",
+)
+
+# 源码包大小上限：仓库约 12~13 MB，留足余量
+MAX_ARCHIVE_BYTES = 30 * 1024 * 1024
+
+
+def _host(url: str) -> str:
+    """取 URL 主机名，用于进度里显示"正在连接哪条线路"。"""
+    parts = str(url or "").split("/")
+    return parts[2] if len(parts) > 2 else str(url or "")
+
 
 def _read_git_head(root: str) -> str:
     git_path = os.path.join(root, ".git")
@@ -137,7 +153,8 @@ class UpdateChecker:
         self.self_update = bool(cfg.get("self_update", True))
         configured_urls = cfg.get("archive_urls") or []
         self.archive_urls = tuple(str(item).strip() for item in configured_urls
-                                  if str(item).strip()) or ARCHIVE_URLS
+                                  if str(item).strip()) or (
+            ARCHIVE_ACCEL + ARCHIVE_URLS)
         self.log = logger or LOGGER
         self.on_notify = on_notify
         self.proxy = str(proxy or cfg.get("proxy") or "none")
@@ -165,6 +182,12 @@ class UpdateChecker:
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
+        self._progress_lock = threading.Lock()
+        self.progress: Dict[str, Any] = {
+            "state": "idle", "step": "", "got": 0, "total": 0, "percent": 0,
+            "message": "", "url": "", "started": 0.0, "finished": 0.0,
+        }
+        self.last_update = self._load_last_update()
         self.http = HttpClient(
             timeout=25, retries=1,
             proxy=self.proxy,
@@ -292,14 +315,104 @@ class UpdateChecker:
     def dismiss_remote(self) -> None:
         self._notified_remote = self.remote_commit
 
+    # ------------------------------------------------------------ 进度 / 记录
+    @staticmethod
+    def _result_path() -> str:
+        return os.path.join(ROOT, ".update_result.json")
+
+    def _load_last_update(self) -> Dict[str, Any]:
+        """读取上一次更新结果（重启后仍能告诉前端成没成功）。"""
+        try:
+            with open(self._result_path(), encoding="utf-8") as handle:
+                data = json.load(handle)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_last_update(self, result: Dict[str, Any]) -> None:
+        record = {
+            "ok": bool(result.get("ok")),
+            "message": str(result.get("message") or ""),
+            "commit": self.local_commit,
+            "time": time.time(),
+        }
+        self.last_update = record
+        try:
+            with open(self._result_path(), "w", encoding="utf-8") as handle:
+                json.dump(record, handle, ensure_ascii=False)
+        except OSError as exc:
+            self.log.warning("写入更新记录失败：%s", exc)
+
+    def _set_progress(self, **fields) -> None:
+        with self._progress_lock:
+            self.progress.update(fields)
+            total = int(self.progress.get("total") or 0)
+            got = int(self.progress.get("got") or 0)
+            if total > 0:
+                self.progress["percent"] = max(
+                    0, min(100, int(got * 100 / total)))
+
+    def progress_snapshot(self) -> Dict[str, Any]:
+        with self._progress_lock:
+            data = dict(self.progress)
+        data["running"] = self._lock.locked()
+        data["last_update"] = self.last_update
+        return data
+
+    # ------------------------------------------------------------ 更新入口
+    def start_update(self, on_done=None) -> Dict[str, Any]:
+        """后台开始更新，立刻返回；进度通过 ``progress_snapshot`` 查询。
+
+        旧的同步接口会让 Web 请求一直挂到下载结束（几十 KB/s 时长达数分钟），
+        前端按钮就永远是"更新中…"。这里改成后台线程 + 进度查询。
+        """
+        if not self.repo:
+            return {"ok": False, "started": False,
+                    "message": "未配置更新仓库，无法自更新。"}
+        if self._lock.locked():
+            return {"ok": True, "started": False, "running": True,
+                    "message": "已有更新任务在执行，请稍候。",
+                    "progress": self.progress_snapshot()}
+        self._set_progress(state="running", step="准备", got=0, total=0,
+                           percent=0, message="准备下载最新源码",
+                           url="", started=time.time(), finished=0.0)
+        thread = threading.Thread(target=self._run_update, args=(on_done,),
+                                  name="self-update", daemon=True)
+        thread.start()
+        return {"ok": True, "started": True, "running": True,
+                "message": "已开始更新，正在下载最新源码。",
+                "progress": self.progress_snapshot()}
+
+    def _run_update(self, on_done=None) -> None:
+        result = self.apply_update()
+        if result.get("ok") and result.get("restart") and callable(on_done):
+            try:
+                on_done()
+            except Exception:  # pragma: no cover - 防御
+                self.log.exception("更新完成后重启失败")
+
     def apply_update(self) -> Dict[str, Any]:
         if not self._lock.acquire(blocking=False):
             return {"ok": False, "manual": False,
                     "message": "已有更新任务在执行，请稍候。"}
         try:
-            return self._apply_update_locked()
+            result = self._apply_update_locked()
+        except Exception as exc:  # pragma: no cover - 防御
+            self.log.exception("更新异常")
+            result = {"ok": False, "manual": False,
+                      "message": "更新异常：%s" % exc}
         finally:
             self._lock.release()
+        if result.get("ok"):
+            self._set_progress(state="done", step="完成", percent=100,
+                               finished=time.time(),
+                               message=result.get("message") or "更新完成")
+        else:
+            self._set_progress(state="error", step="失败",
+                               finished=time.time(),
+                               message=result.get("message") or "更新失败")
+        self._save_last_update(result)
+        return result
 
     def _apply_update_locked(self) -> Dict[str, Any]:
         git = shutil.which("git")
@@ -340,38 +453,48 @@ class UpdateChecker:
             return {"ok": False, "manual": True,
                     "command": self.manual_command,
                     "message": "未配置更新仓库，无法自更新。"}
-        raw = None
-        errors: List[str] = []
-        for template in self.archive_urls:
-            url = template.format(repo=self.repo, branch=self.branch)
-            try:
-                raw = self.http.request(url, headers={
-                    "Accept": "application/octet-stream",
-                    "User-Agent": "QQWarframeBot-Update",
-                })
-                if raw:
-                    self.log.info("源码包下载成功：%s", url)
-                    break
-            except Exception as exc:
-                errors.append("%s -> %s" % (url, exc))
-                self.log.warning("源码包下载失败，换下一条线路：%s", exc)
-        if not raw:
-            detail = "；".join(errors[-3:]) or "所有线路均无响应"
-            return {"ok": False, "manual": True,
-                    "command": self.manual_command,
-                    "message": "下载最新源码失败：%s" % detail}
-        if len(raw) > 30 * 1024 * 1024:
-            return {"ok": False, "manual": True,
-                    "command": self.manual_command,
-                    "message": "源码包大小异常，已取消更新。"}
         staging = tempfile.mkdtemp(prefix="qqwf-update-")
         backup = None
+        source = None
+        errors: List[str] = []
         try:
-            source = self._extract_archive(raw, staging)
-            if source is None:
+            for template in self.archive_urls:
+                url = template.format(repo=self.repo, branch=self.branch)
+                archive = os.path.join(staging, "source.tar.gz")
+                self._set_progress(state="running", step="下载源码", got=0,
+                                   total=0, percent=0, url=url,
+                                   message="正在连接 %s" % _host(url))
+                try:
+                    size = self._fetch_archive(url, archive)
+                except Exception as exc:
+                    errors.append("%s -> %s" % (url, exc))
+                    self.log.warning("源码包下载失败，换下一条线路：%s", exc)
+                    continue
+                if not size:
+                    errors.append("%s -> 空响应" % url)
+                    self.log.warning("源码包为空，换下一条线路：%s", url)
+                    continue
+                if size > MAX_ARCHIVE_BYTES:
+                    errors.append("%s -> 文件过大（%.1f MB）"
+                                  % (url, size / 1048576.0))
+                    continue
+                self._set_progress(step="解压源码", message="正在解压源码包")
+                try:
+                    source = self._extract_archive(archive, staging)
+                except Exception as exc:
+                    errors.append("%s -> 解压失败：%s" % (url, exc))
+                    self.log.warning("源码包解压失败，换下一条线路：%s", exc)
+                    source = None
+                if source:
+                    self.log.info("源码包下载成功：%s（%.1f MB）",
+                                  url, size / 1048576.0)
+                    break
+            if not source:
+                detail = "；".join(errors[-3:]) or "所有线路均无响应"
                 return {"ok": False, "manual": True,
                         "command": self.manual_command,
-                        "message": "源码包结构异常，已取消更新。"}
+                        "message": "下载最新源码失败：%s" % detail}
+            self._set_progress(step="安装文件", message="正在替换代码文件")
             backup = os.path.join(ROOT, "logs", "update-backup-%d" % int(time.time()))
             os.makedirs(backup, exist_ok=True)
             for name in SELF_UPDATE_CODE_DIRS + SELF_UPDATE_CODE_FILES:
@@ -405,9 +528,45 @@ class UpdateChecker:
         finally:
             shutil.rmtree(staging, ignore_errors=True)
 
-    def _extract_archive(self, raw: bytes, staging: str):
+    def _fetch_archive(self, url: str, dest: str) -> int:
+        """下载源码包到 dest，返回字节数；有流式接口时顺带上报进度。"""
+        headers = {"Accept": "application/octet-stream",
+                   "User-Agent": "QQWarframeBot-Update"}
+        downloader = getattr(self.http, "download", None)
+        if not callable(downloader):
+            raw = self.http.request(url, headers=headers)
+            with open(dest, "wb") as handle:
+                handle.write(raw)
+            self._set_progress(got=len(raw), total=len(raw),
+                               message="已下载 %.1f MB" % (len(raw) / 1048576.0))
+            return len(raw)
+
+        last = [0.0]
+
+        def on_progress(got: int, total: int) -> None:
+            now = time.time()
+            if total and got < total and now - last[0] < 0.25:
+                return
+            last[0] = now
+            self._set_progress(
+                got=got, total=total,
+                message="已下载 %.1f / %s MB" % (
+                    got / 1048576.0,
+                    ("%.1f" % (total / 1048576.0)) if total else "?"))
+
+        return downloader(url, dest, headers=headers, progress=on_progress,
+                          max_bytes=MAX_ARCHIVE_BYTES)
+
+    def _extract_archive(self, raw, staging: str):
+        """解压源码包。raw 可以是字节串，也可以是已下载文件的路径。"""
+        opened = None
+        if isinstance(raw, (bytes, bytearray)):
+            stream = io.BytesIO(raw)
+        else:
+            opened = open(raw, "rb")
+            stream = opened
         try:
-            with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
+            with tarfile.open(fileobj=stream, mode="r:gz") as tar:
                 members = tar.getmembers()
                 if not members:
                     return None
@@ -441,6 +600,9 @@ class UpdateChecker:
         except (tarfile.TarError, OSError, ValueError) as exc:
             self.log.warning("源码包解压失败：%s", exc)
             return None
+        finally:
+            if opened is not None:
+                opened.close()
 
     def _install_archive(self, source: str, backup: str) -> None:
         for name in SELF_UPDATE_CODE_DIRS:
@@ -519,4 +681,5 @@ class UpdateChecker:
             "manual_command": self.manual_command,
             "repo": self.repo,
             "branch": self.branch,
+            "progress": self.progress_snapshot(),
         }

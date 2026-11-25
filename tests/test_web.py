@@ -243,6 +243,11 @@ class FakeApp:
                 "command": "docker compose up -d --build",
                 "message": "manual"}
 
+    def start_update(self):
+        self.applied += 1
+        return {"ok": True, "started": True,
+                "message": "已开始更新，正在下载最新源码。"}
+
     def request_restart(self):
         self.restarted = True
 
@@ -594,7 +599,8 @@ class AdminServerTest(unittest.TestCase):
             "/api/update/apply", method="POST",
             headers={"X-Admin-Token": "secret"}, body={"confirm": True})
         self.assertEqual(status, 200)
-        self.assertTrue(json.loads(body)["manual"])
+        payload = json.loads(body)
+        self.assertTrue(payload["started"])
         self.assertEqual(self.app.applied, 1)
 
     def test_restart(self):
