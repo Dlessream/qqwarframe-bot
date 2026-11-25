@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -685,27 +686,34 @@ class CommandRouter:
             if gap < 60 and not strong_set:
                 return present.candidates_reply(argument, hits)
 
-        item = self._detail(best.item)
-        try:
-            sell, buy = self.market.top_orders(
-                item.slug,
-                limit=self.price_orders if price_only else 7,
-                platform=platform, force=self.wm_realtime)
-        except MarketError as exc:
-            self.log.warning("订单查询失败 %s：%s", item.slug, exc)
-            sell, buy = [], []
-        except Exception as exc:  # pragma: no cover - 防御
-            self.log.exception("订单查询异常 %s：%s", item.slug, exc)
-            sell, buy = [], []
-
-        stats = None
-        try:
-            stats = self.market.statistics(item.slug, platform=platform,
-                                           force=self.wm_realtime)
-        except MarketError as exc:
-            self.log.warning("行情查询失败 %s：%s", item.slug, exc)
-        except Exception as exc:  # pragma: no cover - 防御
-            self.log.exception("行情查询异常 %s：%s", item.slug, exc)
+        # 详情 / 订单 / 48h 行情三者互不依赖，并发发出去，耗时取最慢的那个，
+        # 而不是三个请求相加（市场接口每个请求光握手就要 0.6~1.5s）。
+        slug = best.item.slug
+        limit = self.price_orders if price_only else 7
+        item = best.item
+        sell, buy, stats = [], [], None
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            detail_task = pool.submit(self._detail, best.item)
+            orders_task = pool.submit(self.market.top_orders, slug, limit,
+                                      platform, self.wm_realtime)
+            stats_task = pool.submit(self.market.statistics, slug, platform,
+                                     self.wm_realtime)
+            try:
+                item = detail_task.result() or best.item
+            except Exception as exc:  # pragma: no cover - 防御
+                self.log.warning("物品详情查询失败 %s：%s", slug, exc)
+            try:
+                sell, buy = orders_task.result()
+            except MarketError as exc:
+                self.log.warning("订单查询失败 %s：%s", slug, exc)
+            except Exception as exc:  # pragma: no cover - 防御
+                self.log.exception("订单查询异常 %s：%s", slug, exc)
+            try:
+                stats = stats_task.result()
+            except MarketError as exc:
+                self.log.warning("行情查询失败 %s：%s", slug, exc)
+            except Exception as exc:  # pragma: no cover - 防御
+                self.log.exception("行情查询异常 %s：%s", slug, exc)
 
         token = self._store_button_context({
             "item": item, "stats": stats, "platform": platform,

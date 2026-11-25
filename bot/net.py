@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import errno
 import gzip
+import http.client
 import json
 import logging
 import os
@@ -68,6 +69,10 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context(cafile=certifi.where())
     except Exception:
         return ssl.create_default_context()
+
+
+class _NeedsFallback(Exception):
+    """连接复用这条路处理不了（重定向 / 非 GET），交给 urllib 兜底。"""
 
 
 class HttpError(Exception):
@@ -138,6 +143,16 @@ class HttpClient:
         self._index = 0
         self._openers: Dict[int, Any] = {}
         self._opener = self._opener_for(0)
+        # 直连时复用 TCP/TLS 连接：每个新连接要付一次完整握手（实测 0.6~1.6s），
+        # 一条命令往往要打 3~9 个请求，握手开销比传输本身还大。
+        # 按线程各自持有连接（http.client 的连接不能跨线程共用）。
+        self._conn_local = threading.local()
+        self._ssl_cache: Optional[ssl.SSLContext] = None
+        self._ssl_lock = threading.Lock()
+        # 代理被目标站按 IP 拦（403/407）后别再每次都先撞一遍：
+        # 记一段时间，下次直接从下一个候选开始，省掉半个超时的白等。
+        self._banned: Dict[int, float] = {}
+        self._ban_seconds = 900.0
 
     # ------------------------------------------------------------ 代理链
     def _opener_for(self, index: int) -> Any:
@@ -204,11 +219,16 @@ class HttpClient:
         return raw
 
     def _try_order(self) -> List[int]:
-        """先试当前生效的代理，再依次试链上其它代理。"""
+        """先试当前生效的代理，再依次试链上其它代理；被 403 过的排最后。"""
         order = [self._index]
         order.extend(index for index in range(len(self.proxies))
                      if index != self._index)
-        return order
+        now = time.time()
+        fresh = [index for index in order
+                 if now >= self._banned.get(index, 0.0)]
+        banned = [index for index in order
+                  if now < self._banned.get(index, 0.0)]
+        return fresh + banned
 
     @staticmethod
     def _describe(proxy: str) -> str:
@@ -232,6 +252,8 @@ class HttpClient:
                 raw = self._request_once(index, url, headers, method, body)
             except HttpError as exc:
                 last_error = exc
+                if exc.status in (403, 407):
+                    self._banned[index] = time.time() + self._ban_seconds
                 if (not self.auto_switch or position >= len(order) - 1
                         or not self._should_switch(exc)):
                     raise
@@ -243,6 +265,7 @@ class HttpClient:
                 self.log.info("代理已切换为 %s",
                               self._describe(self.proxies[index]))
                 self._switch_to(index)
+            self._banned.pop(index, None)
             return raw
         raise last_error or HttpError("请求失败", url=url)
 
@@ -263,6 +286,14 @@ class HttpClient:
         }
         if headers:
             request_headers.update({str(k): str(v) for k, v in headers.items()})
+
+        # 强制直连时走连接复用；配了代理的情况交给 urllib（代理隧道没法定制）。
+        if self.proxies[index] == "none" and body is None \
+                and method.upper() in ("GET", "HEAD"):
+            try:
+                return self._request_pooled(url, request_headers, method)
+            except _NeedsFallback:
+                pass
 
         opener = self._opener_for(index)
         last_error: Optional[Exception] = None
@@ -300,6 +331,117 @@ class HttpClient:
                 if attempt < attempts - 1:
                     delay = 0.8 * (2 ** attempt)
                     self.log.warning("请求 %s 失败（%s），%.1fs 后重试", url, reason, delay)
+                    time.sleep(delay)
+                    continue
+                raise last_error
+
+        raise last_error or HttpError("请求失败", url=url)
+
+    # ------------------------------------------------------------ 连接复用
+    def _ssl_for_pool(self) -> ssl.SSLContext:
+        """连接池用的 TLS 上下文，只建一次（每次新建要读证书，几十毫秒）。"""
+        cached = self._ssl_cache
+        if cached is not None:
+            return cached
+        with self._ssl_lock:
+            if self._ssl_cache is None:
+                if self.insecure_tls:
+                    context = ssl.create_default_context()
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    self._ssl_cache = context
+                else:
+                    self._ssl_cache = _ssl_context()
+            return self._ssl_cache
+
+    def _new_conn(self, scheme: str, host: str, port: int):
+        if scheme == "https":
+            return http.client.HTTPSConnection(
+                host, port, timeout=self.timeout, context=self._ssl_for_pool())
+        return http.client.HTTPConnection(host, port, timeout=self.timeout)
+
+    def _request_pooled(self, url: str, request_headers: Dict[str, str],
+                        method: str) -> bytes:
+        """直连时复用 keep-alive 连接，省掉每请求一次的 TCP+TLS 握手。
+
+        - 连接按线程隔离（http.client 不保证跨线程安全）
+        - 服务端已经关掉的空闲连接（RemoteDisconnected / BrokenPipe）
+          自动新建一条重发，不算失败
+        - 3xx 重定向不在这里处理，交给 urllib 兜底，避免自己实现跳转
+        """
+        parts = urllib.parse.urlsplit(url)
+        scheme = (parts.scheme or "").lower()
+        host = parts.hostname or ""
+        if scheme not in ("http", "https") or not host:
+            raise _NeedsFallback()
+        port = parts.port or (443 if scheme == "https" else 80)
+        path = parts.path or "/"
+        if parts.query:
+            path = "%s?%s" % (path, parts.query)
+
+        pool = getattr(self._conn_local, "pool", None)
+        if pool is None:
+            pool = {}
+            self._conn_local.pool = pool
+        key = (scheme, host, port)
+
+        headers = dict(request_headers)
+        headers.pop("Connection", None)  # 保留长连接
+        attempts = self.retries + 1
+        last_error: Optional[HttpError] = None
+
+        for attempt in range(attempts):
+            conn = pool.pop(key, None)
+            reused = conn is not None
+            try:
+                if conn is None:
+                    conn = self._new_conn(scheme, host, port)
+                else:
+                    conn.timeout = self.timeout
+                conn.request(method, path, body=None, headers=headers)
+                response = conn.getresponse()
+                raw = response.read()
+                status = int(getattr(response, "status", 0) or 0)
+                if 300 <= status < 400:
+                    conn.close()
+                    raise _NeedsFallback()
+                if status >= 400:
+                    conn.close()
+                    last_error = HttpError(
+                        "HTTP %d %s" % (status, getattr(response, "reason", "")),
+                        status=status, url=url)
+                    if (status == 429 or 500 <= status < 600) and attempt < attempts - 1:
+                        delay = 0.8 * (2 ** attempt)
+                        self.log.warning("请求 %s 返回 %d，%.1fs 后重试",
+                                         url, status, delay)
+                        time.sleep(delay)
+                        continue
+                    raise last_error
+                pool[key] = conn
+                return self._decode_body(
+                    raw, response.getheader("Content-Encoding", "") or "")
+            except _NeedsFallback:
+                raise
+            except HttpError:
+                raise
+            except (http.client.HTTPException, socket.timeout, ssl.SSLError,
+                    OSError) as exc:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001 - 关闭失败无所谓
+                    pass
+                if reused:
+                    # 复用的连接可能被服务端关了：换新连接原样重发一次
+                    last_error = HttpError("网络错误：%s" % exc, status=0, url=url)
+                    continue
+                last_error = HttpError("网络错误：%s" % exc, status=0, url=url)
+                if is_unreachable(exc):
+                    last_error.unreachable = True
+                    raise last_error
+                if attempt < attempts - 1:
+                    delay = 0.8 * (2 ** attempt)
+                    self.log.warning("请求 %s 失败（%s），%.1fs 后重试",
+                                     url, exc, delay)
                     time.sleep(delay)
                     continue
                 raise last_error

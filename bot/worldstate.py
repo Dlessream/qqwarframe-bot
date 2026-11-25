@@ -328,9 +328,14 @@ class WorldStateClient:
         return value
 
     def _mark_down(self, exc: HttpError) -> None:
-        self._ws_down_until = time.time() + max(30, self.fallback_cooldown)
+        cooldown = max(30, self.fallback_cooldown)
+        if exc.status == 403:
+            # Cloudflare 按机房 IP 拦，几分钟内不会自己恢复；
+            # 每次冷却到期都先去撞一遍，等于每隔十分钟白等好几秒。
+            cooldown = max(cooldown, 21600)
+        self._ws_down_until = time.time() + cooldown
         LOGGER.warning("世界状态主源不可用（%s），%d 秒内直接走官方兜底",
-                       exc, max(30, self.fallback_cooldown))
+                       exc, cooldown)
 
     def source_name(self) -> str:
         """当前生效的数据源，用于日志与自检输出。"""

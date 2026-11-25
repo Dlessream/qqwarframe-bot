@@ -971,8 +971,12 @@ class MarketClient:
                and (order.status or "").lower() in ("online", "ingame")]
         sell.sort(key=lambda order: order.platinum)
         buy.sort(key=lambda order: -order.platinum)
-        if len(sell) < limit or len(buy) < limit:
-            # /top 可能只给少量订单；不足 7 位时用完整订单端点补齐。
+        # /top 正常给 5 卖 5 买。以前只要不足 limit（7/8）就去拉整个订单簿，
+        # 但那是个 60~700KB 的大包，慢网下要多花 1~3 秒，等于每次查价都白付两遍。
+        # 只要两边各有 3 单，榜单就已经够看了，不再补拉。
+        minimum = min(limit, 3)
+        if len(sell) < minimum or len(buy) < minimum:
+            # /top 只给了零星几条（新物品/冷门件），才用完整订单端点补齐。
             try:
                 fallback_sell, fallback_buy = self._orders_fallback(
                     slug, limit, platform)
