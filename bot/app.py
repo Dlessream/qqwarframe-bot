@@ -1689,38 +1689,36 @@ class BotApp:
                 self.log.warning("图片生成失败，回退文字：%s", exc)
                 png = None
             if png:
-                keyboard = reply.keyboard
-                kb_kw = {"keyboard": keyboard} if keyboard else {}
                 try:
                     if is_group:
                         self.qqbot.send_group_image(chat_id, png, prefix,
-                                                    reply_ctx, **kb_kw)
+                                                    reply_ctx)
                     else:
                         self.qqbot.send_private_image(chat_id, png, prefix,
-                                                      reply_ctx, **kb_kw)
-                    return True
+                                                      reply_ctx)
                 except QQOfficialError as exc:
-                    self.log.warning("图片发送失败（含按钮时）：%s", exc)
+                    self.log.warning("图片发送失败：%s", exc)
+                    png = None
+                if png:
+                    # 富媒体消息（msg_type=7）平台不接受 keyboard，按钮会被
+                    # 静默丢弃（不报错但客户端不显示），所以图片落地后必须
+                    # 再补一条带键盘的短文本，按钮才会真正出现在下面。
+                    keyboard = reply.keyboard
                     if keyboard:
-                        # 富媒体可能不接受 keyboard：去掉按钮重发图片，
-                        # 再补一条带按钮的提示文本。
+                        hint = reply.button_hint or "▼ 选择下方操作"
                         try:
                             if is_group:
-                                self.qqbot.send_group_image(chat_id, png,
-                                                            prefix, reply_ctx)
-                            else:
-                                self.qqbot.send_private_image(chat_id, png,
-                                                              prefix, reply_ctx)
-                            hint = "点击下方按钮继续查询"
-                            if is_group:
                                 self.qqbot.send_group_text(chat_id, hint,
-                                                           reply_ctx, keyboard=keyboard)
+                                                           reply_ctx,
+                                                           keyboard=keyboard)
                             else:
                                 self.qqbot.send_private_text(chat_id, hint,
-                                                             reply_ctx, keyboard=keyboard)
-                            return True
-                        except QQOfficialError as exc2:
-                            self.log.warning("图片/按钮补发失败，回退文字：%s", exc2)
+                                                             reply_ctx,
+                                                             keyboard=keyboard)
+                        except QQOfficialError as exc:
+                            # 图片已经发出去了，按钮失败只记日志，不重复发整条。
+                            self.log.warning("按钮消息发送失败：%s", exc)
+                    return True
 
         if not reply.text:
             return False

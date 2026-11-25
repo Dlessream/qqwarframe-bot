@@ -42,6 +42,54 @@ class KeyboardTest(unittest.TestCase):
         self.assertIs(reply.keyboard, kb)
 
 
+class ImageKeyboardDeliveryTest(unittest.TestCase):
+    """富媒体（msg_type=7）不接受 keyboard：图片发完后必须补一条带按钮的文本。"""
+
+    class Capture:
+        def __init__(self):
+            self.calls = []
+            self.event_log = None
+
+        def send_group_image(self, group_id, png, prefix="", reply_ctx=None):
+            self.calls.append(("image", prefix, None))
+
+        def send_group_text(self, group_id, text, reply_ctx=None,
+                            keyboard=None):
+            self.calls.append(("text", text, keyboard))
+
+    def _app(self):
+        from bot.app import BotApp
+        from bot.config import load_config
+        config = load_config("config.example.json")
+        config["auto_update"]["enabled"] = False
+        config["alerts"]["enabled"] = False
+        config["behavior"]["preload_items"] = False
+        config["behavior"]["cooldown_seconds"] = 0
+        config["web"]["enabled"] = False
+        app = BotApp(config)
+        app.qqbot = self.Capture()
+        return app
+
+    def test_keyboard_follows_image_as_text(self):
+        app = self._app()
+        app.image_enabled = True
+        kb = keyboards.wm_keyboard("tok")
+        reply = replies.Reply(text="文字版", image=lambda: b"png",
+                              keyboard=kb, button_hint="▼ 行情走势")
+        self.assertTrue(app._deliver(True, "G1", reply))
+        kinds = [call[0] for call in app.qqbot.calls]
+        self.assertEqual(kinds, ["image", "text"])
+        self.assertEqual(app.qqbot.calls[1][1], "▼ 行情走势")
+        self.assertIs(app.qqbot.calls[1][2], kb)
+
+    def test_no_keyboard_single_image(self):
+        app = self._app()
+        app.image_enabled = True
+        reply = replies.Reply(text="文字版", image=lambda: b"png")
+        self.assertTrue(app._deliver(True, "G1", reply))
+        self.assertEqual([call[0] for call in app.qqbot.calls], ["image"])
+
+
 class InteractionEventTest(unittest.TestCase):
     def test_button_click_mapped(self):
         payload = {

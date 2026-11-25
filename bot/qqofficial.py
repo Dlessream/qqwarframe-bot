@@ -478,11 +478,12 @@ class QQOfficialClient:
             return {}
         with self._ctx_lock:
             key = "%s/%s" % (chat_id, msg_id)
-            seq = int(self._ctx_seq.get(key) or 0) + 1
-            self._ctx_seq[key] = seq
+            self._ctx_seq.setdefault(key, 0)
             if len(self._ctx_seq) > 1000:
                 self._ctx_seq = dict(list(self._ctx_seq.items())[-500:])
-        result = {"msg_id": msg_id, "msg_seq": seq}
+        # msg_seq 留到真正发送时再分配：同一条被动消息常要回好几条
+        # （卡片图 + 按钮条 + 截断分段），共用一个 seq 会被平台按去重拒绝。
+        result = {"msg_id": msg_id, "msg_seq": 0}
         if event.get("qq_event_id"):
             result["event_id"] = str(event["qq_event_id"])
         return result
@@ -491,8 +492,19 @@ class QQOfficialClient:
                       reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """优先使用消息自带的上下文；订阅推送等无上下文时用最近一条消息。"""
         if reply_ctx:
-            return {key: value for key, value in reply_ctx.items()
-                    if key in ("msg_id", "event_id", "msg_seq")}
+            fields = {key: value for key, value in reply_ctx.items()
+                      if key in ("msg_id", "event_id", "msg_seq")}
+            msg_id = str(fields.get("msg_id") or "")
+            if msg_id:
+                # 每发一条都换 msg_seq，否则同一条被动消息的第二次回复会
+                # 被平台当成重复消息拦掉（40054005）。
+                with self._ctx_lock:
+                    key = "%s/%s" % (chat_id, msg_id)
+                    seq = max(int(self._ctx_seq.get(key) or 0),
+                              int(fields.get("msg_seq") or 0)) + 1
+                    self._ctx_seq[key] = seq
+                fields["msg_seq"] = seq
+            return fields
         with self._ctx_lock:
             item = self._reply_ctx.get(str(chat_id))
             if not item or time.time() - item["at"] > 3500:
@@ -627,8 +639,9 @@ class QQOfficialClient:
 
     def _send_image(self, kind: str, chat_id: Any, png: bytes,
                     prefix: str = "",
-                    reply_ctx: Optional[Dict[str, Any]] = None,
-                    keyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                    reply_ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """发图片。注意：富媒体（msg_type=7）平台不认 keyboard 字段，
+        按钮会被静默丢弃，所以调用方要另外补一条带键盘的文本消息。"""
         mention = self._mentions(prefix).strip()
         if mention:
             self.send_group_text(chat_id, mention, reply_ctx) if kind == "group" \
@@ -638,8 +651,6 @@ class QQOfficialClient:
             "msg_type": 7,
             "media": {"file_info": info},
         }
-        if keyboard:
-            body["keyboard"] = keyboard
         body.update(self._reply_fields(chat_id, reply_ctx))
         if kind == "group":
             path = "/v2/groups/%s/messages" % quote(str(chat_id), safe="")
@@ -651,15 +662,15 @@ class QQOfficialClient:
 
     def send_group_image(self, group_id: Any, png: bytes,
                          prefix: str = "",
-                         reply_ctx: Optional[Dict[str, Any]] = None,
-                         keyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return self._send_image("group", group_id, png, prefix, reply_ctx, keyboard)
+                         reply_ctx: Optional[Dict[str, Any]] = None
+                         ) -> Dict[str, Any]:
+        return self._send_image("group", group_id, png, prefix, reply_ctx)
 
     def send_private_image(self, user_id: Any, png: bytes,
                            prefix: str = "",
-                           reply_ctx: Optional[Dict[str, Any]] = None,
-                           keyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return self._send_image("private", user_id, png, prefix, reply_ctx, keyboard)
+                           reply_ctx: Optional[Dict[str, Any]] = None
+                           ) -> Dict[str, Any]:
+        return self._send_image("private", user_id, png, prefix, reply_ctx)
 
     def get_login_info(self) -> Dict[str, Any]:
         return self._get("/users/@me")

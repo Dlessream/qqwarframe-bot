@@ -382,3 +382,28 @@ db/schema.sql / db/build.py  本次数据库建设产物
   `wts`（收购=我想卖），可直接复制到游戏聊天框。
 - 按钮上下文（`commands._store_button_context`）额外存 `sell` / `buy`；
   子卡片回传同一套按钮，行情↔话术可反复切换，30 分钟内有效。
+
+## 按钮为什么不显示：富媒体带不了键盘（2026-11-25 修复）
+
+**现象**：查价卡片底部写了「点下方按钮」，实际客户端一条按钮都没有。
+
+**根因**（官方文档明确）：`msg_type=7` 富媒体消息只认 `media.file_info`，
+`keyboard` 字段**被平台静默忽略**——接口返回 200 不报错，按钮不会渲染。
+第三方适配器文档也写明「富媒体消息(msg_type: 7)无法携带原生 Markdown/按钮」。
+`msg_type=8` 的图文卡片要求 `pic_url` / `url` 必须是 https 外链（我们没有公网图床），
+`msg_type=2` Markdown 也需要图床且要 Markdown 权限，都不适合本项目的本地生成图片。
+
+**修复**：图片与按钮拆成两条消息发。
+- `bot/app.py::_deliver`：先发图片（不再传 keyboard），图片成功后再发一条短文本，
+  文本里挂 `keyboard`，`reply.button_hint` 决定这行字（wm 用「▼ 行情走势 · 私聊话术」，
+  其他卡片默认「▼ 选择下方操作」）。按钮消息失败只记日志，不重复整条。
+- `bot/qqofficial.py`：`send_group_image` / `send_private_image` 去掉 keyboard 参数，
+  免得再有人以为挂上就能用。
+- **`msg_seq` 必须每条递增**：同一条被动消息回多条（图 + 按钮条 + 长文分段）时，
+  平台按 `msg_id + msg_seq` 去重，重复会报 `40054005 消息被去重`。
+  现在 `reply_context()` 只快照 `msg_id`（`msg_seq=0`），真正发送时在
+  `_reply_fields()` 里分配下一个序号；`remember_reply_context()` 的老路径同样递增。
+- 群聊被动回复上限是「每条用户消息 5 次（60 分钟内）」，图 + 按钮条用掉 2 次，够用。
+
+**排查要点**：客户端不显示按钮但接口 200，先看是不是富媒体；不要在 `msg_type=7`
+里调 keyboard。日志里 `图片发送失败（含按钮时）` 那条是历史代码的回退分支，已删除。

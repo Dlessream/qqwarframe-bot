@@ -129,6 +129,32 @@ class GatewayClientTest(unittest.TestCase):
         self.assertEqual(second["msg_seq"], 2)
         self.assertEqual(client._reply_fields("G2"), {})
 
+    def test_reply_context_seq_unique_per_send(self):
+        """同一条被动消息回多条（卡片图 + 按钮条）时 msg_seq 必须递增。"""
+        client = self._client()
+        ctx = client.reply_context({
+            "group_id": "G9", "user_id": "U9", "qq_msg_id": "M9"})
+        first = client._reply_fields("G9", ctx)
+        second = client._reply_fields("G9", ctx)
+        self.assertEqual(first["msg_id"], "M9")
+        self.assertNotEqual(first["msg_seq"], second["msg_seq"])
+        self.assertGreater(second["msg_seq"], first["msg_seq"])
+
+    def test_image_message_never_carries_keyboard(self):
+        """富媒体 msg_type=7 平台不认 keyboard，塞了也只会静默丢失。"""
+        client = self._client()
+        captured = {}
+
+        def fake_post(path, body):
+            captured["path"], captured["body"] = path, body
+            return {}
+
+        client._post = fake_post
+        client._upload_image = lambda kind, chat_id, png: "FILE_INFO"
+        client.send_group_image("G1", b"png")
+        self.assertEqual(captured["body"]["msg_type"], 7)
+        self.assertNotIn("keyboard", captured["body"])
+
     def test_mentions_translation(self):
         client = self._client()
         self.assertEqual(client._mentions("[CQ:at,qq=G1] 你好"),

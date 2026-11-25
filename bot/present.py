@@ -44,6 +44,7 @@ def item_reply(item: Item, sell: Sequence[Order], buy: Sequence[Order],
             if price_only else render.render_item(item, sell, buy, stats,
                                                   order_limit=7))
     return Reply(text=text, keyboard=keyboard,
+                 button_hint="▼ 行情走势 · 私聊话术",
                  image=lambda: imagecard.item_card(
                      item, sell, buy, stats, label, price_only=price_only))
 
@@ -66,6 +67,7 @@ def price_trend_reply(item: Item, stats: Optional[MarketStats],
     else:
         text = "【%s】暂无足够的价格历史（至少需要 2 天成交记录）。" % item.name
     return Reply(text=text, keyboard=keyboard,
+                 button_hint="▼ 行情走势 · 私聊话术",
                  image=lambda: imagecard.price_trend_card(item, stats, label))
 
 

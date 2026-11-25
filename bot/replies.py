@@ -12,6 +12,8 @@ class Reply:
     image: Optional[Callable[[], bytes]] = field(default=None)
     # QQ 官方消息按钮（InlineKeyboard）；None 表示不挂载按钮
     keyboard: Optional[Dict[str, Any]] = field(default=None)
+    # 按钮跟图片分两条消息发，这是按钮那条的引导文案（留空用默认文案）
+    button_hint: str = ""
 
     @property
     def has_image(self) -> bool:
