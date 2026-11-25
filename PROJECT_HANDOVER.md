@@ -435,3 +435,21 @@ db/schema.sql / db/build.py  本次数据库建设产物
 
 实测开销（境外到 api.bot.qq.com）：prepare 0.63s + PUT 0.20s + complete 0.65s
 ≈ **1.5s/张**，比富媒体上传（~0.3s）多 1.2s。DELETE 0.4s 在后台，不占回复耗时。
+
+## 按钮回执：3 秒窗口与「请求第三方失败」（2026-11-25 22:55）
+
+现象：点按钮后客户端转圈几秒，弹「请求第三方失败」，随后结果消息还是到了。
+
+排查结论：
+- `PUT /interactions/{id}` 的 code=0 只是「已收到」回执；客户端在 3 秒内拿不到就弹上面那句。
+- **`api.bot.qq.com` 对 `/interactions/{id}` 也返回 `200 {}`**（拿假 UUID 试也是 `{}`，
+  而未知路由会 404），也就是说打错域名不报错、只是不生效。
+  回执统一改走 `api.sgroup.qq.com`（`INTERACTION_API` 常量，可用 `qqbot.interaction_api` 覆盖）。
+- 回执从「事件提交线程池后执行」改成**网关读循环里收包就地发**（`ack_interaction`），
+  不再排队等图片渲染/网络请求。日志会打「按钮回执：投递延迟 X，回执耗时 Y」。
+- `app._on_interaction` 里不再重复回执（同一 interaction_id 只能回一次）。
+
+如果真机日志显示「投递延迟 + 回执耗时 > 3 秒」，说明是平台投递延迟吃掉了窗口，
+那就得把按钮换成 `action.type=2`（指令按钮：点击后把 `@机器人 命令` 填进输入框，
+群里要用户自己按发送；单聊可 `enter=true` 自动发），这条路不产生 INTERACTION_CREATE，
+不会有 loading 和超时提示。

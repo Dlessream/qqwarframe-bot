@@ -20,6 +20,7 @@ import socket
 import struct
 import threading
 import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional, Tuple
 from urllib.parse import quote
@@ -33,6 +34,8 @@ LOGGER = logging.getLogger("qqwarframe.qqofficial")
 
 PROD_API = "https://api.bot.qq.com"
 SANDBOX_API = "https://sandbox.api.bot.qq.com"
+# 互动回执只有 sgroup 域名真正生效（bot 域名同样回 200 {}，但客户端照样超时）
+INTERACTION_API = "https://api.sgroup.qq.com"
 TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken"
 
 _CQ_AT_RE = re.compile(r"\[CQ:at,qq=([^\],]+)\]")
@@ -40,6 +43,20 @@ _CQ_AT_RE = re.compile(r"\[CQ:at,qq=([^\],]+)\]")
 
 class QQOfficialError(Exception):
     """调用 QQ 开放平台接口失败。"""
+
+
+def _event_delay(stamp: Any) -> Optional[float]:
+    """平台事件时间戳（RFC3339）到现在差多少秒，用来量投递延迟。"""
+    text = str(stamp or "").strip()
+    if not text:
+        return None
+    try:
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return max(0.0, time.time() - moment.timestamp())
 
 
 def _api_error_message(path: str, exc: HttpError) -> str:
@@ -404,6 +421,9 @@ class QQOfficialClient:
         event = to_onebot_event(payload, self.self_id, self.app_id)
         if event is None:
             return
+        if event.get("post_type") == "interaction":
+            # 回执只有 3 秒窗口：在读循环里直接发，不进线程池排队。
+            self.ack_interaction(event)
         self.remember_reply_context(event)
         self._log_event("in", "%s / %s" % (
             event.get("qq_event") or event.get("sub_type") or "message",
@@ -573,9 +593,47 @@ class QQOfficialClient:
 
     def respond_interaction(self, interaction_id: str,
                             code: int = 0) -> Dict[str, Any]:
-        """回应按钮点击，避免客户端一直 loading（3 秒内必须调用）。"""
+        """回应按钮点击，避免客户端一直 loading（3 秒内必须调用）。
+
+        互动回执走 api.sgroup.qq.com：api.bot.qq.com 对 /interactions/{id} 也返回
+        200 {}（不报错、不生效），真机上客户端照样弹「请求第三方失败」。
+        """
         path = "/interactions/%s" % quote(str(interaction_id), safe="")
-        return self._request_json(path, "PUT", {"code": int(code)})
+        base = str(self.cfg.get("interaction_api") or INTERACTION_API).rstrip("/")
+        token = self.tokens.get()
+        try:
+            raw = self.http.request(
+                base + path, {
+                    "Authorization": "QQBot %s" % token,
+                    "Content-Type": "application/json; charset=utf-8"},
+                method="PUT", body=json.dumps({"code": int(code)}).encode("utf-8"))
+        except HttpError as exc:
+            raise QQOfficialError(_api_error_message(path, exc))
+        try:
+            data = json.loads(raw.decode("utf-8", "replace")) if raw else {}
+        except ValueError:
+            data = {}
+        err = (data or {}).get("err_code") or (data or {}).get("code")
+        if err and str(err) != "0":
+            raise QQOfficialError("%s 失败：%s %s" % (
+                path, err, (data or {}).get("message") or ""))
+        return data or {}
+
+    def ack_interaction(self, event: Dict[str, Any]) -> None:
+        """在网关读循环里立刻回执（不排队），并记录投递/回执耗时。"""
+        interaction_id = str(event.get("qq_interaction_id") or "")
+        if not interaction_id:
+            return
+        started = time.time()
+        try:
+            self.respond_interaction(interaction_id, 0)
+        except QQOfficialError as exc:
+            self.log.warning("回应按钮互动失败：%s", exc)
+            return
+        delay = _event_delay(event.get("qq_timestamp"))
+        self.log.info("按钮回执：投递延迟 %s，回执耗时 %.2fs",
+                      "%.2fs" % delay if delay is not None else "未知",
+                      time.time() - started)
 
     def _get(self, path: str) -> Dict[str, Any]:
         try:

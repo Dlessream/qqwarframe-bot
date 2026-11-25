@@ -51,6 +51,8 @@ def interaction_event(payload: Dict[str, Any], self_id: str = "",
         "qq_event": "INTERACTION_CREATE",
         "qq_event_id": event_id,
         "qq_interaction_id": event_id,
+        # 平台事件时间戳，用来量投递延迟（互动回执只有 3 秒窗口）
+        "qq_timestamp": _text_of(payload.get("timestamp")),
     }
 
 

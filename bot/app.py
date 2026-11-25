@@ -731,13 +731,9 @@ class BotApp:
             self._reply(replies, is_group, group_id, user_id, reply_ctx)
 
     def _on_interaction(self, event: Dict[str, Any]) -> None:
-        """消息按钮点击：先回应互动（3 秒内），再执行命令反馈结果。"""
+        """消息按钮点击：回执已在 qqofficial 收包时就地发过（3 秒窗口），
+        这里只负责执行命令并把结果回给用户。"""
         interaction_id = str(event.get("qq_interaction_id") or "")
-        if interaction_id:
-            try:
-                self.qqbot.respond_interaction(interaction_id, 0)
-            except Exception as exc:
-                self.log.warning("回应按钮互动失败：%s", exc)
         is_group = str(event.get("message_type") or "") == "group"
         group_id = str(event.get("group_id") or "")
         user_id = str(event.get("user_id") or "")

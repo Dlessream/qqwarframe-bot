@@ -195,6 +195,26 @@ class GatewayClientTest(unittest.TestCase):
         self.assertNotIn("media", body)
         self.assertEqual(dropped, ["IMG1"])
 
+    def test_interaction_ack_goes_to_sgroup(self):
+        """互动回执必须打到 api.sgroup.qq.com（bot 域名回 200 {} 但不生效）。"""
+        client = self._client()
+        seen = {}
+
+        def fake_request(url, headers, method="GET", body=None, **kwargs):
+            seen["url"] = url
+            seen["method"] = method
+            seen["body"] = body
+            return b"{}"
+
+        client.http.request = fake_request
+        client.tokens.get = lambda: "TOKEN"
+        client.ack_interaction({"qq_interaction_id": "IID1",
+                                "qq_timestamp": ""})
+        self.assertTrue(seen["url"].startswith(
+            "https://api.sgroup.qq.com/interactions/IID1"))
+        self.assertEqual(seen["method"], "PUT")
+        self.assertEqual(json.loads(seen["body"]), {"code": 0})
+
     def test_mentions_translation(self):
         client = self._client()
         self.assertEqual(client._mentions("[CQ:at,qq=G1] 你好"),
