@@ -26,6 +26,7 @@ except Exception:  # pragma: no cover
     PIL_AVAILABLE = False
 
 from . import tilesets
+from .imagecard import encode_card
 
 WIDTH = 860
 ROW_H = 140            # 单行高度（紧凑行，保证一屏能看全十条以上）
@@ -285,6 +286,4 @@ def render(entries: Sequence[Dict], scene: str = "fissure",
                          sub_font, (172, 184, 208))
     for index, entry in enumerate(items):
         _draw_row(canvas, head + index * ROW_H, entry)
-    buf = io.BytesIO()
-    canvas.convert("RGB").save(buf, format="PNG")
-    return buf.getvalue()
+    return encode_card(canvas)

@@ -1167,10 +1167,35 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
                        base=_scene_canvas(background, height))
 
 
-def _encode(image: "Image.Image") -> bytes:
+# QQ 官方接口是把图片 base64 塞进 JSON 上传的：860px 的 RGBA 卡片转 PNG 常有
+# 400~600KB，实测上传要多花 2~3 秒，用户体感就是「点了没反应」。
+# 超过这个体积就转 256 色调色板 PNG（文字仍是锐利的实心像素，照片部分有轻微抖动），
+# 体积一般降到 1/3，小卡片不受影响。
+PNG_QUANTIZE_BYTES = 200 * 1024
+
+
+def encode_card(image: "Image.Image") -> bytes:
+    """卡片统一出口：先按原样压 PNG，过大再降成 256 色，取更小的那份。"""
+    rgb = image.convert("RGB")
     buffer = io.BytesIO()
-    image.convert("RGB").save(buffer, format="PNG", optimize=True)
-    return buffer.getvalue()
+    rgb.save(buffer, format="PNG", optimize=True)
+    data = buffer.getvalue()
+    if len(data) <= PNG_QUANTIZE_BYTES:
+        return data
+    try:
+        palette = rgb.convert("P", palette=Image.ADAPTIVE, colors=256,
+                              dither=Image.FLOYDSTEINBERG)
+        alt = io.BytesIO()
+        palette.save(alt, format="PNG", optimize=True)
+        if len(alt.getvalue()) < len(data):
+            return alt.getvalue()
+    except Exception:  # 老版本 Pillow / 特殊图像：保持原图，不影响出图
+        pass
+    return data
+
+
+def _encode(image: "Image.Image") -> bytes:
+    return encode_card(image)
 
 
 def _card_panel(content: "Image.Image", height: int,
