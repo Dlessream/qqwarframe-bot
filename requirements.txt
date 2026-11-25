@@ -3,3 +3,6 @@
 Pillow>=7.2
 # QQ 官方机器人 Webhook 回调验签（Ed25519）
 cryptography>=41
+# 紫卡截图识别（PP-OCRv5 onnx 推理，模型在 data/ppocr）
+numpy>=1.24
+onnxruntime>=1.16

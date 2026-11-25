@@ -31,6 +31,7 @@ from .relics import RelicClient
 from .riven import (CATEGORY_LABELS, GROUP_CATEGORY_ORDER, GROUP_LABELS,
                     RivenClient, parse_group_detail, parse_riven_filters)
 from .rivencalc import RivenAnalyzer
+from . import rivenscan
 from .subscriptions import (SubscriptionService, kind_label, kind_names,
                             parse_kind)
 from .updater import DataUpdater
@@ -40,7 +41,7 @@ from .worldstate import Arbitration, WorldStateClient, WorldStateError
 LOGGER = logging.getLogger("qqwarframe.commands")
 
 # 已经下线的功能前缀：这些词后面跟任何东西都不再当命令。
-# 「紫卡分析」已恢复成按武器组看数值范围（riven_group），不再属于下线写法。
+# 「紫卡倾向」（原「紫卡分析」）是分组看范围的正规命令，不属于下线写法。
 RETIRED_PREFIXES: Dict[str, Tuple[str, ...]] = {}
 
 
@@ -71,9 +72,13 @@ COMMANDS: Dict[str, str] = {
     "紫卡拍卖": "riven_market", "紫卡行情": "riven_market", "收紫卡": "riven_market",
     "zkmarket": "riven_market", "wm紫卡": "riven_market",
     "遗物": "relic", "圣遗物": "relic", "relic": "relic",
-    "紫卡分析": "riven_group", "紫卡分组": "riven_group",
+    # 按武器组看倾向与数值范围（原「紫卡分析」改名，避免和新截图分析撞名）
+    "紫卡倾向": "riven_group", "紫卡分组": "riven_group",
     "紫卡类别": "riven_group", "紫卡类型": "riven_group",
     "紫卡数值": "riven_group", "zkfx": "riven_group",
+    # 紫卡分析 = 传截图识别（词条/数值/评级）
+    "紫卡分析": "riven_scan", "紫卡识别": "riven_scan",
+    "识图": "riven_scan", "分析紫卡": "riven_scan", "zkocr": "riven_scan",
     "紫卡榜": "riven_rank", "紫卡排行": "riven_rank", "紫卡排名": "riven_rank",
     "零洗紫卡": "riven_rank", "最贵紫卡": "riven_rank", "紫卡价格榜": "riven_rank",
     "金垃圾": "junk_gold", "金垃圾行情": "junk_gold", "goldjunk": "junk_gold",
@@ -506,6 +511,8 @@ class CommandRouter:
                 return [self._riven_market(argument, ctx)]
             if command == "riven_group":
                 return [self._riven_group(argument, ctx)]
+            if command == "riven_scan":
+                return [self._riven_scan(argument, ctx)]
             if command == "riven_rank":
                 return [self._riven_rank(ctx)]
             if command == "frame_rank":
@@ -941,7 +948,7 @@ class CommandRouter:
         return present.riven_market_reply(weapon, auctions, note, platform, query)
 
     def _riven_group(self, argument: str, ctx: Context) -> Reply:
-        """#紫卡分析 <组名>：按武器组看紫卡数值范围（主武器/副武器/近战/空战/同伴）。"""
+        """#紫卡倾向 <组名>：按武器组看紫卡数值范围（主武器/副武器/近战/空战/同伴）。"""
         if self.riven is None:
             return present.error_reply("紫卡功能未启用。")
         text = str(argument or "").strip()
@@ -984,6 +991,40 @@ class CommandRouter:
             label, sections,
             {category: len(rows) for category, rows in buckets.items()},
             float(disposition))
+
+    def _riven_scan(self, argument: str, ctx: Context) -> Reply:
+        """#紫卡分析：发紫卡截图，识别武器 / 词条 / 数值并评分。
+
+        OCR 用 riven.mashiro.games 扩展里那套 PP-OCRv5 模型（本机推理），
+        范围与评分沿用 `RivenAnalyzer`，所以和 `#紫卡 <武器>` 的口径一致。
+        """
+        if self.riven is None:
+            return present.error_reply("紫卡功能未启用。")
+        from . import ppocr
+
+        if not ctx.image:
+            return present.riven_scan_help()
+        if not ppocr.available():
+            reason = ppocr.status().get("error") or "缺少 numpy / onnxruntime"
+            return present.error_reply(
+                "紫卡截图识别没就绪（%s）。可以先发「%s紫卡 武器名」看词条范围。"
+                % (reason, ctx.prefix or "#"))
+
+        weapons = None
+        try:
+            weapons = self.riven.weapons()
+        except Exception as exc:  # noqa: BLE001 - 只是为了模糊匹配，拿不到就算了
+            self.log.info("紫卡识别：武器表不可用（%s），跳过模糊匹配", exc)
+
+        started = time.time()
+        result = rivenscan.scan(ctx.image, self.riven.resolve, RivenAnalyzer,
+                                weapons=weapons,
+                                weapon_hint=str(argument or "").strip())
+        self.log.info("紫卡识别：%.2fs，武器=%s（%s），词条=%d",
+                      time.time() - started,
+                      getattr(getattr(result, "weapon", None), "name", "?"),
+                      getattr(result, "weapon_match", "?"), len(result.pairs))
+        return present.riven_scan_reply(result, ctx.prefix or "#")
 
     # ------------------------------------------------------------------ 价格榜（后台快照）
     def _scanning_reply(self, label: str, ready: int, total: int) -> Reply:

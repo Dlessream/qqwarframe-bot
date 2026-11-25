@@ -346,6 +346,19 @@ class BotApp:
             self.log.info("帮助背景预热完成：用时 %.1f 秒", time.time() - bg_started)
         except Exception as exc:
             self.log.warning("帮助背景预热失败（首次打开帮助时会重试）：%s", exc)
+        # 紫卡截图识别的 PP-OCRv5 模型（21MB）加载要 1 秒多，先备好
+        try:
+            from . import ppocr
+
+            ocr_started = time.time()
+            if ppocr.warm():
+                self.log.info("紫卡 OCR 预热完成：用时 %.1f 秒",
+                              time.time() - ocr_started)
+            else:
+                self.log.info("紫卡 OCR 未启用：%s",
+                              ppocr.status().get("error") or "依赖缺失")
+        except Exception as exc:  # noqa: BLE001 - OCR 不可用不影响主流程
+            self.log.warning("紫卡 OCR 预热失败：%s", exc)
 
     # ------------------------------------------------------------------ Web/更新
     def status_snapshot(self) -> Dict[str, Any]:
@@ -695,16 +708,25 @@ class BotApp:
 
         text, at_me = self._extract_text(event)
         text = text.strip()
-        if not text:
+        has_image = self._has_event_image(event)
+        if not text and not has_image:
             return
 
-        parsed = self.router.parse(text, allow_bare=self.allow_bare)
+        parsed = self.router.parse(text, allow_bare=self.allow_bare) if text else None
+        if parsed is None and text and at_me and self.behavior.get(
+                "respond_to_at", True):
+            candidate = self.prefixes[0] + text
+            parsed = self.router.parse(candidate)
+            if parsed is not None:
+                text = candidate
+        if parsed is None and has_image:
+            # 只发图、或「@机器人 + 图片/文字」没对上命令时，当作紫卡截图分析：
+            # 文字部分当武器名提示（比如读不准时可以顺手写成「@机器人 执法者」）
+            text = self.prefixes[0] + "紫卡分析" + ((" " + text) if text else "")
+            parsed = ("riven_scan", text.split(None, 1)[1]
+                      if " " in text else "")
         if parsed is None:
-            if at_me and self.behavior.get("respond_to_at", True):
-                text = self.prefixes[0] + text
-                parsed = self.router.parse(text)
-            if parsed is None:
-                return
+            return
 
         chat_key = "g:%s" % group_id if is_group else "p:%s" % user_id
         user_key = "%s/u:%s" % (chat_key, user_id)
@@ -712,8 +734,8 @@ class BotApp:
             self.log.debug("触发限流：%s", user_key)
             return
 
-        # 紫卡截图识别已下线，消息里带的图片不再下载解析
-        image = None
+        # 只有紫卡识别需要图片：别的命令不下载，省一次跨境请求
+        image = self._event_image(event) if parsed[0] == "riven_scan" else None
         context = Context(
             user_id=user_id,
             group_id=group_id,
@@ -1615,6 +1637,14 @@ class BotApp:
         except HttpError as exc:
             self.log.warning("图片下载失败：%s", exc)
         return None
+
+    def _has_event_image(self, event: Dict[str, Any]) -> bool:
+        """消息里有没有图片段（只看结构，不下载）。"""
+        segments = event.get("message")
+        if not isinstance(segments, list):
+            return False
+        return any(isinstance(segment, dict) and segment.get("type") == "image"
+                   for segment in segments)
 
     def _event_image(self, event: Dict[str, Any]) -> Optional[bytes]:
         """只取消息里的第一张图片；支持 URL / base64 / 本地 file://。"""

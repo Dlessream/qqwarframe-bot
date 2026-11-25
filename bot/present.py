@@ -310,7 +310,7 @@ def riven_market_reply(weapon: RivenWeapon, auctions: Sequence[RivenAuction],
 def riven_group_reply(label: str, sections: Sequence[Tuple[str, RivenAnalysis]],
                       counts: Dict[str, int], disposition: float,
                       group_counts: Optional[Dict[str, int]] = None) -> Reply:
-    """紫卡分组范围：#紫卡分析 主武器 / 副武器 / 近战 / 空战 / 同伴。"""
+    """紫卡分组范围：#紫卡倾向 主武器 / 副武器 / 近战 / 空战 / 同伴。"""
     from .riven import CATEGORY_LABELS, GROUP_LABELS
 
     lines = ["【%s】紫卡词条范围" % label,
@@ -354,8 +354,8 @@ def riven_group_menu(group_counts: Optional[Dict[str, int]] = None) -> Reply:
     """不带组名时列出可选分组。"""
     from .riven import GROUP_KEYS, GROUP_LABELS
 
-    lines = ["用法：#紫卡分析 <组名>",
-             "例：#紫卡分析 主武器 · 副武器 · 近战 · 空战 · 同伴",
+    lines = ["用法：#紫卡倾向 <组名>",
+             "例：#紫卡倾向 主武器 · 副武器 · 近战 · 空战 · 同伴",
              ""]
     for key in GROUP_KEYS:
         count = (group_counts or {}).get(key, 0)
@@ -2440,3 +2440,84 @@ def help_reply(prefix: str, disabled=(), bg_provider=None,
 
 def error_reply(message: str) -> Reply:
     return Reply(text=message)
+
+
+# ---------------------------------------------------------------------- 紫卡截图分析
+def riven_scan_help() -> Reply:
+    """没带图时说明怎么用。"""
+    lines = [
+        "紫卡分析：把紫卡截图发给我就行（群里 @机器人 直接发图也可以）。",
+        "",
+        "认的是卡面上的：武器名、正负词条与数值、段位/循环；",
+        "出来的是：每条词条落在该武器满级范围里的位置 + 评价，以及整卡档位。",
+        "",
+        "· 只发图：自动识别",
+        "· 图 + 文字：文字当武器名（识别不准时写一次就行），例：#紫卡分析 执法者",
+        "· 没升满的卡：按等级换算后评分，卡面数值原样显示",
+        "",
+        "引擎是 riven.mashiro.games 同款 PP-OCRv5 模型（本机跑，不上传图片）。",
+    ]
+    return Reply(text="\n".join(lines))
+
+
+def riven_scan_reply(result, prefix: str = "#") -> Reply:
+    """紫卡截图分析结果：文字摘要 + 分析卡。"""
+    weapon = getattr(result, "weapon", None)
+    evaluations = list(getattr(result, "evaluations", []) or [])
+    notes = list(getattr(result, "notes", []) or [])
+    pairs = list(getattr(result, "pairs", []) or [])
+
+    if weapon is None or not pairs:
+        lines = ["没认出这张紫卡。"]
+        if getattr(result, "texts", None):
+            preview = " / ".join(str(item)[:18] for item in result.texts[:6])
+            lines.append("识别到的文字：%s" % preview)
+        lines.extend(notes or [])
+        lines.append("")
+        lines.append("可以试试：图更清楚一些，或发「%s紫卡分析 %s」手动带武器名。"
+                     % (prefix, "武器名"))
+        return Reply(text="\n".join(lines))
+
+    analysis = result.analysis
+    config = getattr(result, "config", "") or "配置未定"
+    scale = float(getattr(result, "scale", 1.0) or 1.0)
+    lines = ["【%s · 紫卡分析】" % weapon.name,
+             "倾向 %.2f（%s）｜ %s（%s）" % (
+                 analysis.disposition, analysis.dots or "—", config,
+                 "未升满 Lv.%d" % int(getattr(result, "rank", 0))
+                 if scale < 1.0 else "Lv.8")]
+    for item in evaluations:
+        stat = getattr(item, "stat", None)
+        span = ""
+        if stat is not None:
+            span = "（满级 %s）" % stat.range_text()
+        lines.append("%s %s%s → %s" % (
+            _roll_text(item.name, float(getattr(item, "value", 0.0) or 0.0),
+                       stat),
+            getattr(item, "grade", "") or "—",
+            span, getattr(item, "note", "") or ""))
+
+    positives = [item for item in evaluations if not getattr(item, "negative", False)]
+    if positives:
+        average = sum(float(getattr(item, "percentile", 0.0) or 0.0)
+                      for item in positives) / len(positives)
+        lines.append("正向均值落在区间的 %d%%。" % int(round(average * 100)))
+    if notes:
+        lines.append("")
+        lines.extend(notes)
+    lines.append("")
+    lines.append("范围与评分本地计算（Warframe Wiki 基础值 × 倾向）。")
+
+    return Reply(text="\n".join(lines),
+                 image=lambda: imagecard.riven_scan_card(result))
+
+
+def _roll_text(name: str, value: float, stat=None) -> str:
+    """`+184.7% 暴击几率` / `x1.5 对派系伤害`。"""
+    try:
+        from .rivencalc import format_roll, is_multiplier_stat
+
+        label = "对派系伤害" if is_multiplier_stat(name) else name
+        return format_roll(stat, name, value) + " " + label
+    except Exception:  # noqa: BLE001
+        return "%+.1f%% %s" % (value, name)

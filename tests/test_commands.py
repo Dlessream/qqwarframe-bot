@@ -662,20 +662,29 @@ class RivenAnalysisCommandTest(unittest.TestCase):
         self.assertIn("3+1", replies[0].text)
 
     def test_riven_analysis_group_command(self):
-        """#紫卡分析 已恢复：按武器组看紫卡数值范围。"""
+        """按武器组看倾向：#紫卡倾向（原「紫卡分析」已改名）。"""
         router, _, _ = make_router(riven=FakeRiven())
-        self.assertEqual(router.parse("#紫卡分析 主武器"), ("riven_group", "主武器"))
-        self.assertEqual(router.parse("#紫卡分析主武器"), ("riven_group", "主武器"))
-        reply = router.handle("#紫卡分析 主武器", self.ctx)[0]
+        self.assertEqual(router.parse("#紫卡倾向 主武器"), ("riven_group", "主武器"))
+        self.assertEqual(router.parse("#紫卡倾向主武器"), ("riven_group", "主武器"))
+        reply = router.handle("#紫卡倾向 主武器", self.ctx)[0]
         self.assertIn("紫卡词条范围", reply.text)
         self.assertIn("主武器", reply.text)
         self.assertIn("倾向按 1.20 计算", reply.text)
 
     def test_riven_analysis_group_menu(self):
         router, _, _ = make_router(riven=FakeRiven())
-        reply = router.handle("#紫卡分析", self.ctx)[0]
+        reply = router.handle("#紫卡倾向", self.ctx)[0]
         self.assertIn("用法", reply.text)
         self.assertIn("副武器", reply.text)
+
+    def test_riven_scan_takes_over_the_name(self):
+        """「紫卡分析」现在指截图分析，不再落到按组看范围。"""
+        router, _, _ = make_router(riven=FakeRiven())
+        self.assertEqual(router.parse("#紫卡分析"), ("riven_scan", ""))
+        self.assertEqual(router.parse("#紫卡分析 执法者"), ("riven_scan", "执法者"))
+        # 没带图时给用法说明，不会去查组范围
+        reply = router.handle("#紫卡分析", self.ctx)[0]
+        self.assertIn("发给我", reply.text)
 
     def test_riven_still_works_after_restore(self):
         router, _, _ = make_router(riven=FakeRiven())
@@ -723,7 +732,7 @@ class CommandMenuTest(unittest.TestCase):
         self.assertEqual(rows["riven_market"]["label"], "紫卡市场")
         self.assertEqual(rows["world_invasions"]["label"], "入侵任务")
         self.assertTrue(rows["riven_market"]["description"])
-        self.assertEqual(len(rows), 64)
+        self.assertEqual(len(rows), 65)
 
     def test_alias_conflict_is_rejected(self):
         with self.assertRaises(ValueError):

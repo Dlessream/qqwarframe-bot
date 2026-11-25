@@ -601,3 +601,55 @@ _on_interaction 耗时 4.76s
 - `PASSIVE_WINDOW` 3500ms → **280s**（平台是 5 分钟，3.5 秒会把按钮场景的窗口白扔掉，
   导致每条按钮结果都被迫走主动消息）。
 - 新增日志 `发送被拒（…），换发送方式重试`，以后再出问题能直接看出降到了第几级。
+
+## 紫卡：改名「紫卡倾向」+ 新增截图分析「紫卡分析」（2026-11-25 23:50）
+
+用户要求：①把原来的「紫卡分析」（按武器组看范围）改名「紫卡倾向」；
+②新增「紫卡分析」= 传紫卡截图做识别与评分；OCR **直接用 riven.mashiro.games 那个软件**。
+
+### 1) 改名
+
+- `command_meta.riven_group` → 「紫卡倾向」；`COMMANDS` 新增 `紫卡倾向` 别名，把
+  `紫卡分析` 让给新命令 `riven_scan`（`紫卡识别 / 识图 / 分析紫卡 / zkocr` 同义）。
+- 帮助卡、render 文本、README、present 文案同步改成「紫卡倾向」。
+
+### 2) riven.mashiro.games 到底是什么（关键结论）
+
+那个站点是**浏览器扩展**（Chrome/Edge/Firefox zip，v0.2.20），识别在**本机**用
+PaddleOCR PP-OCRv5（onnxruntime-web/WASM）跑，**没有服务端 API 可调**。
+所以「直接用它」的落地方式是：把它扩展包里的模型与参数搬到服务端：
+
+- `vendor/ppocr/ch_PP-OCRv5_det_mobile.onnx`（4.8MB）
+- `vendor/ppocr/ch_PP-OCRv5_rec_mobile.onnx`（16.6MB）
+- `vendor/ppocr/ppocrv5_dict.txt`（18383 字）
+- 预处理/后处理照 `paddle-ocr.js`：det 长边 960、32 对齐、mean(0.485/0.456/0.406)、
+  std(0.229/0.224/0.225)、BGR、阈值 0.3 / box 0.5 / unclip 1.65；
+  rec 高 48、宽按比例（≤2048）、`(x/255-0.5)/0.5`、CTC 去重 + 置信度 0.45。
+
+模型放 `data/ppocr/`（构建时复制到 `builtin-data/ppocr/`），依赖 `numpy` + `onnxruntime`。
+单张截图 ~0.9s（首次加载模型 1.5s，`app._prewarm` 会预热）。
+
+**踩坑**：rec 输出是 `[T, C]`（C=18385=字典+blank+空格）。一开始按「两个维度谁大」
+判断要不要转置，T(59) < C(18385) 被误转置 → 输出全是「厂乙入」这种部首乱码。
+正确判断是「最后一维是否等于 字典长度+2」。
+
+### 3) 功能实现
+
+- `bot/ppocr.py`：det/rec 推理 + 连通域框 + 行聚类（同 y 中心 0.55 倍高度内合并）。
+  缺 numpy/onnxruntime 或模型时 `available()` 为 False，命令降级提示，不影响其它功能。
+- `bot/rivenscan.py`：解析层沿用旧 Tesseract 时代的踩坑成果（词条别名匹配、最近数字
+  取值、卡面符号优先、2+/2+1/3+/3+1 配置搜索、Lv.0~8 ↔ 1/9~9/9 换算、兜不住就直说），
+  只把 OCR 入口换成 `ppocr.recognize`；新增 `guess_weapon`（精确→包含→difflib 模糊）
+  与 `scan()` 高层入口。
+- `bot/commands.py::_riven_scan` + 命令分发；`bot/app.py` 恢复图片下载：
+  只对 `riven_scan` 下载图片（别的命令不花这次跨境请求）；**纯图片消息**
+  （群里 @机器人 发图）也当成紫卡分析，文字部分当武器名提示。
+- `bot/present.py`：`riven_scan_help` / `riven_scan_reply`；
+  `bot/imagecard.py`：`riven_scan_card`（词条 / 卡面 / 满级区间 / 位置 / 评价 五列）。
+- 测试：`tests/test_rivenscan.py`（解析、配置识别、未升满、模糊武器名、端到端 mock、
+  命令层、模型文件存在），并同步改了 `test_commands` / `test_riven_group` 里的旧断言。
+
+### 4) 部署注意
+
+`data/ppocr/*.onnx` 入库（21MB），服务器 `data/ppocr` 已手工同步过，
+`git merge` 前要先 `rm -rf data/ppocr`（否则未跟踪文件冲突），重建镜像会装 numpy/onnxruntime。

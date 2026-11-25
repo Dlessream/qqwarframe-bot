@@ -46,7 +46,10 @@ RUN mkdir -p /app/builtin-data \
                 aliases.json component_aliases.json frame_aliases.json sol_nodes.json \
                 node_names_zh.json; do \
          if [ -f "/app/data/$f" ]; then cp "/app/data/$f" /app/builtin-data/; fi; \
-       done
+       done \
+    && if [ -d /app/data/ppocr ]; then \
+         mkdir -p /app/builtin-data/ppocr && cp /app/data/ppocr/* /app/builtin-data/ppocr/; \
+       fi
 
 RUN mkdir -p /app/config /app/data /app/logs \
     && cp /app/data/aliases.json /app/default-aliases.json \

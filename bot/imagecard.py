@@ -1810,7 +1810,8 @@ def _help_groups(prefix: str):
             ("%s遗物 <编号|奖励名>" % prefix,
              "编号→奖励明细；奖励名→反查全部遗物（支持别名）"),
             ("%s紫卡" % prefix, "最贵零洗紫卡榜（高 → 低）"),
-            ("%s紫卡分析 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"),
+            ("%s紫卡倾向 <组>" % prefix, "主武器 / 副武器 / 近战 / 空战 / 同伴"),
+            ("%s紫卡分析 <图>" % prefix, "发紫卡截图：识别词条 + 数值 + 评分"),
         ]),
         ("世界状态", CYAN, [
             ("%s轮换" % prefix, "言录使 / 格拉斯 / 埃莉诺 轮换商店"),
@@ -2681,3 +2682,105 @@ if __name__ == "__main__":  # 本地预览：python -m bot.imagecard
     with open(out, "wb") as fh:
         fh.write(png)
     print("wrote", out, len(png), "bytes")
+
+
+# ---------------------------------------------------------------------- 紫卡分析
+_GRADE_COLORS = {
+    "接近满值": GOLD,
+    "优秀": GOLD,
+    "中等": TEXT,
+    "偏低": MUTED,
+    "轻微": GREEN,
+    "负面偏大": RED,
+    "负面过大": RED,
+    "超上限": CYAN,
+    "低于下限": RED,
+    "未识别": DIM,
+}
+
+
+def riven_scan_card(result, footer: str = "OCR PP-OCRv5 · 范围 Warframe Wiki") -> bytes:
+    """紫卡截图分析卡：卡面词条 + 满级区间 + 落在区间的位置 + 评价。"""
+    analysis = getattr(result, "analysis", None)
+    weapon = getattr(result, "weapon", None)
+    if analysis is None or weapon is None:
+        raise ValueError("没有武器/范围数据，无法出图")
+
+    evaluations = list(getattr(result, "evaluations", []) or [])
+    notes = list(getattr(result, "notes", []) or [])
+    config = getattr(result, "config", "") or ""
+    scale = float(getattr(result, "scale", 1.0) or 1.0)
+
+    height = 210 + len(evaluations) * 44 + len(notes) * 26 + 150
+    height = max(560, height)
+    content = Image.new("RGBA", (WIDTH, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(content)
+
+    title = "%s · 紫卡分析" % weapon.name
+    subtitle = "倾向 %.2f（%s）｜ %s" % (
+        analysis.disposition, analysis.dots or "—",
+        ("%s 配置" % config) if config else "配置未确定")
+    if scale < 1.0:
+        subtitle += "｜ 未升满（Lv.%d）" % int(getattr(result, "rank", 0))
+    y = _header(draw, title, subtitle, "RIVEN SCAN", PURPLE)
+
+    positives = sum(1 for item in evaluations if not getattr(item, "negative", False))
+    negatives = len(evaluations) - positives
+    average = 0.0
+    if evaluations:
+        average = sum(float(getattr(item, "percentile", 0.0) or 0.0)
+                      for item in evaluations if not getattr(item, "negative", False))
+        average = average / max(1, positives)
+    grade = ("接近满值" if average >= 0.9 else "优秀" if average >= 0.7 else
+             "中等" if average >= 0.4 else "偏低") if positives else "—"
+    y = _pills(draw, y, [
+        ("词条", "%d 正 / %d 负" % (positives, negatives)),
+        ("正向均值", "%d%%" % int(round(average * 100))),
+        ("评价", grade),
+    ], PURPLE)
+
+    y = _analysis_section(draw, y, "词条评分",
+                          "位置 = 卡面数值在该配置可能范围里的百分比")
+    rows = []
+    colors = {}
+    for index, item in enumerate(evaluations):
+        stat = getattr(item, "stat", None)
+        value = float(getattr(item, "value", 0.0) or 0.0)
+        negative = bool(getattr(item, "negative", False))
+        shown = _riven_value_text(item.name, value, stat)
+        span = "—"
+        if stat is not None:
+            span = stat.range_text(float(getattr(item, "scale", 1.0) or 1.0))
+        percentile = float(getattr(item, "percentile", 0.0) or 0.0)
+        position = "—" if stat is None else "%d%%" % int(round(percentile * 100))
+        grade_text = str(getattr(item, "grade", "") or "")
+        rows.append([item.name, shown, span, position, grade_text])
+        colors[(index, 0)] = RED if negative else TEXT
+        colors[(index, 1)] = RED if negative else GREEN
+        colors[(index, 4)] = _GRADE_COLORS.get(grade_text, TEXT)
+
+    y = _analysis_grid(
+        draw, y, ["词条", "卡面", "满级区间", "位置", "评价"],
+        [186, 132, 180, 96, 198], rows,
+        ["left", "right", "right", "right", "center"], colors)
+    y += 10
+
+    if notes:
+        y = _analysis_section(draw, y, "提示")
+        for line in notes:
+            _ctext(draw, y, _fit(draw, line, _font(14), WIDTH - 2 * PAD),
+                   _font(14), MUTED)
+            y += 25
+
+    y = _footer(draw, y + 8, footer)
+    return _card_panel(content, height)
+
+
+def _riven_value_text(name: str, value: float, stat=None) -> str:
+    """卡面数值的显示：倍率词条写 x1.5，其余写 +99.9%。"""
+    try:
+        from .rivencalc import format_roll
+
+        return format_roll(stat, name, value)
+    except Exception:  # noqa: BLE001 - 渲染失败不该炸卡片
+        return "%+.1f%%" % value

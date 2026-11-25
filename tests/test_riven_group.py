@@ -109,7 +109,7 @@ class GroupRangeTest(unittest.TestCase):
 
     def test_menu(self):
         reply = present.riven_group_menu({"primary": 2, "secondary": 1})
-        self.assertIn("#紫卡分析", reply.text)
+        self.assertIn("#紫卡倾向", reply.text)
         for label in GROUP_LABELS.values():
             self.assertIn(label, reply.text)
 
