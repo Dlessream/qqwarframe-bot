@@ -117,6 +117,63 @@ class ImageKeyboardDeliveryTest(unittest.TestCase):
         self.assertTrue(app._deliver(True, "G1", reply))
         self.assertEqual([call[0] for call in app.qqbot.calls], ["image"])
 
+    def test_passive_rejected_retries_as_active(self):
+        """被动回复被平台拒（40034025 event_id 无效）时要改用主动消息重发。"""
+        class Strict(self.Capture):
+            def send_group_text(self, group_id, text, reply_ctx=None,
+                                keyboard=None):
+                from bot.qqofficial import QQOfficialError
+                if reply_ctx:
+                    raise QQOfficialError(
+                        "/messages 失败：请求参数event_id无效 / 错误码 40034025")
+                self.calls.append(("text", text, keyboard))
+
+        app = self._app(card=False)
+        app.qqbot = Strict()
+        reply = replies.Reply(text="行情结果", image=lambda: None, keyboard=None)
+        self.assertTrue(app._deliver(True, "G1", reply,
+                                     reply_ctx={"msg_id": "IID"}))
+        self.assertEqual([call[0] for call in app.qqbot.calls], ["text"])
+
+
+class InteractionReplyContextTest(unittest.TestCase):
+    """互动事件的 id 要作为 msg_id 被动回复，填 event_id 会被平台拒。"""
+
+    def _app(self):
+        from bot.app import BotApp
+        from bot.config import load_config
+        config = load_config("config.example.json")
+        config["auto_update"]["enabled"] = False
+        config["alerts"]["enabled"] = False
+        config["behavior"]["preload_items"] = False
+        config["behavior"]["cooldown_seconds"] = 0
+        config["behavior"]["group_policy"] = "blacklist"
+        config["behavior"]["whitelist_groups"] = []
+        config["behavior"]["blacklist_groups"] = []
+        config["web"]["enabled"] = False
+        app = BotApp(config)
+        app.image_enabled = False
+        return app
+
+    def test_button_reply_uses_msg_id(self):
+        app = self._app()
+        captured = {}
+
+        def fake_deliver(is_group, chat_id, reply, at_user="", reply_ctx=None):
+            captured["ctx"] = dict(reply_ctx or {})
+            return True
+
+        app._deliver = fake_deliver
+        app.router.handle_button = lambda data, ctx: [replies.Reply(text="ok")]
+        app._on_interaction({
+            "post_type": "interaction", "message_type": "group",
+            "group_id": "G1", "user_id": "U1", "self_id": "BOT",
+            "button_data": "wm:trend:tok", "button_id": "wm-trend",
+            "qq_interaction_id": "INT-1", "qq_envelope_id": "INTERACTION_CREATE:1",
+        })
+        self.assertEqual(captured["ctx"], {"msg_id": "INT-1"})
+        self.assertNotIn("event_id", captured["ctx"])
+
 
 class InteractionEventTest(unittest.TestCase):
     def test_button_click_mapped(self):

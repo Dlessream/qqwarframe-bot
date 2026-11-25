@@ -57,6 +57,17 @@ GROUP_POLICY_REASONS = {
 }
 
 
+def _passive_rejected(exc: Exception) -> bool:
+    """被动回复被平台拒绝（ID 失效/重复/过期），可改用主动消息重发。"""
+    text = str(exc)
+    return any(tag in text for tag in (
+        "40034025",        # 请求参数 event_id 无效
+        "event_id", "msg_id", "msg_seq",
+        "40054005",        # 消息被去重
+        "被动消息", "主动消息",
+    ))
+
+
 MOD_CATEGORIES = (
     ("warframe", "战甲"),
     ("primary", "主武器"),
@@ -753,7 +764,10 @@ class BotApp:
             self.log.exception("按钮命令处理失败：%s", exc)
             replies = [present.error_reply("按钮操作失败，请重新发送命令。")]
         if replies:
-            reply_ctx = {"event_id": interaction_id}
+            # 互动事件的 id 用于「被动消息发送」，字段名是 msg_id；
+            # 之前填在 event_id 上会被平台拒（40034025 请求参数event_id无效），
+            # 表现为点按钮后什么都不出来。
+            reply_ctx = {"msg_id": interaction_id} if interaction_id else {}
             self._reply(replies, is_group,
                         group_id if is_group else user_id, user_id, reply_ctx)
 
@@ -1678,6 +1692,36 @@ class BotApp:
                  at_user: str = "",
                  reply_ctx: Optional[Dict[str, Any]] = None) -> bool:
         prefix = "[CQ:at,qq=%s] " % at_user if at_user else ""
+        # 被动回复上下文可能在平台侧失效（40034025 event_id 无效、msg_id 过期、
+        # msg_seq 重复…）。一旦被拒就退化成主动消息重发，别让用户点了按钮没反应。
+        ctx: Dict[str, Any] = {"value": dict(reply_ctx) if reply_ctx else None}
+
+        def call(fn, *args, **kwargs):
+            try:
+                return fn(ctx["value"], *args, **kwargs)
+            except QQOfficialError as exc:
+                if ctx["value"] and _passive_rejected(exc):
+                    self.log.warning("被动回复被拒（%s），改为主动消息重发", exc)
+                    ctx["value"] = None
+                    return fn(None, *args, **kwargs)
+                raise
+
+        def send_card(context, png, keyboard):
+            sender = (getattr(self.qqbot, "send_group_card", None) if is_group
+                      else getattr(self.qqbot, "send_private_card", None))
+            return sender(chat_id, png, context, keyboard=keyboard)
+
+        def send_image(context, png):
+            if is_group:
+                return self.qqbot.send_group_image(chat_id, png, prefix, context)
+            return self.qqbot.send_private_image(chat_id, png, prefix, context)
+
+        def send_text(context, text, keyboard=None):
+            kw = {"keyboard": keyboard} if keyboard else {}
+            if is_group:
+                return self.qqbot.send_group_text(chat_id, text, context, **kw)
+            return self.qqbot.send_private_text(chat_id, text, context, **kw)
+
         if self.image_enabled and reply.image is not None:
             try:
                 png = reply.image()
@@ -1689,22 +1733,15 @@ class BotApp:
                 # 官方路径：Markdown 消息引用平台素材，图文与按钮同一条消息。
                 # 富媒体（msg_type=7）平台不认 keyboard，只能走这条。
                 if keyboard and not prefix:
-                    sender = (getattr(self.qqbot, "send_group_card", None)
-                              if is_group else
-                              getattr(self.qqbot, "send_private_card", None))
-                    if sender is not None:
+                    if (getattr(self.qqbot, "send_group_card", None) if is_group
+                            else getattr(self.qqbot, "send_private_card", None)):
                         try:
-                            sender(chat_id, png, reply_ctx, keyboard=keyboard)
+                            call(send_card, png, keyboard)
                             return True
                         except QQOfficialError as exc:
                             self.log.warning("图文卡片发送失败，回退富媒体：%s", exc)
                 try:
-                    if is_group:
-                        self.qqbot.send_group_image(chat_id, png, prefix,
-                                                    reply_ctx)
-                    else:
-                        self.qqbot.send_private_image(chat_id, png, prefix,
-                                                      reply_ctx)
+                    call(send_image, png)
                 except QQOfficialError as exc:
                     self.log.warning("图片发送失败：%s", exc)
                     png = None
@@ -1713,14 +1750,7 @@ class BotApp:
                     if keyboard:
                         hint = reply.button_hint or "▼ 选择下方操作"
                         try:
-                            if is_group:
-                                self.qqbot.send_group_text(chat_id, hint,
-                                                           reply_ctx,
-                                                           keyboard=keyboard)
-                            else:
-                                self.qqbot.send_private_text(chat_id, hint,
-                                                             reply_ctx,
-                                                             keyboard=keyboard)
+                            call(send_text, hint, keyboard)
                         except QQOfficialError as exc:
                             # 图片已经发出去了，按钮失败只记日志，不重复发整条。
                             self.log.warning("按钮消息发送失败：%s", exc)
@@ -1740,11 +1770,7 @@ class BotApp:
                 text = prefix + text
             try:
                 chunk_keyboard = reply.keyboard if index == len(chunks) - 1 else None
-                kb_kw = {"keyboard": chunk_keyboard} if chunk_keyboard else {}
-                if is_group:
-                    self.qqbot.send_group_text(chat_id, text, reply_ctx, **kb_kw)
-                else:
-                    self.qqbot.send_private_text(chat_id, text, reply_ctx, **kb_kw)
+                call(send_text, text, chunk_keyboard)
             except QQOfficialError as exc:
                 self.log.warning("发送消息失败：%s", exc)
                 return False
