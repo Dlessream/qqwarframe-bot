@@ -825,7 +825,7 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
     pairs: List[Tuple[str, float]] = []
     for name, value, negative, gap in picks:
         if gap > 1.0:
-            notes.append("%s %s 略超 %s 配置范围，请核对原图"
+            notes.append("%s %s 不在 %s 配置的范围内，请核对原图"
                          % (name, format_roll(None, name, value), config.label))
         pairs.append((name, value))
     for candidate in dropped:
