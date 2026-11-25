@@ -407,3 +407,31 @@ db/schema.sql / db/build.py  本次数据库建设产物
 
 **排查要点**：客户端不显示按钮但接口 200，先看是不是富媒体；不要在 `msg_type=7`
 里调 keyboard。日志里 `图片发送失败（含按钮时）` 那条是历史代码的回退分支，已删除。
+
+## 改用官方素材 + Markdown：一条消息放图放按钮（2026-11-25 22:40）
+
+上一版把图片和按钮拆成两条消息只是**兜底**，不是最优解。官方真正的正规路径是
+「素材管理」+ Markdown：
+
+1. `POST /v2/media-images/prepare`（要 file_name / file_size / content_type / md5 / sha1）
+   → 拿到 `upload_id` + COS 预签名 URL
+2. `PUT <presigned_url>` 直传 PNG（Content-Type 必须与 prepare 声明一致，否则 COS 403）
+3. `POST /v2/media-images/complete`（upload_id + md5）→ 返回
+   `url: qqbot-media://image/v1/<token>` 与 `image_id`
+4. 发 `msg_type=2` Markdown：正文 `![卡片 #860px #Hpx](qqbot-media://…)` + `keyboard`
+
+这样图片和按钮在**同一条消息**里，且全部是官方支持的字段（Markdown 能力 2026/04/23
+起对所有机器人在单聊/群聊开放，不再需要模板权限）。
+
+实现（`bot/qqofficial.py`）：
+- `_upload_material` / `_material_flow`：三步上传，PNG 宽高直接从 IHDR 读（16~24 字节）。
+- `send_group_card` / `send_private_card`：一条 Markdown 消息，图 + 可选 caption + 键盘。
+- **配额**：单机器人 100 张、90 天滑动过期。发送成功后把 `image_id` 丢给后台
+  `_material_reaper` 线程，**延迟 15 秒删除**（平台在发送时已转存副本，删了不影响
+  已发消息，但能保住配额）；`complete` 返回 40035007 时 `_purge_materials()` 清空
+  本机器人素材再重试一次（10 分钟冷却）。
+- **回退**：`app._deliver` 里 Markdown 卡片抛 `QQOfficialError` 就退回
+  「富媒体图片 + 带键盘短文本」，保证按钮不会因为一次接口抖动整条丢光。
+
+实测开销（境外到 api.bot.qq.com）：prepare 0.63s + PUT 0.20s + complete 0.65s
+≈ **1.5s/张**，比富媒体上传（~0.3s）多 1.2s。DELETE 0.4s 在后台，不占回复耗时。

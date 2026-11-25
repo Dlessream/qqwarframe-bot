@@ -11,10 +11,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
+import queue
 import re
 import socket
+import struct
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -173,6 +176,8 @@ class QQOfficialClient:
         self._reply_ctx: Dict[str, Dict[str, Any]] = {}
         self._ctx_seq: Dict[str, int] = {}
         self._ctx_lock = threading.Lock()
+        self._purge_at = 0.0
+        self._material_queue: Optional[queue.Queue] = None
         self._executor = ThreadPoolExecutor(max_workers=4,
                                             thread_name_prefix="qqofficial")
 
@@ -636,6 +641,154 @@ class QQOfficialClient:
         if not info:
             raise QQOfficialError("图片上传成功但返回中没有 file_info")
         return info
+
+    # ------------------------------------------------------- 素材（Markdown 用）
+    @staticmethod
+    def _png_size(png: bytes) -> Tuple[int, int]:
+        """读 PNG 的 IHDR 拿宽高，Markdown 里要写成 `#宽px #高px`。"""
+        if len(png) >= 24 and png[:8] == b"\x89PNG\r\n\x1a\n":
+            try:
+                return struct.unpack(">II", png[16:24])
+            except struct.error:  # pragma: no cover - 防御
+                pass
+        return 0, 0
+
+    def _upload_material(self, png: bytes) -> Tuple[str, str]:
+        """走素材管理三步上传，返回 (qqbot-media:// 引用, image_id)。
+
+        官方文档：富媒体消息（msg_type=7）带不了按钮，要在一条消息里同时有图
+        和按钮，只能发 Markdown 消息并在正文里引用平台素材。
+        """
+        md5 = hashlib.md5(png).hexdigest()
+        sha1 = hashlib.sha1(png).hexdigest()
+        try:
+            return self._material_flow(png, md5, sha1)
+        except QQOfficialError as exc:
+            # 40035007 = 素材数量超过 100 张，清一批老图再试一次。
+            if "40035007" not in str(exc):
+                raise
+            self._purge_materials()
+            return self._material_flow(png, md5, sha1)
+
+    def _material_flow(self, png: bytes, md5: str,
+                       sha1: str) -> Tuple[str, str]:
+        prep = self._post("/v2/media-images/prepare", {
+            "file_name": "card.png", "file_size": len(png),
+            "content_type": "image/png", "md5": md5, "sha1": sha1})
+        url = str(prep.get("presigned_url") or "")
+        upload_id = str(prep.get("upload_id") or "")
+        if not url or not upload_id:
+            raise QQOfficialError("素材上传申请没拿到预签名地址")
+        try:
+            self.http.request(url, {"Content-Type": "image/png"},
+                              method="PUT", body=png)
+        except HttpError as exc:
+            raise QQOfficialError("素材直传失败：%s" % exc)
+        done = self._post("/v2/media-images/complete",
+                          {"upload_id": upload_id, "md5": md5})
+        link = str(done.get("url") or "")
+        if not link:
+            raise QQOfficialError("素材上传完成但没返回引用链接")
+        return link, str(done.get("image_id") or "")
+
+    def _purge_materials(self) -> None:
+        """素材配额满（100 张）时清空本机器人的素材，避免上传直接失败。"""
+        with self._ctx_lock:
+            now = time.time()
+            if now - self._purge_at < 600:
+                return
+            self._purge_at = now
+        try:
+            data = self._get("/v2/media-images")
+        except QQOfficialError as exc:
+            self.log.warning("素材列表获取失败：%s", exc)
+            return
+        for image in data.get("images") or []:
+            image_id = str(image.get("image_id") or "")
+            if not image_id:
+                continue
+            try:
+                self._request_json(
+                    "/v2/media-images/%s/delete" % quote(image_id, safe=""),
+                    "DELETE", {})
+            except QQOfficialError:
+                pass
+
+    def _drop_material(self, image_id: str, delay: float = 15.0) -> None:
+        """发完消息后延迟删掉素材：平台在发送时已转存副本，删了不影响已发消息，
+        但能保住 100 张的配额。"""
+        if not image_id:
+            return
+        with self._ctx_lock:
+            if self._material_queue is None:
+                self._material_queue = queue.Queue()
+                threading.Thread(target=self._material_reaper, daemon=True,
+                                 name="qqbot-material").start()
+        self._material_queue.put((image_id, time.time() + delay))
+
+    def _material_reaper(self) -> None:
+        while True:
+            item = self._material_queue.get()
+            if item is None:
+                return
+            image_id, due = item
+            wait = due - time.time()
+            if wait > 0:
+                time.sleep(min(wait, 60.0))
+                if time.time() < due:
+                    self._material_queue.put(item)
+                    continue
+            try:
+                self._request_json(
+                    "/v2/media-images/%s/delete" % quote(image_id, safe=""),
+                    "DELETE", {})
+            except QQOfficialError:
+                pass
+            except Exception:  # pragma: no cover - 防御
+                pass
+
+    def _send_markdown_image(self, kind: str, chat_id: Any, png: bytes,
+                             reply_ctx: Optional[Dict[str, Any]] = None,
+                             keyboard: Optional[Dict[str, Any]] = None,
+                             caption: str = "") -> Dict[str, Any]:
+        """一条 Markdown 消息同时放卡片图与按钮（官方唯一支持的方式）。"""
+        link, image_id = self._upload_material(png)
+        width, height = self._png_size(png)
+        size = " #%dpx #%dpx" % (width, height) if width and height else ""
+        content = "![卡片%s](%s)" % (size, link)
+        if caption:
+            content = "%s\n\n%s" % (content, caption)
+        body: Dict[str, Any] = {
+            "msg_type": 2,
+            "markdown": {"content": content},
+        }
+        if keyboard:
+            body["keyboard"] = keyboard
+        body.update(self._reply_fields(chat_id, reply_ctx))
+        if kind == "group":
+            path = "/v2/groups/%s/messages" % quote(str(chat_id), safe="")
+        else:
+            path = "/v2/users/%s/messages" % quote(str(chat_id), safe="")
+        result = self._post(path, body)
+        self._log_event("out", "%s %s 图文卡片 %d 字节%s" % (
+            kind, chat_id, len(png), "（含按钮）" if keyboard else ""))
+        # 消息已经拿到平台副本，素材可以回收了。
+        self._drop_material(image_id)
+        return result
+
+    def send_group_card(self, group_id: Any, png: bytes,
+                        reply_ctx: Optional[Dict[str, Any]] = None,
+                        keyboard: Optional[Dict[str, Any]] = None,
+                        caption: str = "") -> Dict[str, Any]:
+        return self._send_markdown_image("group", group_id, png, reply_ctx,
+                                         keyboard, caption)
+
+    def send_private_card(self, user_id: Any, png: bytes,
+                          reply_ctx: Optional[Dict[str, Any]] = None,
+                          keyboard: Optional[Dict[str, Any]] = None,
+                          caption: str = "") -> Dict[str, Any]:
+        return self._send_markdown_image("private", user_id, png, reply_ctx,
+                                         keyboard, caption)
 
     def _send_image(self, kind: str, chat_id: Any, png: bytes,
                     prefix: str = "",

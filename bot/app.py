@@ -1689,6 +1689,19 @@ class BotApp:
                 self.log.warning("图片生成失败，回退文字：%s", exc)
                 png = None
             if png:
+                keyboard = reply.keyboard
+                # 官方路径：Markdown 消息引用平台素材，图文与按钮同一条消息。
+                # 富媒体（msg_type=7）平台不认 keyboard，只能走这条。
+                if keyboard and not prefix:
+                    sender = (getattr(self.qqbot, "send_group_card", None)
+                              if is_group else
+                              getattr(self.qqbot, "send_private_card", None))
+                    if sender is not None:
+                        try:
+                            sender(chat_id, png, reply_ctx, keyboard=keyboard)
+                            return True
+                        except QQOfficialError as exc:
+                            self.log.warning("图文卡片发送失败，回退富媒体：%s", exc)
                 try:
                     if is_group:
                         self.qqbot.send_group_image(chat_id, png, prefix,
@@ -1700,10 +1713,7 @@ class BotApp:
                     self.log.warning("图片发送失败：%s", exc)
                     png = None
                 if png:
-                    # 富媒体消息（msg_type=7）平台不接受 keyboard，按钮会被
-                    # 静默丢弃（不报错但客户端不显示），所以图片落地后必须
-                    # 再补一条带键盘的短文本，按钮才会真正出现在下面。
-                    keyboard = reply.keyboard
+                    # 回退路径：图片落地后再补一条带键盘的短文本。
                     if keyboard:
                         hint = reply.button_hint or "▼ 选择下方操作"
                         try:

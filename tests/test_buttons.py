@@ -43,12 +43,19 @@ class KeyboardTest(unittest.TestCase):
 
 
 class ImageKeyboardDeliveryTest(unittest.TestCase):
-    """富媒体（msg_type=7）不接受 keyboard：图片发完后必须补一条带按钮的文本。"""
+    """带按钮的卡片走官方 Markdown 图文（一条消息），失败才退回富媒体 + 按钮文本。"""
 
     class Capture:
-        def __init__(self):
+        def __init__(self, card=True):
             self.calls = []
             self.event_log = None
+            if card:
+                self.send_group_card = self._card
+            # card=False 时不挂这个方法，用来验证回退路径
+
+        def _card(self, group_id, png, reply_ctx=None, keyboard=None,
+                  caption=""):
+            self.calls.append(("card", caption, keyboard))
 
         def send_group_image(self, group_id, png, prefix="", reply_ctx=None):
             self.calls.append(("image", prefix, None))
@@ -57,7 +64,7 @@ class ImageKeyboardDeliveryTest(unittest.TestCase):
                             keyboard=None):
             self.calls.append(("text", text, keyboard))
 
-    def _app(self):
+    def _app(self, card=True):
         from bot.app import BotApp
         from bot.config import load_config
         config = load_config("config.example.json")
@@ -67,24 +74,45 @@ class ImageKeyboardDeliveryTest(unittest.TestCase):
         config["behavior"]["cooldown_seconds"] = 0
         config["web"]["enabled"] = False
         app = BotApp(config)
-        app.qqbot = self.Capture()
+        app.qqbot = self.Capture(card)
+        app.image_enabled = True
         return app
 
-    def test_keyboard_follows_image_as_text(self):
+    def test_keyboard_rides_on_single_markdown_card(self):
         app = self._app()
-        app.image_enabled = True
+        kb = keyboards.wm_keyboard("tok")
+        reply = replies.Reply(text="文字版", image=lambda: b"png",
+                              keyboard=kb)
+        self.assertTrue(app._deliver(True, "G1", reply))
+        self.assertEqual([call[0] for call in app.qqbot.calls], ["card"])
+        self.assertIs(app.qqbot.calls[0][2], kb)
+
+    def test_falls_back_to_image_plus_text(self):
+        app = self._app(card=False)
         kb = keyboards.wm_keyboard("tok")
         reply = replies.Reply(text="文字版", image=lambda: b"png",
                               keyboard=kb, button_hint="▼ 行情走势")
         self.assertTrue(app._deliver(True, "G1", reply))
-        kinds = [call[0] for call in app.qqbot.calls]
-        self.assertEqual(kinds, ["image", "text"])
+        self.assertEqual([call[0] for call in app.qqbot.calls],
+                         ["image", "text"])
         self.assertEqual(app.qqbot.calls[1][1], "▼ 行情走势")
         self.assertIs(app.qqbot.calls[1][2], kb)
 
+    def test_card_error_falls_back(self):
+        app = self._app()
+        app.qqbot.send_group_card = self._boom
+        reply = replies.Reply(text="文字版", image=lambda: b"png",
+                              keyboard=keyboards.wm_keyboard("tok"))
+        self.assertTrue(app._deliver(True, "G1", reply))
+        self.assertEqual([call[0] for call in app.qqbot.calls],
+                         ["image", "text"])
+
+    def _boom(self, *args, **kwargs):
+        from bot.qqofficial import QQOfficialError
+        raise QQOfficialError("40035006 素材服务异常")
+
     def test_no_keyboard_single_image(self):
         app = self._app()
-        app.image_enabled = True
         reply = replies.Reply(text="文字版", image=lambda: b"png")
         self.assertTrue(app._deliver(True, "G1", reply))
         self.assertEqual([call[0] for call in app.qqbot.calls], ["image"])

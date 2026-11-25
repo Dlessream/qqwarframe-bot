@@ -155,6 +155,46 @@ class GatewayClientTest(unittest.TestCase):
         self.assertEqual(captured["body"]["msg_type"], 7)
         self.assertNotIn("keyboard", captured["body"])
 
+    def test_png_size_reads_ihdr(self):
+        from PIL import Image
+        import io
+        buffer = io.BytesIO()
+        Image.new("RGB", (860, 420), (0, 0, 0)).save(buffer, "PNG")
+        self.assertEqual(QQOfficialClient._png_size(buffer.getvalue()),
+                         (860, 420))
+        self.assertEqual(QQOfficialClient._png_size(b"not-a-png"), (0, 0))
+
+    def test_card_is_markdown_with_media_and_keyboard(self):
+        """有按钮的卡片：一条 Markdown 消息里放 qqbot-media 图 + keyboard。"""
+        from PIL import Image
+        import io
+        from bot import keyboards
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (860, 420), (10, 10, 10)).save(buffer, "PNG")
+        client = self._client()
+        captured = {}
+        dropped = []
+
+        def fake_post(path, body):
+            captured["path"], captured["body"] = path, body
+            return {}
+
+        client._post = fake_post
+        client._upload_material = lambda png: ("qqbot-media://image/v1/TOK",
+                                               "IMG1")
+        client._drop_material = dropped.append
+        kb = keyboards.wm_keyboard("t")
+        client.send_group_card("G1", buffer.getvalue(), keyboard=kb)
+        body = captured["body"]
+        self.assertEqual(body["msg_type"], 2)
+        self.assertIn("qqbot-media://image/v1/TOK",
+                      body["markdown"]["content"])
+        self.assertIn("#860px", body["markdown"]["content"])
+        self.assertIs(body["keyboard"], kb)
+        self.assertNotIn("media", body)
+        self.assertEqual(dropped, ["IMG1"])
+
     def test_mentions_translation(self):
         client = self._client()
         self.assertEqual(client._mentions("[CQ:at,qq=G1] 你好"),
