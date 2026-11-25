@@ -1,3 +1,5 @@
 * text=auto
 *.sh text eol=lf
 *.bat text eol=crlf
+data/ppocr/*.onnx binary
+data/ppocr/*.txt -text
