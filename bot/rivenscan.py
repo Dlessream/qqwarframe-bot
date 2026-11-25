@@ -297,11 +297,50 @@ def _fuzzy_stats(line: str,
 
 
 # ---------------------------------------------------------------------- 行解析
+# 「这一行看起来是个数值」：带百分号、带正负号、带倍率 x1.5、或带一位小数。
+# 只用来判断拆行要不要拼回去，不参与取值——`段位 10 循环 2` 这种就不算。
+_VALUE_HINT_RE = re.compile(r"[%％]|[+\-−–—－﹣]\s*\d|[x×X]\s*[.,]?\d|\d[.,]\d")
+
+
+def _has_stat_value(line: str) -> bool:
+    return bool(_VALUE_HINT_RE.search(line))
+
+
+def _stitch(lines: Sequence[str]) -> List[str]:
+    """把被 OCR 拆成两行的「词条名」和「数值」拼回一行。
+
+    检测框偶尔把一个词条切成「+193,6%」和「伤害」两个框，两行各自都能识别成功，
+    但解析层是「取词条名最近的数字」——拆开以后两边都配不上，这条词条就被整条丢掉，
+    正是「经常少一条」的来源。只在「一行只有数值、另一行只有词条名」时拼接，
+    避免把段位/循环这类信息行也粘进来。
+    """
+    merged: List[str] = []
+    index = 0
+    total = len(lines)
+    while index < total:
+        line = lines[index]
+        nxt = lines[index + 1] if index + 1 < total else ""
+        if nxt:
+            name_now = bool(_find_stats(line))
+            value_now = _has_stat_value(line)
+            name_next = bool(_find_stats(nxt))
+            value_next = _has_stat_value(nxt)
+            if (name_now and not value_now and value_next and not name_next) or \
+                    (name_next and not value_next and value_now and not name_now):
+                merged.append(line + " " + nxt)
+                index += 2
+                continue
+        merged.append(line)
+        index += 1
+    return merged
+
+
 def _lines(text: str) -> List[str]:
     lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
     # `102. 9%`、`143 1%` 这种被断在小数点上的，先合回去，否则只会读到后面那截
-    return [_SPLIT_PERCENT_RE.sub(".", _SPLIT_DECIMAL_RE.sub(".", line))
-            for line in lines]
+    lines = [_SPLIT_PERCENT_RE.sub(".", _SPLIT_DECIMAL_RE.sub(".", line))
+             for line in lines]
+    return _stitch(lines)
 
 
 def _leading_variant(value: float):
@@ -471,7 +510,9 @@ def read(png: bytes) -> ReadResult:
             texts.append(line.text)
     if not texts:
         return ReadResult()
-    return ReadResult(candidates=read_texts(texts), texts=texts)
+    # 识别出来的行要按**同一份文本**送给解析层：行与行之间可能是同一个词条被
+    # 检测框拆开的两半（`+193,6%` / `伤害`），拼回去得先有「相邻」这层关系。
+    return ReadResult(candidates=read_texts(["\n".join(texts)]), texts=texts)
 
 
 # ---------------------------------------------------------------------- 范围校验

@@ -29,6 +29,26 @@ Laci-cron
 -6.0% 变焦
 段位 15 循环 0 Madurai"""
 
+# 检测框把一个词条拆成「数值」「词条名」两个框：两行各自都能识别，但都缺另一半
+SPLIT_CARD = """执法者
+Laci-cron
++185.4% 伤害
++101.2% 多重射击
++168.7%
+暴击几率
+-53.9% 变焦
+段位 15 循环 0 Madurai"""
+
+# 同上，但 OCR 先读到词条名、再读到数值
+SPLIT_CARD_REVERSED = """执法者
+Laci-cron
++185.4% 伤害
++101.2% 多重射击
+暴击几率
++168.7%
+-53.9% 变焦
+段位 15 循环 0 Madurai"""
+
 
 def weapon(slug="cron", name="执法者", name_en="Cron", riven_type="rifle",
            disposition=1.2):
@@ -48,6 +68,23 @@ class ParseTest(unittest.TestCase):
         names = [item.name for item in candidates]
         self.assertEqual(names, ["伤害", "多重射击", "暴击几率", "变焦"])
         self.assertEqual(candidates[-1].value, -53.9)
+
+    def test_split_line_rejoined(self):
+        """词条名和数值被检测框拆成两行时，要拼回去，不能少一条。"""
+        candidates = rivenscan.read_texts([SPLIT_CARD])
+        names = [item.name for item in candidates]
+        self.assertEqual(names, ["伤害", "多重射击", "暴击几率", "变焦"])
+        self.assertEqual(candidates[2].value, 168.7)
+
+    def test_split_line_name_before_value(self):
+        candidates = rivenscan.read_texts([SPLIT_CARD_REVERSED])
+        self.assertEqual([item.name for item in candidates],
+                         ["伤害", "多重射击", "暴击几率", "变焦"])
+
+    def test_rank_line_not_stitched(self):
+        """段位行没有百分号也不带符号，不能被当成「缺数值」粘到词条名上。"""
+        lines = rivenscan._lines("暴击几率\n段位 15 循环 0 Madurai")
+        self.assertEqual(lines, ["暴击几率", "段位 15 循环 0 Madurai"])
 
     def test_resolve_picks_3plus1(self):
         analysis = RivenAnalyzer().analyze(weapon())

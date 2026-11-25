@@ -41,6 +41,9 @@ REC_HEIGHT = 48
 REC_MAX_WIDTH = 2048
 #: CTC 单字符置信度下限（低于这个值当噪声丢掉）
 REC_MIN_SCORE = 0.45
+#: 小图放大：长边低于这个值先放大（det 只会缩小不会放大），目标长边 `UPSCALE_TARGET`
+MIN_LONG_SIDE = 420
+UPSCALE_TARGET = 900.0
 
 _lock = threading.Lock()
 _state = {"loaded": False, "error": "", "det": None, "rec": None, "dict": []}
@@ -48,7 +51,8 @@ _state = {"loaded": False, "error": "", "det": None, "rec": None, "dict": []}
 
 @dataclass
 class TextLine:
-    """一行识别结果。`box` 是原图坐标 (x0, y0, x1, y1)。"""
+    """一行识别结果。`box` 是坐标 (x0, y0, x1, y1)，以送进检测的那张图为基准
+    （小图会先放大，此时坐标是放大后的）。"""
 
     text: str
     confidence: float = 0.0
@@ -321,6 +325,27 @@ def _rec(np, image, box: Sequence[float]) -> Tuple[str, float]:
     return text, confidence
 
 
+def _upscale_small(image):
+    """小图先放大再识别。
+
+    det 只会缩小、不会放大（`ratio = min(1, max_side / max(w, h))`），所以一张
+    226 像素宽的紫卡缩略图进去还是 226，字高只有十几像素，首字经常被整块切掉
+    （实测「冰凇」只剩「冰」，词条名也会读残）。长边小于 `MIN_LONG_SIDE` 时先按
+    整数倍放大到 900 上下再走检测。
+    """
+    width, height = image.size
+    longest = max(width, height)
+    if longest <= 0 or longest >= MIN_LONG_SIDE:
+        return image
+    factor = min(3.0, UPSCALE_TARGET / float(longest))
+    if factor <= 1.05:
+        return image
+    from PIL import Image
+
+    return image.resize((int(round(width * factor)), int(round(height * factor))),
+                        Image.LANCZOS)
+
+
 def recognize(png: bytes, max_side: int = DET_MAX_SIDE) -> List[TextLine]:
     """整图识别，返回按行聚好的结果（空列表表示没识别到文字）。"""
     if not _ensure_loaded():
@@ -334,7 +359,9 @@ def recognize(png: bytes, max_side: int = DET_MAX_SIDE) -> List[TextLine]:
     orig_w, orig_h = image.size
     if orig_w < 32 or orig_h < 32:
         return []
-    image = _enhance(image)
+    image = _upscale_small(_enhance(image))
+    # 放大后再取尺寸：det 的框是按送入检测的那张图换算回原图坐标的
+    orig_w, orig_h = image.size
     tensor, dst_w, dst_h = _det_tensor(np, image, max_side)
     session = _state["det"]
     try:

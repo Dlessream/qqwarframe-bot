@@ -1020,10 +1020,15 @@ class CommandRouter:
         result = rivenscan.scan(ctx.image, self.riven.resolve, RivenAnalyzer,
                                 weapons=weapons,
                                 weapon_hint=str(argument or "").strip())
-        self.log.info("紫卡识别：%.2fs，武器=%s（%s），词条=%d",
+        self.log.info("紫卡识别：%.2fs，武器=%s（%s），词条=%d，OCR=%d 行",
                       time.time() - started,
                       getattr(getattr(result, "weapon", None), "name", "?"),
-                      getattr(result, "weapon_match", "?"), len(result.pairs))
+                      getattr(result, "weapon_match", "?"), len(result.pairs),
+                      len(result.texts or []))
+        # 词条偏少时把识别到的行一并打出来：用户反馈「少一条」时能直接看出是
+        # OCR 漏读、还是解析层把某条丢了，不用再让用户重发截图
+        if len(result.pairs) < 3:
+            self.log.info("紫卡识别：词条偏少，OCR 行=%s", result.texts)
         return present.riven_scan_reply(result, ctx.prefix or "#")
 
     # ------------------------------------------------------------------ 价格榜（后台快照）
