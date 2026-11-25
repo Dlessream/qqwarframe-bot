@@ -79,6 +79,30 @@ class ParseTest(unittest.TestCase):
         self.assertTrue(all(item.grade for item in evaluations))
 
 
+BAD_CARD = """执法者
+Laci-cron
++165.3% 伤害
++88.6% 多重射击
++142.2% 暴击几率
+-38.4% 变焦"""
+
+
+class MismatchTest(unittest.TestCase):
+    def test_mismatched_values_stay_lv8(self):
+        """数值和哪套范围都对不上时，不能硬说「没升满」。"""
+        analysis = RivenAnalyzer().analyze(weapon())
+        resolution = rivenscan.resolve(rivenscan.read_texts([BAD_CARD]), analysis)
+        self.assertEqual(resolution.scale, 1.0)
+        self.assertTrue(any("对不上" in note for note in resolution.notes))
+
+    def test_true_unranked_still_detected(self):
+        """真的没升满（1/9 数值）仍要认出来。"""
+        analysis = RivenAnalyzer().analyze(weapon())
+        resolution = rivenscan.resolve(
+            rivenscan.read_texts([UNRANKED_CARD]), analysis)
+        self.assertLess(resolution.scale, 0.2)
+
+
 class WeaponGuessTest(unittest.TestCase):
     def setUp(self):
         self.weapons = {"cron": weapon()}

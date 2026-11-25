@@ -653,3 +653,21 @@ PaddleOCR PP-OCRv5（onnxruntime-web/WASM）跑，**没有服务端 API 可调**
 
 `data/ppocr/*.onnx` 入库（21MB），服务器 `data/ppocr` 已手工同步过，
 `git merge` 前要先 `rm -rf data/ppocr`（否则未跟踪文件冲突），重建镜像会装 numpy/onnxruntime。
+
+### 5) 部署踩坑（重要）
+
+`deploy_rivenscan.py` 第一次跑时为了绕开「未跟踪文件挡住检出」，在 merge 前
+`rm -f bot/ppocr.py bot/rivenscan.py`。这两个文件**已经入库**，ff merge 时因为
+提交间没有差异，git 不会重新检出 → 镜像里缺文件 → 容器 `ImportError: rivenscan` 重启循环。
+
+正确做法（脚本已改）：
+- 只删「未跟踪」的：`git ls-files --error-unmatch "$f" || rm -f "$f"`
+- merge 后补一次 `git checkout -- bot data/ppocr`（精确路径，别 `checkout -- .`，
+  会盖掉控制台改过的 data/*.json）
+- `data/ppocr` 删了以后同样靠 `git checkout -- data/ppocr` 恢复。
+
+### 6) 贴合容忍度
+
+`_FIT_SLACK` 的百分比从 **5% 收到 2%**：5% 会把「差 8 个点」的读数也判成贴合，
+于是满级方案被判失败、降级成「未升满 Lv.6」，提示自相矛盾。
+现在低等级方案只接受 `rank == 0`（全部词条都贴合），否则维持 Lv.8 并提示核对。

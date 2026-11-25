@@ -657,8 +657,9 @@ def _conflicts(candidates: Sequence[Candidate]) -> List[List[int]]:
             groups[_family_key(candidate)].append(index)
     return [indices for indices in groups.values() if len(indices) > 1]
 
-# 「数值落在范围里」允许的误差：绝对 2.0，或者数值的 5%（取大的那个）。
-# 只用来吸收数据表与游戏内的四舍五入，读错一位（几十个百分点）不会混进来。
+# 「数值落在范围里」允许的误差：绝对 2.0，或者数值的 2%（取大的那个）。
+# 只用来吸收数据表与游戏内的四舍五入；5% 太宽——一张数值对不上的卡会被
+# 判成「没升满 Lv.6」而不是「识别/倾向有问题」。
 _FIT_SLACK = 2.0
 
 
@@ -707,7 +708,7 @@ def _search(usable: Sequence[Candidate], configs: Sequence[_Config],
                 mismatch += score[2]
                 # 「贴合」要求数值真的落在该配置的范围里（只容忍几分的误差）。
                 # 差得远的说明这一套配置根本不是这张卡的配置。
-                if gap > max(_FIT_SLACK, abs(scaled) * 0.05):
+                if gap > max(_FIT_SLACK, abs(scaled) * 0.02):
                     unfit += 1
                 if negative:
                     negatives += 1
@@ -787,11 +788,15 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
 
     best = run(1.0)
     best_scale = 1.0 if best is not None else 0.0
-    # 满级套不上时，再按「这张卡没升满」试一遍：等级 0~8 对应 1/9~9/9
+    # 满级套不上时，再按「这张卡没升满」试一遍：等级 0~8 对应 1/9~9/9。
+    # 只接受**全部词条都贴合**的低等级方案（rank 0）：否则一张单纯读错的卡
+    # 会被说成「未升满 Lv.6」，还带着一堆「超上限」提示，反而更误导。
     if best is None or best[0][0] or best[0][1]:
         for scale in _SCALE_ORDER[1:]:
             found = run(scale)
-            if found is not None and (best is None or found[0] < best[0]):
+            if found is None or found[0][1] != 0:
+                continue
+            if best is None or found[0] < best[0]:
                 best, best_scale = found, scale
 
     if best is not None:
