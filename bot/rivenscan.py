@@ -806,22 +806,20 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
         usable = [usable[index] for index in sorted(keep)]
 
     conflicts = _conflicts(usable)
-    has_signs = any(candidate.polarity(value)
-                    for candidate in usable
-                    for value, _count in candidate.options)
     # 四轮按可信度排序，取「保留词条最多 + 最可信」的那一组：
     #   0 听卡面符号，数值也要贴范围（正常情况）
-    #   1 听卡面符号，数值对不上也照给（`-` 就是负的，只提示核对）
+    #   1 听卡面符号，数值对不上也照给（`+`/`-` 就是卡面写的，只提示核对）
     #   2 符号没法用，退回按范围定正负
-    #   3 符号和范围都不靠谱，按范围定正负且放宽数值
+    #   3 符号没读到、数值也对不上：仍然按图上读到的全列出来
+    # 第 3 轮以前是「符号没读到就直接跳过」，结果一张卡只要有一个数字读错，
+    # 就会连丢两条词条（退化成 2+ 配置）——「经常少一条」正是这么来的。
+    # 现在的排序仍是「保留词条最多」优先，所以放宽只会在没有更贴合方案时才生效。
     passes = [(True, False, 0), (True, True, 1), (False, False, 2),
               (False, True, 3)]
 
     def run(scale: float):
         found = None
         for strict, allow_unfit, rank in passes:
-            if allow_unfit and not has_signs:
-                continue  # 连符号都没读到，就不该放宽数值要求
             result = _search(usable, configs, conflicts, strict=strict,
                              allow_unfit=allow_unfit, rank=rank, scale=scale)
             if result is not None and (found is None or result[0] < found[0]):
@@ -844,7 +842,9 @@ def resolve(candidates: Sequence[Candidate], analysis: RivenAnalysis) -> Resolut
     if best is not None:
         rank = best[0][1]
         if rank == 1:
-            notes.append("数值与理论范围对不上，已按卡面符号列出，请核对原图")
+            notes.append("数值与理论范围对不上，已按图上读到的列出，请核对原图")
+        elif rank == 3:
+            notes.append("正负号和数值都对不上，已按图上读到的列出，请核对原图")
         elif rank >= 2:
             notes.append("正负号没和卡面对上，已按词条范围判断，请核对原图")
 

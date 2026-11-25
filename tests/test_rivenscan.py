@@ -139,6 +139,21 @@ class MismatchTest(unittest.TestCase):
             rivenscan.read_texts([UNRANKED_CARD]), analysis)
         self.assertLess(resolution.scale, 0.2)
 
+    def test_no_signs_with_bad_value_keeps_stats(self):
+        """卡面符号全没读到、又有一个数字读错时，不能退化成只列两条。
+
+        以前「符号没读到」会直接跳过放宽轮，于是一条超范围就带崩两张卡：
+        实测这张 3+1 的卡只剩 2 条词条。
+        """
+        verglas = weapon("verglas", "冰凇", "Verglas", disposition=1.3)
+        analysis = RivenAnalyzer().analyze(verglas)
+        text = ("冰松 Plaga-satiata\n多重射击 109,8%\n异常状态伤害 110%\n"
+                "伤害 253,6%\n弹匣容量 43,6%")
+        resolution = rivenscan.resolve(rivenscan.read_texts([text]), analysis)
+        self.assertEqual(len(resolution.pairs), 4)
+        self.assertEqual(resolution.config, "3+1")
+        self.assertTrue(any("对不上" in note for note in resolution.notes))
+
 
 class WeaponGuessTest(unittest.TestCase):
     def setUp(self):
