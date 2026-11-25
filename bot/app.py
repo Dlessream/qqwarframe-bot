@@ -327,6 +327,14 @@ class BotApp:
             self.log.info("物品索引预热完成：%d 条，用时 %.1f 秒", len(index), time.time() - started)
         except Exception as exc:
             self.log.warning("物品索引预热失败（首次查询时会重试）：%s", exc)
+        # 帮助卡背景是官方 key art，冷启动要下载+缩放七秒多，
+        # 先在后台备好，免得用户第一次发「帮助」干等。
+        bg_started = time.time()
+        try:
+            self.router.warm_help_background()
+            self.log.info("帮助背景预热完成：用时 %.1f 秒", time.time() - bg_started)
+        except Exception as exc:
+            self.log.warning("帮助背景预热失败（首次打开帮助时会重试）：%s", exc)
 
     # ------------------------------------------------------------------ Web/更新
     def status_snapshot(self) -> Dict[str, Any]:

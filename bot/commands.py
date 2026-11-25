@@ -1150,6 +1150,14 @@ class CommandRouter:
             return self.worldstate.fetch(path, force=True)
         return self.worldstate.fetch(path)
 
+    def warm_help_background(self) -> None:
+        """启动时预取帮助卡背景图。
+
+        背景是官方 key art，首次要下载+缩放，实测一次 7 秒多；
+        放在启动线程里预热，用户第一次发「帮助」就不用等。
+        """
+        self._help_bg_provider()
+
     def _help_bg_provider(self):
         """给帮助菜单提供当前官方 key art 背景；任何失败都返回 None 降级。"""
         try:
