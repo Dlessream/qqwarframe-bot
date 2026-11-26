@@ -1128,7 +1128,8 @@ def circuit_reply(raw) -> Reply:
                 label = "%s（%s）" % (label, cycle.get("key"))
             names = [str(nm) for nm in cycle.get("names") or []]
             cells = names if english else [names_db.chinese(nm) for nm in names]
-            shown = " · ".join(cells) if cells else "—"
+            # 一格要塞 5 个名字：分隔用单点不带空格，服务器字体下才不会截断
+            shown = "·".join(cells) if cells else "—"
             if cycle.get("current"):
                 highlight.append(index)
             rows.append([
@@ -1145,7 +1146,7 @@ def circuit_reply(raw) -> Reply:
         sections.append({
             "label": name,
             "badge": ("本周 %s" % ordinal) if ordinal else "本周未取到",
-            "columns": [("周期", 1.5), ("下次日期", 1.28), (column, 3.5)],
+            "columns": [("周期", 1.42), ("下次日期", 1.15), (column, 3.85)],
             "rows": rows,
             "highlight_rows": highlight,
         })
