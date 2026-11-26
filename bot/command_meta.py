@@ -18,7 +18,7 @@ COMMAND_META: Dict[str, Tuple[str, str]] = {
     "ceres_intercept_arbitration": ("谷拦仲裁", "未来 7 天谷神星拦截仲裁"),
     "mirror_defense_arbitration": ("镜防仲裁", "未来 7 天火星 / 火卫二镜像防御仲裁"),
     "arbi_tiers": ("仲裁评级", "仲裁节点梯队与本地推算"),
-    "arbitration": ("当前仲裁", "当前仲裁节点、任务与敌人"),
+    "arbitration": ("当前仲裁", "当前这一场 + 下一场的时间、节点、任务与评级"),
     "archon": ("执刑官猎杀", "本周执刑官猎杀任务"),
     "baro": ("虚空商人", "Baro Ki'Teer 位置、商品与剩余时间"),
     "bounties": ("赏金任务", "各地可接赏金一览"),

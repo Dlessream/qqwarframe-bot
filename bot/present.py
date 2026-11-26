@@ -462,16 +462,36 @@ def _arbi_mission(text) -> str:
     return raw
 
 
+def _arbi_when(ts: float) -> str:
+    """下一场的时间：当天只给 HH:MM，跨天补上日期。"""
+    try:
+        local = time.localtime(float(ts))
+    except (TypeError, ValueError, OSError, OverflowError):
+        return "—"
+    today = time.localtime()
+    if (local.tm_year, local.tm_yday) == (today.tm_year, today.tm_yday):
+        return time.strftime("%H:%M", local)
+    return time.strftime("%m-%d %H:%M", local)
+
+
 def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
                       node=None, note: str = "",
-                      rating_source: str = "") -> Reply:
+                      rating_source: str = "",
+                      upcoming: Optional[Dict] = None) -> Reply:
+    """仲裁卡：当前这一场 ＋ 下一场。
+
+    upcoming 由 arbi 轮换表算出，形如
+    ``{"node": ArbiNode, "start": 时间戳, "end": 时间戳, "tier": "A+"}``；
+    拿不到就只画当前这一行，并在备注里说明。
+    """
     tier = rating or ""
     source_label = {"community": "社区梯队", "manual": "人工评级",
                     "local": "本地推算"}.get(rating_source, "")
     rating_text = tier
     if tier and source_label:
         rating_text = "%s（%s）" % (tier, source_label)
-    subtitle = "剩余 %s" % countdown(arbitration.end)
+    left = countdown(arbitration.end)
+    subtitle = "当前剩 %s" % left
     if rating_text:
         subtitle += " ｜ 评级 %s" % rating_text
     name = node.display_name if node is not None else (arbitration.node or "—")
@@ -487,13 +507,42 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
     rating_color = _rating_color(tier)
     accent = mission_color or rating_color
     rows = [[
+        imagecard.Cell("当前", bold=True, color=accent),
         imagecard.Cell(name), imagecard.Cell(system),
         imagecard.Cell(mission, color=mission_color, bold=known_mission),
         imagecard.Cell(enemy), imagecard.Cell(level),
         imagecard.Cell(tier or "—", color=rating_color, bold=True),
+        imagecard.Cell("剩 %s" % left, color=imagecard.DIM),
     ]]
 
-    lines = ["【仲裁】", subtitle, "节点：%s" % name]
+    up_node = (upcoming or {}).get("node")
+    up_start = float((upcoming or {}).get("start") or 0)
+    up_tier = str((upcoming or {}).get("tier") or "")
+    up_when = _arbi_when(up_start) if up_start else ""
+    if up_node is not None:
+        up_mission = _arbi_mission(getattr(up_node, "mission", "") or "—")
+        up_known = bool(up_mission) and up_mission not in ("—", "-")
+        up_color = missioncolors.rgb(up_mission) if up_known else None
+        up_enemy = terms.localize_faction(
+            str(getattr(up_node, "faction", "") or "—"))
+        rows.append([
+            imagecard.Cell("下一场", color=imagecard.MUTED),
+            imagecard.Cell(up_node.display_name),
+            imagecard.Cell(getattr(up_node, "system", "") or "—"),
+            imagecard.Cell(up_mission, color=up_color, bold=up_known),
+            imagecard.Cell(up_enemy),
+            imagecard.Cell(getattr(up_node, "level_text", "") or "—"),
+            imagecard.Cell(up_tier or "—", color=_rating_color(up_tier),
+                           bold=True),
+            imagecard.Cell(up_when or "—"),
+        ])
+        subtitle += " ｜ 下一场 %s" % up_when
+    else:
+        note = (note + " " if note else "") + "下一场排期暂不可用。"
+
+    lines = ["【仲裁】", ("当前 · 剩 %s" % left) + (
+        " ｜ 评级 %s" % rating_text if rating_text else "")]
+    lines.append("节点：%s" % name)
     if node is not None and node.system:
         lines.append("星球：%s" % node.system)
     lines.append("类型：%s" % mission)
@@ -504,6 +553,13 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
         lines.append("评级：%s" % rating_text)
     if rating_source == "local":
         lines.append("说明：该节点不在社区梯队里，评级由任务类型与敌人等级推算。")
+    if up_node is not None:
+        lines.append("")
+        lines.append("下一场 · %s 开始" % (up_when or "—"))
+        lines.append("节点：%s" % up_node.display_name)
+        lines.append("类型：%s" % up_mission)
+        if up_tier:
+            lines.append("评级：%s" % up_tier)
     if note:
         lines.append(note)
 
@@ -513,10 +569,11 @@ def arbitration_reply(arbitration: Arbitration, rating: Optional[str] = None,
     return Reply(
         text="\n".join(lines),
         keyboard=keyboards.arbitration_keyboard(),
+        button_hint="▼ 切换：谷拦 / 镜防 / 高效仲裁 · 仲裁表",
         image=lambda: imagecard.table_card(
             "仲裁任务", subtitle,
-            [("节点", 2.0), ("星球", 0.8), ("类型", 1.0), ("敌人", 1.0),
-             ("等级", 0.8), ("评级", 0.6)],
+            [("状态", 0.8), ("节点", 1.9), ("星球", 0.9), ("类型", 0.9),
+             ("敌人", 0.85), ("等级", 0.8), ("评级", 0.5), ("时间", 0.95)],
             rows, footer, accent=accent,
             chip=("%s · %s" % (mission, tier) if tier else mission)
             if known_mission else ("仲裁 %s" % tier if tier else "仲裁"),
@@ -1250,6 +1307,7 @@ def arbitration_schedule_reply(entries, title: str = "今日仲裁（未来 24 �
         accent=imagecard.GOLD, note="时间按本机时区显示。", scene="arbitration",
         node_entries=node_entries)
     reply.keyboard = keyboards.arbitration_keyboard()
+    reply.button_hint = "▼ 筛选：谷拦 / 镜防 / 高效仲裁 · 仲裁表"
     return reply
 
 
@@ -1337,16 +1395,16 @@ def arbitration_week_reply(entries, days: int = 7, title: str = "仲裁表",
             text_lines.append("  另有 %s，见图片" % "、".join(tail))
 
     subtitle = "未来 %d 天共 %d 场 · 每场 1 小时 · 按本机时区" % (days, total)
-    note = "S / A+ 级已标出；底部按钮为筛选提示，发对应命令查看。"
+    note = "S / A+ 级已标出；下方「谷拦 / 镜防 / 高效仲裁」按钮可直接切到对应筛选表。"
     return Reply(
-        text="【%s】\n%s\n%s\n\n快捷筛选：谷拦仲裁 / 镜防仲裁 / 高效仲裁"
+        text="【%s】\n%s\n%s\n\n底部按钮：谷拦仲裁 / 镜防仲裁 / 高效仲裁"
              % (title, subtitle, "\n".join(text_lines)),
         keyboard=keyboards.arbitration_keyboard(),
+        button_hint="▼ 筛选：谷拦 / 镜防 / 高效仲裁",
         image=lambda: imagecard.schedule_table(
             title, subtitle, sections,
             "数据 arbi.wf.wiki · 轮换表", accent=imagecard.GOLD,
             chip="%d 天" % days, note=note,
-            buttons=imagecard.ARBITRATION_BUTTONS,
             background=scenebg.scene_image("arbitration")))
 
 

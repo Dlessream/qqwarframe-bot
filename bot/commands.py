@@ -1391,9 +1391,28 @@ class CommandRouter:
         if ((arbitration.expired or not arbitration.node
              or arbitration.node == "SolNode000") and node is None):
             return present.error_reply("当前没有有效的仲裁数据。")
+        # 下一场：接着当前这场结束的时刻，往轮换表里数下一格
+        upcoming = None
+        if self.arbi is not None and arbitration.end:
+            try:
+                following = self.arbi.schedule_entries(
+                    float(arbitration.end) + 1.0,
+                    float(arbitration.end) + 3 * 3600)
+            except ArbiError:
+                following = []
+            now = time.time()
+            for start, finish, next_node, next_tier in following:
+                # 官方给的时间偶尔比轮换表晚几秒，跳过正在进行的这一场
+                if start <= now + 60:
+                    continue
+                upcoming = {"node": next_node, "start": start,
+                            "end": finish, "tier": next_tier}
+                break
+
         return present.arbitration_reply(arbitration, rating=rating,
                                          node=node, note=note,
-                                         rating_source=rating_source)
+                                         rating_source=rating_source,
+                                         upcoming=upcoming)
 
     def _arbi_tiers(self, argument: str, ctx: Context) -> Reply:
         if self.arbi is None:

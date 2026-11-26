@@ -816,6 +816,19 @@ class FakeArbi:
         return [(base + i * 3600, base + (i + 1) * 3600,
                  self.everest, "A+") for i in range(int(days) * 24)]
 
+    def schedule_entries(self, start_ts, end_ts):
+        """按整点铺场次；测试只关心「下一场」有没有取到。"""
+        entries = []
+        ts = float(start_ts)
+        for index in range(48):
+            if ts >= float(end_ts):
+                break
+            entries.append((ts, ts + 3600.0,
+                            self.callisto if index == 0 else self.everest,
+                            "A+"))
+            ts += 3600.0
+        return entries
+
     def filtered(self, kind, days=7, now=None):
         base = 1793116800.0
         if kind == "ceres_intercept":
@@ -858,6 +871,15 @@ class ArbitrationCommandTest(unittest.TestCase):
         replies = router.handle("#仲裁", self.ctx)
         self.assertIn("Everest", replies[0].text)
         self.assertIn("推算", replies[0].text)
+
+    def test_arbitration_lists_next_round(self):
+        """#仲裁 要同时给出当前这一场和下一场。"""
+        router, _, _ = make_router(arbi=FakeArbi(), worldstate=FakeWorld())
+        replies = router.handle("#仲裁", self.ctx)
+        text = replies[0].text
+        self.assertIn("当前 · 剩", text)
+        self.assertIn("下一场", text)
+        self.assertIn("Callisto", text)
 
     def test_parse_schedule(self):
         router, _, _ = make_router()
@@ -913,7 +935,7 @@ class ArbitrationCommandTest(unittest.TestCase):
         self.assertIn("谷拦仲裁", replies[0].text)
         self.assertIn("Cinxia", replies[0].text)
         self.assertIsNotNone(replies[0].image)
-        self.assertIn("快捷筛选", replies[0].text)
+        self.assertIn("底部按钮", replies[0].text)
 
     def test_mirror_defense_reply(self):
         router, _, _ = make_router(arbi=FakeArbi())

@@ -264,6 +264,7 @@ def render_help(prefix: str = "#", disabled=()) -> str:
         "%s希图斯               希图斯时间 + 小帐篷赏金" % prefix,
         "%s圣所 / %s1999 / %s扎里曼   三处固定档位赏金" % (prefix, prefix, prefix),
         "%s深层科研 / %s时光科研 / %s科研" % (prefix, prefix, prefix),
+        "%s仲裁               当前这一场 + 下一场" % prefix,
         "%s仲裁评级           仲裁梯队（加「本地」看推算结果）" % prefix,
         "%s今日仲裁 / %s高效仲裁  未来 24 小时轮换、高价值仲裁" % (prefix, prefix),
         "%s仲裁表 [天数]     未来 7 天完整仲裁排期（1 - 7 天）" % prefix,

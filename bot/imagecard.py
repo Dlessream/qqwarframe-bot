@@ -981,10 +981,11 @@ def table_card(title: str, subtitle: str, columns: Sequence[Tuple[str, float]],
     text_font = _font(CELL_FONT)
     bold_font = _font(CELL_FONT, bold=True)
     for row_index, row in enumerate(rows):
-        if row_index % 2 == 0:
-            _rrect(draw, (PAD - ZEBRA_PAD, y - 5,
-                          WIDTH - PAD + ZEBRA_PAD, y + row_height - 12),
-                   10, fill=PANEL)
+        # 每行都铺一层底色：场景背景图有亮部时（仲裁那张大理石地面），
+        # 只给偶数行上色会让奇数行的字直接压在亮背景上，看不清。
+        _rrect(draw, (PAD - ZEBRA_PAD, y - 5,
+                      WIDTH - PAD + ZEBRA_PAD, y + row_height - 12),
+               10, fill=PANEL if row_index % 2 == 0 else PANEL_LIGHT)
         x = PAD
         for index, cell in enumerate(row):
             font = bold_font if cell.bold else text_font
@@ -1244,15 +1245,16 @@ def schedule_table(title: str, subtitle: str, days: Sequence[Dict],
         _divider(draw, y)
         y += 8
 
-        for index in range(per_col):
+        # 这一天的行数决定怎么分两列：按全局最大值会把半天的场次拉出大段空白
+        day_per_col = max(1, (len(rows) + 1) // 2)
+        for index in range(day_per_col):
             for col in range(2):
-                pos = index + col * per_col
+                pos = index + col * day_per_col
                 if pos >= len(rows):
                     continue
                 cx = PAD + col * (col_w + gap)
-                if index % 2 == 0:
-                    _rrect(draw, (cx - 6, y - 4, cx + col_w + 6, y + row_h - 10),
-                           9, fill=PANEL)
+                _rrect(draw, (cx - 6, y - 4, cx + col_w + 6, y + row_h - 10),
+                       9, fill=PANEL if index % 2 == 0 else PANEL_LIGHT)
                 cells = list(rows[pos])[:4]
                 while len(cells) < 4:
                     cells.append("")
@@ -1878,6 +1880,7 @@ def _help_groups(prefix: str):
             ("%s科研" % prefix, "两种科研总览"),
         ]),
         ("仲裁排期", GREEN, [
+            ("%s仲裁" % prefix, "当前这一场 + 下一场（含剩余 / 开始时间）"),
             ("%s仲裁评级" % prefix, "仲裁梯队（加「本地」看推算）"),
             ("%s今日仲裁 / %s高效仲裁" % (prefix, prefix), "未来 24 小时轮换、S/A+ 高价值仲裁"),
             ("%s仲裁表 [天数]" % prefix, "未来 7 天完整仲裁排期（底部含筛选按钮）"),

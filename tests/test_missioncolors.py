@@ -126,6 +126,35 @@ class ArbitrationCardTest(unittest.TestCase):
         self.assertIn("类型：防御", reply.text)
         self.assertGreater(len(reply.image()), 1000)
 
+    def test_card_shows_next_round(self):
+        """卡片固定两行：当前这一场 ＋ 下一场。"""
+        arbitration = Arbitration(node="E Prime", mission="防御",
+                                  enemy="Grineer", end=4102444800.0,
+                                  node_key="SolNode1")
+        upcoming = {"node": make_node("拦截", "MT_TERRITORY"),
+                    "start": 4102448400.0, "end": 4102452000.0, "tier": "A+"}
+        reply = present.arbitration_reply(
+            arbitration, rating="A", node=make_node("防御"), rating_source="community",
+            upcoming=upcoming)
+        self.assertIn("当前 · 剩", reply.text)
+        self.assertIn("下一场 · ", reply.text)
+        self.assertIn("类型：拦截", reply.text)
+        self.assertIn("A+", reply.text)
+        self.assertGreater(len(reply.image()), 1000)
+
+    def test_card_without_next_says_so(self):
+        reply, _ = self.make_reply("生存")
+        self.assertIn("下一场排期暂不可用", reply.text)
+
+    def test_card_keeps_filter_buttons(self):
+        """谷拦 / 镜防 / 高效三个筛选必须挂在仲裁卡下方的按钮上。"""
+        reply, _ = self.make_reply("生存")
+        labels = [button["render_data"]["label"]
+                  for row in reply.keyboard["content"]["rows"]
+                  for button in row["buttons"]]
+        for name in ("谷拦仲裁", "镜防仲裁", "高效仲裁"):
+            self.assertIn(name, labels)
+
 
 if __name__ == "__main__":
     unittest.main()
