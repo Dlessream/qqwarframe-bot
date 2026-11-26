@@ -1069,22 +1069,14 @@ def _rotation_ordinal(view: Dict) -> str:
     return ""
 
 
-def circuit_reply(raw) -> Reply:
-    """无尽回廊：本周可选 + 完整轮换表，一张卡里带完。
-
-    周期按「第一周、第二周……」往后列（灵化之源 9 周、战甲 11 周），当周那一行
-    铺底色；钢铁给灵化之源中文名，战甲统一用英文原名。
-    """
-    if not isinstance(raw, dict):
-        raw = {}
+def _circuit_now(raw) -> Tuple[List[List], List[str], str, Dict]:
+    """本周可选的两行（钢铁灵化 / 普通战甲）、文字行、倒计时与轮换数据。"""
     data = circuit_rotation.rotation(raw)
     week_end = float(data.get("week_end") or 0)
     rest = countdown(week_end) if week_end else ""
-
-    # ---- 本周可选：钢铁给灵化之源、普通给战甲
-    now_rows: List[List] = []
-    now_lines: List[str] = []
-    for group in _as_list(raw.get("choices")):
+    rows: List[List] = []
+    lines: List[str] = []
+    for group in (_as_list(raw.get("choices")) if isinstance(raw, dict) else []):
         hard = str(group.get("category") or "").lower() != "normal"
         picked = [str(item) for item in group.get("choices") or []]
         kinds = {names_db.kind(name) for name in picked}
@@ -1095,17 +1087,54 @@ def circuit_reply(raw) -> Reply:
             cells = "、".join(picked)
         else:
             cells = "、".join(names_db.chinese(name) for name in picked)
-        now_rows.append([label, cells])
-        now_lines.append("%s：%s" % (label, cells))
-    if not now_rows:
-        now_rows = [["—", "本周数据还没取到，稍后再试"]]
-        now_lines = list(now_rows[0])
+        rows.append([label, cells])
+        lines.append("%s：%s" % (label, cells))
+    if not rows:
+        rows = [["—", "本周数据还没取到，稍后再试"]]
+        lines = list(rows[0])
+    return rows, lines, rest, data
 
+
+def circuit_reply(raw, keyboard=None) -> Reply:
+    """无尽回廊 · 本周：一张小卡 +「灵化列表」按钮，完整轮换点开再看。
+
+    9 周灵化之源 / 11 周战甲的轮换表放到按钮回调里，主卡只留本周，
+    和「行情 / 对话文本」那套按钮一致，别把一整年的表都糊在首屏。
+    """
+    rows, lines, rest, data = _circuit_now(raw)
+    ordinal = _rotation_ordinal(data.get("incarnon") or {})
+    tip = "点下方「灵化列表」看 9 周灵化之源 / 11 周战甲轮换。"
+    sections = [{
+        "label": "本周可选",
+        "badge": ("剩 %s" % rest) if rest else "本周",
+        "columns": [("模式", 0.9), ("可选", 3.3)],
+        "rows": rows,
+    }]
+    text = ["【无尽回廊 · 本周】"] + ["  " + line for line in lines] + [""]
+    text.append(("本周是%s · %s" % (ordinal, tip)) if ordinal else tip)
+    subtitle = "本周灵化之源与战甲"
+    note = "每周一 08:00（北京时间）刷新；点「灵化列表」看完整轮换表。"
+    return Reply(
+        text="\n".join(text), keyboard=keyboard,
+        button_hint="▼ 灵化列表 · 9 周灵化 / 11 周战甲",
+        image=lambda: imagecard.sections_table(
+            "无尽回廊 · 本周", subtitle, sections,
+            "数据 官方 EndlessXpSchedule + 轮换表", accent=imagecard.PURPLE,
+            chip="回廊", note=note))
+
+
+def circuit_table_reply(raw, keyboard=None) -> Reply:
+    """灵化列表：本周可选 + 9 周灵化之源 + 11 周战甲，当周那一行铺底色。
+
+    周期按「第一周、第二周……」往后列（灵化之源 9 周、战甲 11 周）；
+    钢铁给灵化之源中文名，战甲统一用英文原名。
+    """
+    rows, now_lines, rest, data = _circuit_now(raw)
     sections: List[Dict] = [{
         "label": "本周可选",
         "badge": ("剩 %s" % rest) if rest else "本周",
-        "columns": [("模式", 0.62), ("可选", 3.3)],
-        "rows": now_rows,
+        "columns": [("模式", 0.9), ("可选", 3.3)],
+        "rows": rows,
     }]
     lines: List[str] = ["本周可选："] + ["  " + line for line in now_lines]
 
@@ -1146,7 +1175,7 @@ def circuit_reply(raw) -> Reply:
         sections.append({
             "label": name,
             "badge": ("本周 %s" % ordinal) if ordinal else "本周未取到",
-            "columns": [("周期", 1.42), ("下次日期", 1.15), (column, 3.85)],
+            "columns": [("周期", 1.42), ("下次日期", 1.25), (column, 3.75)],
             "rows": rows,
             "highlight_rows": highlight,
         })
@@ -1159,9 +1188,11 @@ def circuit_reply(raw) -> Reply:
     if degraded:
         note = "官方给的本周名单和本地轮换表对不上（可能刚更新过池子），只列本周。"
     return Reply(
-        text="【无尽回廊 · 灵化轮换】\n" + "\n".join(lines).strip() + "\n" + note,
+        text="【无尽回廊 · 灵化列表】\n" + "\n".join(lines).strip() + "\n" + note,
+        keyboard=keyboard,
+        button_hint="▼ 回到本周回廊",
         image=lambda: imagecard.sections_table(
-            "无尽回廊 · 灵化轮换", subtitle, sections,
+            "无尽回廊 · 灵化列表", subtitle, sections,
             "数据 官方 EndlessXpSchedule + 轮换表", accent=imagecard.PURPLE,
             chip="回廊", note=note))
 

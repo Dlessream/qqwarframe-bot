@@ -394,8 +394,7 @@ class RecoveredModulesTest(unittest.TestCase):
                 {"category": "hard", "choices": ["Lex", "Magistar", "Boltor"]},
             ],
         })
-        self.assertIn("无尽回廊 · 灵化轮换", reply.text)
-        self.assertIn("本周可选", reply.text)
+        self.assertIn("无尽回廊 · 本周", reply.text)
         self.assertIn("普通 · 战甲", reply.text)
         self.assertIn("钢铁 · 武器", reply.text)
         self.assertIn("Garuda", reply.text)

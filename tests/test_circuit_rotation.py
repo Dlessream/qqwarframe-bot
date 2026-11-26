@@ -2,7 +2,7 @@
 
 import unittest
 
-from bot import circuit_rotation, imagecard, present
+from bot import circuit_rotation, imagecard, keyboards, present
 
 # 2026-11-23 00:00 UTC 那一周的官方数据：钢铁 D 组、普通第 11 周
 WEEK_START = 1795392000.0
@@ -90,24 +90,41 @@ class RotationTest(unittest.TestCase):
 
 
 class RotationReplyTest(unittest.TestCase):
-    def test_one_card_has_week_and_full_rotation(self):
-        reply = present.circuit_reply(CURRENT)
-        self.assertIsNone(reply.keyboard)          # 不再挂按钮，内容都在同一张图里
-        self.assertIn("本周可选", reply.text)
+    def test_week_card_has_button_not_full_table(self):
+        """主卡只留本周，9 / 11 周轮换挂在「灵化列表」按钮里。"""
+        reply = present.circuit_reply(CURRENT, keyboard=keyboards.circuit_keyboard())
+        self.assertIsNotNone(reply.keyboard)
+        button = reply.keyboard["content"]["rows"][0]["buttons"][0]
+        self.assertEqual(button["render_data"]["label"], "灵化列表")
+        self.assertEqual(button["action"]["data"], "a:灵化列表")
+        self.assertIn("钢铁 · 武器", reply.text)
         self.assertIn("雷克斯", reply.text)        # 灵化之源用国服译名
+        self.assertNotIn("第九周（I）", reply.text)  # 完整轮换不在首屏
+
+    def test_table_reply_lists_full_rotation(self):
+        reply = present.circuit_table_reply(CURRENT)
+        self.assertIn("本周可选", reply.text)
+        self.assertIn("雷克斯", reply.text)
         self.assertIn("第一周（A）", reply.text)    # 周期按第一周、第二周往后列
         self.assertIn("第九周（I）", reply.text)
         self.assertIn("第十一周", reply.text)
         self.assertIn("Garuda", reply.text)        # 战甲用英文
         self.assertNotIn("迦楼罗", reply.text)
 
+    def test_table_has_back_button(self):
+        reply = present.circuit_table_reply(
+            CURRENT, keyboard=keyboards.circuit_keyboard(back=True))
+        button = reply.keyboard["content"]["rows"][0]["buttons"][0]
+        self.assertEqual(button["render_data"]["label"], "本周回廊")
+        self.assertEqual(button["action"]["data"], "a:回廊")
+
     def test_week_is_marked_not_relative(self):
-        reply = present.circuit_reply(CURRENT)
+        reply = present.circuit_table_reply(CURRENT)
         for word in ("本周 D 组", "下周", "周后"):
             self.assertNotIn(word, reply.text)
 
     def test_warframe_section_is_english(self):
-        reply = present.circuit_reply(CURRENT)
+        reply = present.circuit_table_reply(CURRENT)
         self.assertIn("Baruuk", reply.text)
         self.assertIn("Hildryn", reply.text)
 
@@ -118,7 +135,7 @@ class RotationReplyTest(unittest.TestCase):
                             {"category": "hard",
                              "choices": ["Braton", "Lato", "Skana", "Paris",
                                          "Kunai"]}]
-        reply = present.circuit_reply(other)
+        reply = present.circuit_table_reply(other)
         self.assertIn("▶ 本周  第一周（A）", reply.text)
         self.assertIn("▶ 本周  第一周 11/23–11/30：Excalibur", reply.text)
 
@@ -126,14 +143,14 @@ class RotationReplyTest(unittest.TestCase):
         """当周那一行的底纹必须和其他周期不同。"""
         if not imagecard.available():
             self.skipTest("没有 Pillow")
-        d_group = present.circuit_reply(CURRENT).image()
+        d_group = present.circuit_table_reply(CURRENT).image()
         other = dict(CURRENT)
         other["choices"] = [{"category": "normal",
                              "choices": ["Excalibur", "Trinity", "Ember"]},
                             {"category": "hard",
                              "choices": ["Braton", "Lato", "Skana", "Paris",
                                          "Kunai"]}]
-        a_group = present.circuit_reply(other).image()
+        a_group = present.circuit_table_reply(other).image()
         self.assertTrue(d_group)
         self.assertTrue(a_group)
         self.assertNotEqual(d_group, a_group)

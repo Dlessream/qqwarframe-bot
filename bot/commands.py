@@ -104,8 +104,10 @@ COMMANDS: Dict[str, str] = {
     "平原": "cycles", "平原轮换": "cycles", "特惠": "deals",
     "今日特惠": "deals", "新闻": "news", "活动": "events",
     "回廊": "circuit", "无尽回廊": "circuit", "灵化": "circuit",
-    "灵化列表": "circuit", "灵化轮换": "circuit",
-    "回廊轮换": "circuit", "灵化之源": "circuit",
+    # 轮换大表挂在回廊卡片的「灵化列表」按钮上，这些词直接点名那张表
+    "灵化列表": "circuit_table", "灵化轮换": "circuit_table",
+    "回廊轮换": "circuit_table", "灵化之源": "circuit_table",
+    "回廊灵化": "circuit_table",
     "执刑官": "archon", "执刑官猎杀": "archon",
     "裂缝": "fissures", "钢铁裂缝": "steel_fissures", "钢铁裂隙": "steel_fissures",
     "虚空风暴": "storms", "九重天": "storms", "风暴": "storms",
@@ -575,7 +577,13 @@ class CommandRouter:
             if command == "events":
                 return [present.events_reply(self._ws("events"))]
             if command == "circuit":
-                return [present.circuit_reply(self._ws("duviriCycle"))]
+                return [present.circuit_reply(
+                    self._ws("duviriCycle"),
+                    keyboard=keyboards.circuit_keyboard())]
+            if command == "circuit_table":
+                return [present.circuit_table_reply(
+                    self._ws("duviriCycle"),
+                    keyboard=keyboards.circuit_keyboard(back=True))]
             if command == "archon":
                 return [present.archon_reply(self._ws("archonHunt"))]
             if command == "fissures":

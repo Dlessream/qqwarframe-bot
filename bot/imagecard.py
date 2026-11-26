@@ -1867,7 +1867,7 @@ def _help_groups(prefix: str):
             ("%s钢铁侵袭 / %s电波" % (prefix, prefix), "钢铁侵袭、午夜电波"),
             ("%s平原 / %s特惠" % (prefix, prefix), "平原时间、每日特惠"),
             ("%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"),
-            ("%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化 + 9/11 周轮换、执刑官猎杀"),
+            ("%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化 + 按钮看 9/11 周轮换"),
             ("%s裂缝 / %s钢铁裂缝" % (prefix, prefix), "普通裂缝、钢铁之路裂缝"),
             ("%s虚空风暴 / %s九重天" % (prefix, prefix), "航道星舰 风暴裂缝"),
             ("%s赏金 / %s平原赏金" % (prefix, prefix), "各大 NPC 可接赏金"),

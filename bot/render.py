@@ -258,7 +258,7 @@ def render_help(prefix: str = "#", disabled=()) -> str:
         "%s钢铁侵袭 / %s电波 / %s平原" % (prefix, prefix, prefix),
         "%s特惠 / %s新闻 / %s活动" % (prefix, prefix, prefix),
         "%s回廊 / %s执刑官 / %s赏金" % (prefix, prefix, prefix),
-        "　回廊卡内含灵化之源 9 周 / 战甲 11 周轮换（当周高亮）",
+        "　回廊卡下「灵化列表」按钮展开 9 周灵化 / 11 周战甲（当周高亮）",
         "%s钢铁裂缝 / %s平原赏金" % (prefix, prefix),
         "%s虚空风暴 / %s九重天   航道星舰 风暴裂缝" % (prefix, prefix),
         "%s希图斯               希图斯时间 + 小帐篷赏金" % prefix,

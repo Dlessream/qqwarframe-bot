@@ -52,3 +52,10 @@ def wm_keyboard(token: str) -> Dict[str, Any]:
             button("wm-chat", "对话文本", "wm:chat:%s" % token, 1),
         ],
     ])
+
+
+def circuit_keyboard(back: bool = False) -> Dict[str, Any]:
+    """回廊卡片底部按钮：主卡给「灵化列表」，轮换表上给「本周回廊」回退。"""
+    if back:
+        return keyboard([[button("circuit-now", "本周回廊", "a:回廊", 0)]])
+    return keyboard([[button("circuit-list", "灵化列表", "a:灵化列表", 1)]])

@@ -36,6 +36,16 @@ class KeyboardTest(unittest.TestCase):
         self.assertEqual(buttons[0]["action"]["data"], "wm:trend:deadbeef")
         self.assertEqual(buttons[1]["action"]["data"], "wm:chat:deadbeef")
 
+    def test_circuit_buttons(self):
+        kb = keyboards.circuit_keyboard()
+        buttons = kb["content"]["rows"][0]["buttons"]
+        self.assertEqual([b["render_data"]["label"] for b in buttons], ["灵化列表"])
+        self.assertEqual(buttons[0]["action"]["data"], "a:灵化列表")
+        back = keyboards.circuit_keyboard(back=True)
+        back_button = back["content"]["rows"][0]["buttons"][0]
+        self.assertEqual(back_button["render_data"]["label"], "本周回廊")
+        self.assertEqual(back_button["action"]["data"], "a:回廊")
+
     def test_reply_holds_keyboard(self):
         kb = keyboards.wm_keyboard("abc")
         reply = replies.Reply(text="x", keyboard=kb)
