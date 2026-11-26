@@ -2,6 +2,8 @@
 
 > 用途：把本项目完整上下文交给另一位 AI / 开发者继续开发。
 > 生成时间：2026-11-01。原作者已完成的全部需求与当前「全量数据库」建设进度都在下面。
+> **最新更新 2026-11-26：文末「组队（车队）」一节**（QQ 内 H5 面板 + 一次性认证 +
+> 满员/到场 @ 全队，已上线）。第 7 节之后都是按时间追加的功能记录，越靠后越新。
 > 原始对话记录（机器格式，很大）：
 > `C:\Users\Administrator\.workbuddy\projects\c-Users-Administrator-WorkBuddy-2026-10-26-19-40-07\38cbf8c6-234f-40b9-85d4-04418bd0315a.jsonl`
 
@@ -198,6 +200,10 @@ bot/assets/polarity/*.png   9 个极性图标
 data/*.json        各来源字典（aliases/frame_aliases/names_zh/wiki_zh/sol_nodes/bounty_*/…）
 data/board_cache.json  运行时行情快照（服务器才有完整数据）
 db/schema.sql / db/build.py  本次数据库建设产物
+bot/teams.py        组队：token/会话、任务归一化、队伍增删、到场检测（见文末组队一节）
+web/team.html/.css/.js  QQ 内置浏览器打开的组队面板
+data/teams.json     组队档案/会话/队伍（运行时数据，别在容器跑着时手改）
+tests/test_teams.py 组队 18 条单测
 ```
 
 ---
@@ -671,3 +677,252 @@ PaddleOCR PP-OCRv5（onnxruntime-web/WASM）跑，**没有服务端 API 可调**
 `_FIT_SLACK` 的百分比从 **5% 收到 2%**：5% 会把「差 8 个点」的读数也判成贴合，
 于是满级方案被判失败、降级成「未升满 Lv.6」，提示自相矛盾。
 现在低等级方案只接受 `rank == 0`（全部词条都贴合），否则维持 Lv.8 并提示核对。
+
+---
+
+## 组队（车队）：QQ 内 H5 面板 + 一次性认证 + 满员/到场 @ 全队（2026-11-26 上线）
+
+### 0) 需求原话与落地方式
+
+> 添加一个组队功能，组队功能是由一个 qq 小窗打开得一个界面，里面有所有得裂缝任务组队还有仲裁，
+> 以及九重天，三傻和以及其他赏金任务得组队功能，由车头开始发起任务类型，然后其他人想进队，
+> 就必须 qq 认证，四人满了为止，任务到了后，由机器人 @ 车队内所有成员提醒任务来了
+
+关键取舍：**QQ 官方机器人没有「网页小窗」API**。落地成「跳转按钮（`action.type=0`）+
+QQ 内置浏览器打 H5」，群里点一下就等于弹出面板。身份认证也走同一条链路 ——
+入口链接是一次性 token，只发给本群发命令的那个人，所以「必须 QQ 认证」天然成立，
+不需要另做扫码/授权页。
+
+### 1) 链路总览
+
+```
+群里 #组队
+  └─ 机器人回卡：本群车队一览 + [打开组队面板](跳转按钮) + [刷新队伍](回调按钮)
+        └─ 点按钮 → QQ 内置浏览器打开  http://124.220.229.109:8080/team?t=<token>
+              ├─ 前端 POST /api/team/login {token}  → 校验签名/过期/一次性 → Set-Cookie qqwf_team=<sid>
+              ├─ GET  /api/team/state               → 本群车队 + 我在哪支队（mine）
+              ├─ GET  /api/team/missions?category=  → 5 类任务的实时列表
+              └─ POST /api/team/create|join|leave|close
+后台线程 _team_loop（每 30s）
+  └─ teams.poll() → 人齐 / 任务到场 → 群内 send_group_text("<@openid> …")
+```
+
+### 2) 文件清单
+
+| 文件 | 行数 | 作用 |
+|------|------|------|
+| `bot/teams.py` | ~1005 | 全部组队业务：token/会话、任务归一化、队伍增删改、到场检测、提醒文案 |
+| `web/team.html` | 37 | 面板骨架（`data-tab` 容器 + 底部弹层 + toast） |
+| `web/team.css` | ~502 | 面板样式，深色 + 金色，移动端 390px 宽为主 |
+| `web/team.js` | ~549 | 面板交互：登录、标签、任务卡、车队卡、开车/等下一波/改名 |
+| `bot/web.py` | +~180 | `/team` 与 `/static/team.*` 路由、`/api/team/*` 接口与 cookie 鉴权 |
+| `bot/keyboards.py` | +~20 | `link_button()`（跳转按钮）、`team_keyboard(url)` |
+| `bot/present.py` | +~45 | `team_reply()`：群内组队卡 |
+| `bot/commands.py` | +~5 | 别名 `组队/队伍/车队/开车/组队面板/team → team` |
+| `bot/command_meta.py` | +1 | 帮助项「组队」（命令数 66 → 67） |
+| `bot/app.py` | +~45 | 构造 `TeamService`、`_team_loop` 线程、`status_snapshot()` 加 teams |
+| `bot/config.py` | +10 | `DEFAULTS["teams"]` + 环境变量 `QQWF_TEAMS / QQWF_TEAM_URL / QQWF_TEAM_SIZE` |
+| `tests/test_teams.py` | 314 | 18 条单测 |
+
+### 3) 认证设计（照抄就能复用）
+
+- token = `base64url(JSON) + "." + HMAC-SHA256(secret, body)[:40]`，
+  JSON 是 `{"g": 群 openid, "u": 用户 openid, "n": 随机 nonce, "e": 过期时间戳}`。
+- secret 取 `config.teams.secret`，**留空则回落到 `config.web.token`**
+  （`app.py` 里就是 `teams_cfg.get("secret") or teams_web.get("token")`）——
+  这点很关键：容器里只有一个 `QQWF_WEB_TOKEN`，组队复用它，不用额外配密钥。
+- 有效期 30 分钟（`teams.token_seconds`），nonce 记在内存 `_used_tokens` 防重放。
+  **重启后 nonce 表清空**，但 token 本身还有签名与过期时间兜着，可以接受。
+- 换到的是会话：`data/teams.json` 的 `sessions{sid:{g,u,ts,exp}}`，
+  cookie 名 `qqwf_team`，`Path=/; Max-Age=30天; HttpOnly; SameSite=Lax`。
+- 面板所有 `/api/team/*`（除 `/me`、`/login`）都要求有效 cookie，拿不到就返回
+  `{"ok":false,"message":"need_login"}`，前端渲染「需要 QQ 认证」引导页。
+- `/api/team/*` 的鉴权**在 admin token 鉴权之前**放行（`do_GET`/`do_POST` 里先
+  `if self._team_get(parsed): return`），面板不能要控制台 token。
+
+调试用签发（知道 secret 就能造 token，服务端无需重启）：
+
+```python
+import base64,hashlib,hmac,json,time,uuid
+S = "<QQWF_WEB_TOKEN>"
+p = {"g":"群openid","u":"用户openid","n":uuid.uuid4().hex[:12],"e":int(time.time())+1800}
+b = base64.urlsafe_b64encode(json.dumps(p,separators=(',',':')).encode()).decode().rstrip('=')
+print("%s.%s" % (b, hmac.new(S.encode(), b.encode(), hashlib.sha256).hexdigest()[:40]))
+# 然后 POST /api/team/login {"token": "<上面这串>"} 拿 cookie
+```
+
+### 4) `data/teams.json`
+
+```json
+{"teams": [...], "profiles": {"<openid>": "昵称"}, "sessions": {"<sid>": {"g","u","ts","exp"}}}
+```
+
+- 写盘是 `.tmp` + `os.replace`（原子），`TeamStore.lock` 是 `RLock`，
+  所有队伍操作都在锁内完成 —— 面板（HTTP 线程）与轮询（后台线程）会并发读写。
+- **⚠️ 不要在容器运行时直接改这个文件**：`TeamStore` 在启动时把整份数据读进内存，
+  之后任何一次 `save()` 都会用内存快照盖回去。要清理/迁移必须
+  `docker compose -f docker-compose.full.yml stop bot` → 改文件 → `start bot`。
+- 清理规则：关闭的队伍保留 3 小时（`CLOSED_KEEP`），过期会话在 `prune()` 时删掉。
+- 归档键：`id = "T" + uuid4().hex[:8]`。
+
+### 5) 任务归一化（5 类，全部实时取，不落库）
+
+| category | 数据源 | 说明 |
+|----------|--------|------|
+| `fissure` | `worldstate.fissures()` | 只要 `isStorm=False` 的行（普通裂缝） |
+| `railjack` | `worldstate.void_storms()` | 只要 `isStorm=True` 的行，独立一类（用户要求分开） |
+| `arbitration` | `arbi.schedule_entries(now, now+4h)[:2]` | 当前 + 下一场，任务名取 `node.mission`（中文），不要用 `mission_type`（枚举，会显示 `MT_DEFENSE`） |
+| `tridolon` | `worldstate.fetch("cetusCycle")` | 白天 → 「待入夜 + 23:16 入夜」；夜里 → 「夜晚中 · 剩 X 分」 |
+| `bounty` | `worldstate.fetch("syndicateMissions")` | 6 个据点：希图斯 / 福尔图娜 / 坎比昂 / 扎里曼 / 解剖圣所 / 霍瓦尼亚 |
+
+- 全部经 `_cached(key, ttl, loader)` 缓存：裂缝 / 风暴 **20s**，仲裁 / 夜灵 / 赏金 60s。
+- 本地化统一走 `terms.localize_node / localize_mission / localize_relic_tier /
+  localize_faction / localize_bounty / localize_syndicate`。
+- 排序：裂缝/风暴按剩余时间升序（先结束的在前）；赏金按据点顺序 + 档位顺序
+  （`order = area_index*100 + index`），官方这批 `jobs` 为空时退回 `bountystatic.tiers()`。
+- 每条 item 统一结构：`key / category / badge / mission / tier / node / enemy / hard /
+  start / end / title / subtitle / meta / target{label,mission,node,start,end,key}`。
+  **`key` 必须由任务本身（节点+任务+档位+结束时间）推导，不能掺 `now`**（见 §12.1）。
+
+### 6) 队伍状态机与 3 种 mode
+
+```
+open ──人满──> full ──有人退出──> open
+  └──────── 过期 / 车头解散 / 人走空 ────────> closed
+```
+
+- 同一群、同一人只能在一支进行中的车队（`_active_team_of`）；跨群互不影响。
+- 只有车头能「解散」；队员退出即 `leave`；车头退出等价于解散。
+- `size` 2~4（默认 4），满了自动 `full` 并推一条「车队满员」。
+- `mode` 决定「怎么算任务到了」：
+  - `now`：创建时任务已经在场（裂缝/仲裁当前场），满员即可出发，不再报到场；
+  - `time`：任务还没开始（仲裁下一场、三傻待入夜），到 `start-30s` 报到场；
+  - `watch`：等下一波（只有裂缝/九重天支持），按 `mission/tier/hard` 条件匹配。
+- 过期时间 `expire = 任务end + 180s`，`watch` 是 `now + 6h`，
+  `time` 模式再取 `max(expire, start + 6h)`。
+
+### 7) 到场检测与提醒文案
+
+- `poll()` 每 30 秒跑一轮（`teams.check_seconds`），返回 `[{kind:"fill"|"arrive", group, team, text}]`。
+- `notified.fill` 保证满员只报一次；`notified.arrive` 记已报过的那一波 key。
+- `watch` 模式**创建时就把当时命中的那一波写进 `notified.arrive` 当基线**，
+  所以「设条件等下一波」不会立刻误报当前这一波，`_watch_match(skip_key=...)` 跳过它。
+- 提醒文案（`_notify_text`）末尾拼 `<@openid>` 逐个 @，QQ 官方机器人就是这么 @ 人的
+  （`qqofficial._mentions` 只是把内部 `[CQ:at]` 转成 `<@id>`，这里直接拼）：
+
+```
+【车队满员 · 仲裁】Cinxia（谷神星） · 拦截 · 12-17
+车头 虚空老司机 ｜ 4/4
+任务已在，可以出发（剩 41 分）。
+备注：带萌新
+<@A1> <@A2> <@A3> <@A4>
+```
+
+- 群被拉黑/移出白名单后 `_group_allowed(group)` 拦住，不再推送。
+
+### 8) HTTP 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/team` | 面板页面（`?t=<token>` 自动登录，`?tab=fissure` 可直达分类） |
+| GET | `/static/team.css` `/static/team.js` | 静态资源（**改样式记得升 `?v=`**，QQ 内置浏览器缓存很硬） |
+| GET | `/api/team/me` | 当前 cookie 的档案（未登录返回 profile=null） |
+| GET | `/api/team/state` | 本群车队 + mine + categories + server_time |
+| GET | `/api/team/missions?category=` | 某一类任务的实时列表 |
+| POST | `/api/team/login` | `{token}` → 建会话 + `Set-Cookie` |
+| POST | `/api/team/name` | `{name}` 改昵称（空白压成单空格、最多 12 字，不查重，同群同名靠 openid 区分） |
+| POST | `/api/team/create` | `{category, mission_key, size?, note?}` 或 `{category, watch:{mission,tier,hard}}` |
+| POST | `/api/team/join` `/leave` `/close` | `{id}` |
+
+### 9) 前端（`web/team.*`）
+
+- 手机视口为主（390×844）。六个标签：`我的车队 / 裂缝 / 仲裁 / 九重天 / 三傻 / 赏金`。
+- 任务卡点「开车」直接建队；裂缝/九重天顶部另有「+ 设条件等下一波」。
+- 车队卡四格成员（`grid-template-columns: repeat(4, minmax(0,1fr))`），
+  空位显示虚线「空位」，自己在的那格加蓝色内描边，车头那格金色。
+- 一切增删都走 `api()` 包装，失败弹 toast 并保留原文案（后端 `TeamError` 就是给用户看的）。
+- 顶部「QQ 已认证 · 昵称」/「未认证」点击可改昵称；首次进入强制先起名。
+
+### 10) 命令与按钮
+
+- 别名：`组队 / 队伍 / 车队 / 开车 / 组队面板 / team`。
+- `#组队` 回 `present.team_reply()`：本群车队前 6 支 + 面板链接（**链接明文写在正文里**）
+  + 「满 4 人自动锁队；任务到场时 @ 全队」。
+- 按钮：`team_keyboard(url)` = `[打开组队面板](跳转 type=0)` + `[刷新队伍](a:组队)`。
+  跳转按钮如果被平台拒，`app.py` 发送层会自动退回**纯文本重发**（带链接），功能不丢。
+- 帮助卡「订阅与工具」一栏、`#帮助` 文字版、README 都已加 `#组队`。
+
+### 11) 配置与部署
+
+```json
+"teams": {
+  "enabled": true, "file": "data/teams.json", "public_url": "",
+  "size": 4, "token_seconds": 1800, "session_days": 30,
+  "check_seconds": 30, "secret": ""
+}
+```
+
+- `public_url` 必须是**手机能访问的公网地址**，否则按钮链接打不开。
+  线上 `.env` 里写 `TEAM_PUBLIC_URL=http://124.220.229.109:8080`，
+  compose 里映射成 `QQWF_TEAM_URL`。
+- `8080` 是直接对外的（`0.0.0.0:8080->8080`），不需要反代也能在 QQ 里打开。
+- 部署脚本 `deploy_team.py`（在 WorkBuddy 工作目录，不在仓库里）：
+  `git bundle` → SFTP → `git fetch bundle` → `merge --ff-only` → `up -d --build bot`，
+  并且会先备份/还原服务器上被手改过的 `docker-compose.full.yml`（代理改 `none`），
+  合并后补 `QQWF_TEAM_URL`，并只写一次 `.env` 的 `TEAM_PUBLIC_URL`。
+
+### 12) 踩过的坑（重点，别再踩）
+
+1. **三傻 key 不能掺 `now`**：夜里 `start` 取的是当前时间，`key = tridolon:int(start)`
+   每刷新一次就变一次 → 后端 `_find_item` 找不到 → 点「开车」报「这条任务刚刚结束了」。
+   改成 `key = tridolon:int(expiry)`（绑日夜周期），单测
+   `test_tridolon_key_is_stable_while_night` 守着。
+2. **`_find_item` 是「按 key 重新取一次列表」**，所以任何会漂移的 key 都会翻车。
+   新增任务类型时先问自己：这个 key 在一分钟内会不会变？
+3. **`.sheet { display:flex }` 会盖掉 `[hidden]`** → 遮罩常驻、整页模糊。
+   必须显式 `.sheet[hidden], .toast[hidden] { display: none !important; }`。
+4. **车队卡四格撑破屏幕**：`1fr` 有 min-content 下限，必须 `minmax(0,1fr)` +
+   `.slot{min-width:0}` + `.team{min-width:0}`。
+5. **成员格里的「★ 」把昵称挤成「虚空…」**：星号占了格子宽度。去掉星号，
+   车头靠金色描边 + 下方「车头 某某」标识；格内 padding 收 4px、字号 11px、gap 6px。
+6. **昵称要实时读**：`_view()` / `_notify_text()` 里用 `self.store.name_of(id)`，
+   不要用建队时存进 `members[].name` 的副本，否则改名后卡里还是旧名。
+7. **仲裁任务名**取 `node.mission`（中文「防御」），`mission_type` 是枚举（`MT_DEFENSE`）。
+8. **赏金档位**：官方这批 `jobs` 为空且按字符串排序（「赏金9」排最前、圣所/1999/扎里曼缺条目）
+   → `jobs` 为空退回 `bountystatic.tiers()`，并按据点顺序重排。
+9. **未开始的车队**别同时显示「剩 X 分」和「22:00 开始」（底部换行错位、语义也冲突），
+   `start > now+60` 时 `left` 置空。
+10. **静态资源版本号**：改完 `team.css/js` 一定把 `team.html` 里的 `?v=` 加一。
+11. **截图验收别用 Edge `--screenshot`**：Windows 上 `--window-size=400` 实际视口 492，
+    图右边会被裁。用 Node + CDP 的 `Emulation.setDeviceMetricsOverride(390×844@2x)`
+    + `Page.captureScreenshot` 才是准的手机视口。
+12. **`data/teams.json` 运行中被进程内存覆盖**（见 §4），清理必须先停容器。
+
+### 13) 测试与线上验收
+
+- `tests/test_teams.py` 18 条：token 往返/一次性/过期/改名、满员只报一次、上限与重复进队、
+  退出与解散、跨群隔离、过期关队、`watch` 基线不误报且新一波会报、三傻到点报、
+  只有车头能解散、任务本地化、九重天独立、仲裁当前/下一场、赏金、未知类型、昵称兜底、
+  三傻 key 稳定。全量 `1049 passed`。
+- 线上实跑：裂缝 21~23 条、仲裁 2 条、三傻 1 条、赏金 40 条、九重天风暴 12 条；
+  `login → state → missions → create → join → 满员锁队 → close` 全链路 200。
+- 验收截图（390×844@2x）：`prod_teams2.png`（4 支车队总览）、`prod_bounty3.png`、
+  `prod_tridolon2.png`、`prod_login.png`（未认证引导页），在
+  `C:/Users/Administrator/WorkBuddy/2026-10-26-19-40-07/` 下。
+- 线上自测数据已清空（假 id 均为 `VFY*` / `TEST*`），备份
+  `data/teams.json.bak-20261126-214313`。
+- 已部署提交：`83726ff`（主体）、`65ea0aa`（仲裁中文名 + 赏金档位兜底）、
+  `79dd8c1`（三傻 key + 成员格）、`5cf5998`（底部信息不换行）。
+
+### 14) 接手者下一步 / 已知风险
+
+1. **真机验证跳转按钮**：`action.type=0` 的放行规则只能在真 QQ 里试；
+   若被拒，容器日志会出现「带按钮的消息被拒…改为纯文本重发」，功能仍可用，但会把
+   `link_button` 换成别的入口形式（如口令 + 网页短链）。
+2. **群主动消息额度**：满员与到场各一条，`send_group_text` 失败只记日志不重试；
+   高频群要留意额度，必要时合并成一条。
+3. **多实例不兼容**：`_used_tokens` 与 `TeamStore` 都在进程内存，只能跑单副本。
+4. **三傻 key 绑 `expiry`**：如果 worldstate 的 `cetusCycle.expiry` 抖动（代理取数失败
+   回落本地推算），同一晚可能出现两个 key —— 概率低，发现「重复开车」再收敛。
+5. 面板目前没有「把任务卡分享到群里」的功能，玩家只能截图；需要的话加
+   `/api/team/share`（借被动回复窗口发一张卡）。
