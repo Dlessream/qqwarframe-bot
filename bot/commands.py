@@ -104,6 +104,8 @@ COMMANDS: Dict[str, str] = {
     "平原": "cycles", "平原轮换": "cycles", "特惠": "deals",
     "今日特惠": "deals", "新闻": "news", "活动": "events",
     "回廊": "circuit", "无尽回廊": "circuit", "灵化": "circuit",
+    "灵化列表": "circuit_list", "灵化轮换": "circuit_list",
+    "回廊轮换": "circuit_list", "灵化之源": "circuit_list",
     "执刑官": "archon", "执刑官猎杀": "archon",
     "裂缝": "fissures", "钢铁裂缝": "steel_fissures", "钢铁裂隙": "steel_fissures",
     "虚空风暴": "storms", "九重天": "storms", "风暴": "storms",
@@ -163,8 +165,8 @@ TRANSLATE_BLOCK_SECONDS = 900.0
 WHOLE_WORD_COMMANDS = frozenset({
     "baro", "sortie", "arbitration", "world_summary", "world_alerts",
     "world_invasions", "steel_path", "nightwave", "cycles", "deals", "news",
-    "events", "circuit", "archon", "fissures", "steel_fissures", "storms",
-    "bounties", "cetus", "bounty_cavia", "bounty_hex", "bounty_zariman",
+    "events", "circuit", "circuit_list", "archon", "fissures", "steel_fissures",
+    "storms", "bounties", "cetus", "bounty_cavia", "bounty_hex", "bounty_zariman",
     "deep_research", "temporal_research", "research",
     "riven_rank", "frame_rank", "junk_gold", "junk_silver", "junk_bronze",
     "junk_fake_gold", "junk_fake_silver", "junk_overview", "alerts", "help",
@@ -574,6 +576,8 @@ class CommandRouter:
                 return [present.events_reply(self._ws("events"))]
             if command == "circuit":
                 return [present.circuit_reply(self._ws("duviriCycle"))]
+            if command == "circuit_list":
+                return [present.circuit_rotation_reply(self._ws("duviriCycle"))]
             if command == "archon":
                 return [present.archon_reply(self._ws("archonHunt"))]
             if command == "fissures":

@@ -726,13 +726,21 @@ class CommandMenuTest(unittest.TestCase):
         data = self.router.remove_command_alias("查物品")
         self.assertNotIn("查物品", data["aliases"])
 
+    def test_circuit_list_aliases(self):
+        """回廊卡片的「灵化列表」按钮就是发这条命令，别名必须都能解析。"""
+        for alias in ("灵化列表", "灵化轮换", "回廊轮换", "灵化之源"):
+            self.assertEqual(self.router.parse("#" + alias), ("circuit_list", ""))
+        # 「灵化」仍是本周灵化，别被新别名抢走
+        self.assertEqual(self.router.parse("#灵化"), ("circuit", ""))
+
     def test_command_labels_are_chinese(self):
         data = self.router.command_snapshot()
         rows = {row["command"]: row for row in data["commands"]}
         self.assertEqual(rows["riven_market"]["label"], "紫卡市场")
         self.assertEqual(rows["world_invasions"]["label"], "入侵任务")
         self.assertTrue(rows["riven_market"]["description"])
-        self.assertEqual(len(rows), 65)
+        self.assertEqual(rows["circuit_list"]["label"], "灵化列表")
+        self.assertEqual(len(rows), 66)
 
     def test_alias_conflict_is_rejected(self):
         with self.assertRaises(ValueError):

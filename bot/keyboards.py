@@ -52,3 +52,18 @@ def wm_keyboard(token: str) -> Dict[str, Any]:
             button("wm-chat", "对话文本", "wm:chat:%s" % token, 1),
         ],
     ])
+
+
+def circuit_keyboard(active: str = "now") -> Dict[str, Any]:
+    """回廊卡片底部按钮：本周灵化 ↔ 灵化列表（灵化之源 / 战甲周期轮换表）。
+
+    active 是当前页（now / list），当前页的按钮置灰，避免用户以为点了没反应。
+    """
+    return keyboard([
+        [
+            button("circuit-now", "本周灵化", "a:回廊",
+                   0 if active == "now" else 1),
+            button("circuit-list", "灵化列表", "a:灵化列表",
+                   0 if active == "list" else 1),
+        ],
+    ])

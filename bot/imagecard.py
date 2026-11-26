@@ -989,14 +989,21 @@ def _cell_parts(cell) -> Tuple[Optional[tuple], bool, str]:
     return None, False, str(cell)
 
 
+def _blend(base: tuple, tint: tuple, amount: float) -> tuple:
+    """把 accent 颜色按比例混进底色，做出「这一行被点亮」的底色。"""
+    return tuple(int(base[i] + (tint[i] - base[i]) * amount)
+                 for i in range(3))
+
+
 def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
                    footer: str, accent=GOLD, chip: str = "",
                    note: str = "", center: bool = True) -> bytes:
     """分组表格卡：每组一个小标题（右侧可带倒计时）＋ 若干行。
 
     sections: [{"label": 小标题, "badge": 右侧胶囊, "columns": [(表头, 比例), ...],
-                "rows": [[str | Cell, ...], ...]}, ...]
+                "rows": [[str | Cell, ...], ...], "highlight_rows": [索引, ...]}, ...]
     默认表头与所有单元格居中；center=False 时首列左对齐、末列右对齐。
+    highlight_rows 里的行会铺一层 accent 底纹（「当周」这类需要突出的行）。
     """
     sections = list(sections or [])
     total_rows = sum(len(item.get("rows") or []) for item in sections)
@@ -1031,6 +1038,7 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
 
         columns = list(item.get("columns") or [])
         rows = list(item.get("rows") or [])
+        marked = set(item.get("highlight_rows") or ())
         if not columns:
             columns = [("", 1.0)] * max(1, len(rows[0]) if rows else 1)
         total_ratio = sum(ratio for _, ratio in columns) or 1.0
@@ -1054,7 +1062,15 @@ def sections_table(title: str, subtitle: str, sections: Sequence[Dict],
         y += 10
 
         for row_index, row in enumerate(rows):
-            if row_index % 2 == 0:
+            if row_index in marked:
+                # 当周那一组：accent 底色 + 左侧竖条，一眼能和别的周期分开
+                _rrect(draw, (PAD - ZEBRA_PAD, y - 5,
+                              WIDTH - PAD + ZEBRA_PAD, y + row_height - 12),
+                       10, fill=_blend(PANEL, accent, 0.22))
+                _rrect(draw, (PAD - ZEBRA_PAD + 6, y + 4,
+                              PAD - ZEBRA_PAD + 10, y + row_height - 20),
+                       3, fill=accent)
+            elif row_index % 2 == 0:
                 _rrect(draw, (PAD - ZEBRA_PAD, y - 5,
                               WIDTH - PAD + ZEBRA_PAD, y + row_height - 12),
                        10, fill=PANEL)
@@ -1824,6 +1840,7 @@ def _help_groups(prefix: str):
             ("%s平原 / %s特惠" % (prefix, prefix), "平原时间、每日特惠"),
             ("%s新闻 / %s活动" % (prefix, prefix), "新闻、活动"),
             ("%s回廊 / %s执刑官" % (prefix, prefix), "本周灵化、执刑官猎杀"),
+            ("%s灵化列表" % prefix, "灵化之源 9 组 / 战甲 11 周轮换（当周高亮）"),
             ("%s裂缝 / %s钢铁裂缝" % (prefix, prefix), "普通裂缝、钢铁之路裂缝"),
             ("%s虚空风暴 / %s九重天" % (prefix, prefix), "航道星舰 风暴裂缝"),
             ("%s赏金 / %s平原赏金" % (prefix, prefix), "各大 NPC 可接赏金"),

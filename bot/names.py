@@ -37,6 +37,7 @@ _SPACE_RE = re.compile(r"\s+")
 
 _lock = threading.Lock()
 _tables: Optional[Tuple[Dict[str, str], Dict[str, str]]] = None
+_compact: Optional[Tuple[Dict[str, str], Dict[str, str]]] = None
 _aliases: Optional[Dict[str, str]] = None
 _nicknames: Optional[Dict[str, str]] = None
 _priority: Optional[set] = None
@@ -192,6 +193,27 @@ def frame_nickname(query: str) -> Optional[str]:
     return None
 
 
+def _load_compact() -> Tuple[Dict[str, str], Dict[str, str]]:
+    """去掉空格的索引：官方世界状态会给「CeramicDagger」「DualToxocyst」这种连写。"""
+    global _compact
+    if _compact is not None:
+        return _compact
+    with _lock:
+        if _compact is not None:
+            return _compact
+        compact = []
+        for table in _load():
+            compact.append({_compact_key(key): value
+                            for key, value in table.items()})
+        _compact = (compact[0], compact[1])
+    return _compact
+
+
+def _compact_key(key: str) -> str:
+    """去掉空格和 `&`：`ack & brunt` / `AckBrunt` 都归到 `ackbrunt`。"""
+    return key.replace(" ", "").replace("&", "")
+
+
 def _lookup(name: str, table: Dict[str, str],
             with_wiki: bool = False) -> Optional[str]:
     """先查本地对照表；`with_wiki` 时灰机 wiki 的国服译名优先。
@@ -206,6 +228,11 @@ def _lookup(name: str, table: Dict[str, str],
         if hit:
             return hit
     hit = table.get(key)
+    if hit:
+        return hit
+    warframes, weapons = _load()
+    compact = _load_compact()[0 if table is warframes else 1]
+    hit = compact.get(_compact_key(key))
     if hit:
         return hit
     for suffix in _STRIP_SUFFIXES:

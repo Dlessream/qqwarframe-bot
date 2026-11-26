@@ -27,6 +27,7 @@ COMMAND_META: Dict[str, Tuple[str, str]] = {
     "bounty_zariman": ("扎里曼赏金", "扎里曼（The Holdfasts）赏金"),
     "cetus": ("希图斯", "希图斯时间、赏金与帐篷"),
     "circuit": ("无尽回廊", "本周回廊灵化与轮换"),
+    "circuit_list": ("灵化列表", "钢铁回廊灵化之源 9 组 / 普通回廊战甲 11 周轮换表"),
     "cycles": ("平原轮换", "地球、金星、火卫二时间"),
     "data_status": ("数据状态", "各数据源更新时间与缓存状态"),
     "deals": ("每日特惠", "Darvo 每日特惠"),

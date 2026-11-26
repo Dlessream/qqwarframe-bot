@@ -21,6 +21,14 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(names.weapon("  vectis "), "守望者")
         self.assertEqual(names.warframe("excalibur  umbra"), "暗影圣剑")
 
+    def test_concatenated_name_from_worldstate(self):
+        """官方世界状态给的是连写：CeramicDagger / DualToxocyst / AckBrunt。"""
+        self.assertEqual(names.weapon("CeramicDagger"), "陶瓷匕首")
+        self.assertEqual(names.weapon("DualToxocyst"), "毒囊双枪")
+        self.assertEqual(names.kind("NamiSolo"), "武器")
+        self.assertTrue(names.weapon("AckBrunt"))
+        self.assertEqual(names.kind("AckBrunt"), "武器")
+
     def test_prime_suffix(self):
         # 战甲表里直接有 Prime；武器表只有基础名，按「圣装 + 基础名」拼
         self.assertEqual(names.warframe("Mesa Prime"), "圣装圣枪弥撒")
