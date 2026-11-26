@@ -835,7 +835,9 @@ class TeamService:
             "start": start,
             "end": end,
             "start_text": _day_clock(start) if start > now + 60 else "",
-            "left": left_text(end, now) if end else "",
+            # 未开始的队伍「剩 X」指的是场次结束，和「22:00 开始」并列会挤成两行又容易误读
+            "left": (left_text(end, now)
+                     if end and start <= now + 60 else ""),
             "created": float(team.get("created") or 0),
         }
 
