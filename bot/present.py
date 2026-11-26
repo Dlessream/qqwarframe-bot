@@ -1124,19 +1124,15 @@ def circuit_reply(raw, keyboard=None) -> Reply:
 
 
 def circuit_table_reply(raw, keyboard=None) -> Reply:
-    """灵化列表：本周可选 + 9 周灵化之源 + 11 周战甲，当周那一行铺底色。
+    """灵化列表：只列 9 周灵化之源 + 11 周战甲，当周那一行铺底色。
 
-    周期按「第一周、第二周……」往后列（灵化之源 9 周、战甲 11 周）；
-    钢铁给灵化之源中文名，战甲统一用英文原名。
+    本周可选已经在本周那张卡上给过，这里不再重复，整张图就是轮换表。
+    周期按「第一周、第二周……」往后列；钢铁给灵化之源中文名，
+    战甲统一用英文原名。
     """
-    rows, now_lines, rest, data = _circuit_now(raw)
-    sections: List[Dict] = [{
-        "label": "本周可选",
-        "badge": ("剩 %s" % rest) if rest else "本周",
-        "columns": [("模式", 0.9), ("可选", 3.3)],
-        "rows": rows,
-    }]
-    lines: List[str] = ["本周可选："] + ["  " + line for line in now_lines]
+    _, _, rest, data = _circuit_now(raw)
+    sections: List[Dict] = []
+    lines: List[str] = []
 
     degraded = False
     for key, name, column, rule, english in _ROTATION_SECTIONS:
@@ -1182,11 +1178,12 @@ def circuit_table_reply(raw, keyboard=None) -> Reply:
         lines.extend(block)
         lines.append("")
 
-    subtitle = "完整轮换 · 当周高亮" + (" · 剩 %s" % rest if rest else "")
+    subtitle = "灵化之源 9 周 / 战甲 11 周 · 当周高亮" + (
+        " · 剩 %s" % rest if rest else "")
     note = ("每周一 08:00（北京时间）刷新；铺紫色底的那一行就是本周，"
             "日期列是各周期下一次出现的那一周。")
     if degraded:
-        note = "官方给的本周名单和本地轮换表对不上（可能刚更新过池子），只列本周。"
+        note = "官方给的本周名单和本地轮换表对不上（可能刚更新过池子），只列本周这一周。"
     return Reply(
         text="【无尽回廊 · 灵化列表】\n" + "\n".join(lines).strip() + "\n" + note,
         keyboard=keyboard,

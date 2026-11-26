@@ -102,14 +102,35 @@ class RotationReplyTest(unittest.TestCase):
         self.assertNotIn("第九周（I）", reply.text)  # 完整轮换不在首屏
 
     def test_table_reply_lists_full_rotation(self):
+        """灵化列表只放轮换表，本周可选已经在上一张卡上给过。"""
         reply = present.circuit_table_reply(CURRENT)
-        self.assertIn("本周可选", reply.text)
-        self.assertIn("雷克斯", reply.text)
+        self.assertNotIn("本周可选", reply.text)
+        self.assertNotIn("钢铁 · 武器", reply.text)
         self.assertIn("第一周（A）", reply.text)    # 周期按第一周、第二周往后列
         self.assertIn("第九周（I）", reply.text)
         self.assertIn("第十一周", reply.text)
+        self.assertIn("布莱顿", reply.text)        # 第一周 A 组的灵化之源用国服名
         self.assertIn("Garuda", reply.text)        # 战甲用英文
         self.assertNotIn("迦楼罗", reply.text)
+
+    def test_table_card_has_no_now_section(self):
+        """卡片第一节必须直接是钢铁回廊，不能还挂「本周可选」。"""
+        if not imagecard.available():
+            self.skipTest("没有 Pillow")
+        seen = {}
+        real = imagecard.sections_table
+
+        def spy(title, subtitle, sections, *a, **kw):
+            seen["labels"] = [s["label"] for s in sections]
+            return real(title, subtitle, sections, *a, **kw)
+
+        imagecard.sections_table = spy
+        try:
+            present.circuit_table_reply(CURRENT).image()
+        finally:
+            imagecard.sections_table = real
+        self.assertEqual(seen["labels"],
+                         ["钢铁回廊 · 灵化之源", "普通回廊 · 战甲"])
 
     def test_table_has_back_button(self):
         reply = present.circuit_table_reply(
