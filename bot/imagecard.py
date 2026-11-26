@@ -59,8 +59,10 @@ ROW_TEXT_DY = 14        # 行内文字垂直偏移（原 9）
 GROUP_ROW_H = 50        # 分组表行高（原 38）
 ZEBRA_PAD = 8           # 斑马纹左右外扩
 
-_FONT_CACHE: Dict[Tuple[str, int], object] = {}
+_FONT_CACHE: Dict[Tuple[str, int, int], object] = {}
 _FONT_PATHS: Optional[Tuple[str, str]] = None
+#: .ttc 里「简体（SC）」那一份字形的序号，按路径缓存
+_TTC_SC_INDEX: Dict[str, int] = {}
 
 
 def _fc_match(family: str) -> str:
@@ -186,15 +188,41 @@ def available() -> bool:
     return bool(PIL_AVAILABLE and _resolve_fonts())
 
 
+def _ttc_sc_index(path: str) -> int:
+    """Noto Sans CJK 的 .ttc 里塞了 JP / KR / SC / TC / HK 五套字形，序号 0 是日文。
+
+    Pillow 的 ``truetype(path, size)`` 默认取 0 号，简体中文就会用日式字形渲染
+    （「直」「骨」「角」「画」这类字偏旁笔画都不一样，看起来像被挤掉了）。
+    这里按 family 名挑出 SC 那一份；不是 CJK 合集（如微软雅黑 .ttc）就用 0。
+    """
+    if not path.lower().endswith((".ttc", ".otc")):
+        return 0
+    cached = _TTC_SC_INDEX.get(path)
+    if cached is not None:
+        return cached
+    index = 0
+    for candidate in range(12):
+        try:
+            family = ImageFont.truetype(path, 12, index=candidate).getname()[0]
+        except Exception:  # 越界或字体损坏：保持 0 号
+            break
+        if "CJK" in family and (" SC" in family or "Simplified" in family):
+            index = candidate
+            break
+    _TTC_SC_INDEX[path] = index
+    return index
+
+
 def _font(size: int, bold: bool = False):
     paths = _resolve_fonts()
     if not paths:
         raise RuntimeError("找不到中文字体")
     path = paths[1] if bold else paths[0]
-    key = (path, size)
+    index = _ttc_sc_index(path)
+    key = (path, index, size)
     cached = _FONT_CACHE.get(key)
     if cached is None:
-        cached = ImageFont.truetype(path, size)
+        cached = ImageFont.truetype(path, size, index=index)
         _FONT_CACHE[key] = cached
     return cached
 

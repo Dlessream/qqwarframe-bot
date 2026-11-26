@@ -125,6 +125,12 @@ class ImageCardTest(unittest.TestCase):
         box_center = box_top + box_h / 2.0
         self.assertLessEqual(abs(ink_center - box_center), 1.0)
 
+    def test_font_picks_simplified_chinese(self):
+        """Noto Sans CJK 的 .ttc 里 0 号是日文字形，简体字会按日式写法渲染。"""
+        family = imagecard._font(20).getname()[0]
+        for wrong in ("JP", "KR", "TC", "HK"):
+            self.assertNotIn(wrong, family)
+
     def test_tall_table(self):
         rows = [["物品 %02d" % index, "%d" % (index * 10), "100,000"]
                 for index in range(40)]
