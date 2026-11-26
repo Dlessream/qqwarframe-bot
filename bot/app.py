@@ -34,6 +34,7 @@ from .render import chunk_text
 from .riven import RivenClient
 from .relics import RelicClient
 from .subscriptions import SubscriptionService, SubscriptionStore
+from .teams import TeamService, TeamStore
 from .translate import Translator
 from .update import UpdateChecker
 from .updater import DataUpdater
@@ -232,6 +233,31 @@ class BotApp:
         self.alert_subscription_interval = max(
             15, int(subs_cfg.get("alert_seconds", 30)))
 
+        # 组队：入口链接、队伍存储与任务到场检测
+        teams_cfg = config.get("teams", {}) or {}
+        self.teams: Optional[TeamService] = None
+        if teams_cfg.get("enabled", True):
+            teams_web = config.get("web", {}) or {}
+            team_base = str(teams_cfg.get("public_url") or
+                            teams_web.get("public_url") or "").strip()
+            if not team_base:
+                team_host = str(teams_web.get("host") or "127.0.0.1")
+                if team_host in ("0.0.0.0", "::"):
+                    team_host = "127.0.0.1"
+                team_base = "http://%s:%s" % (
+                    team_host, teams_web.get("port") or 8080)
+            self.teams = TeamService(
+                TeamStore(str(teams_cfg.get("file", "data/teams.json")),
+                          logger=self.log),
+                self.worldstate, self.arbi, logger=self.log,
+                size=int(teams_cfg.get("size", 4) or 4),
+                public_url=team_base,
+                secret=str(teams_cfg.get("secret") or
+                           teams_web.get("token") or ""),
+                token_seconds=int(teams_cfg.get("token_seconds", 1800) or 1800),
+                session_days=int(teams_cfg.get("session_days", 30) or 30))
+        self.team_interval = max(15, int(teams_cfg.get("check_seconds", 30)))
+
         self.router = CommandRouter(
             self.market, self.wiki, config, logger=self.log,
             riven=self.riven, worldstate=self.worldstate, alerts=self.alerts,
@@ -239,6 +265,7 @@ class BotApp:
             translator=self.translator, board=self.board,
             rotation=self.rotation, subscriptions=self.subscriptions,
             database=self.database,
+            teams=self.teams,
             relics=RelicClient(
                 self.worldstate, self.market,
                 local_file=config.get("relics", {}).get(
@@ -264,6 +291,7 @@ class BotApp:
         self._blocked_log_at: Dict[str, float] = {}
         self._alert_thread: Optional[threading.Thread] = None
         self._sub_thread: Optional[threading.Thread] = None
+        self._team_thread: Optional[threading.Thread] = None
         self.started_at = time.time()
         self._restarting = False
         self.web_config = dict(config.get("web", {}))
@@ -309,6 +337,10 @@ class BotApp:
             self._sub_thread = threading.Thread(target=self._subscription_loop,
                                                 name="subscriptions", daemon=True)
             self._sub_thread.start()
+        if self.teams is not None:
+            self._team_thread = threading.Thread(target=self._team_loop,
+                                                 name="teams", daemon=True)
+            self._team_thread.start()
 
     def run(self) -> None:
         self.start()
@@ -401,6 +433,8 @@ class BotApp:
             },
             "alerts": alert_count,
             "subscriptions": sub_count,
+            "teams": (self.teams.stats() if self.teams is not None
+                      else {"active_teams": 0, "groups": 0}),
             "groups": {
                 "whitelist": sorted(whitelist),
                 "blacklist": sorted(blacklist),
@@ -1826,6 +1860,16 @@ class BotApp:
                 chunk_keyboard = reply.keyboard if index == len(chunks) - 1 else None
                 call(send_text, text, chunk_keyboard)
             except QQOfficialError as exc:
+                # 链接按钮/键盘被平台拒绝时，退回纯文本（正文里已带入口地址），
+                # 至少保证用户能拿到信息，不至于整条消息丢失。
+                if chunk_keyboard:
+                    self.log.warning("带按钮的消息被拒（%s），改为纯文本重发", exc)
+                    try:
+                        call(send_text, text, None)
+                        continue
+                    except QQOfficialError as retry_exc:
+                        self.log.warning("发送消息失败：%s", retry_exc)
+                        return False
                 self.log.warning("发送消息失败：%s", exc)
                 return False
             if len(chunks) > 1:
@@ -1877,6 +1921,41 @@ class BotApp:
         if self.subscriptions is None:
             return
         self._deliver_subscription_pushes(self.subscriptions.poll())
+
+    # ------------------------------------------------------------------ 组队
+    def _team_loop(self) -> None:
+        """每 30 秒比对一次任务数据：人齐 / 任务到场就在群里 @ 全队。"""
+        if self._stop.wait(20):
+            return
+        while not self._stop.is_set():
+            if self.teams is not None:
+                try:
+                    notices = self.teams.poll()
+                except Exception:  # pragma: no cover - 防御
+                    self.log.exception("组队轮询失败")
+                    notices = []
+                for notice in notices:
+                    if self._stop.is_set():
+                        return
+                    group = str(notice.get("group") or "")
+                    text = str(notice.get("text") or "")
+                    if not group or not text:
+                        continue
+                    if not self._group_allowed(group):
+                        # 群被拉黑/移出白名单后，队伍数据保留但不再推送
+                        continue
+                    try:
+                        self.qqbot.send_group_text(group, text)
+                        self.log.info("组队提醒已推送（%s）：%s",
+                                      notice.get("kind"),
+                                      str(notice.get("team", {}).get("id")))
+                    except QQOfficialError as exc:
+                        # 群主动消息有额度，失败只记日志；面板里队伍仍是进行中
+                        self.log.warning("组队提醒发送失败（%s）：%s",
+                                         group[-6:], exc)
+                    time.sleep(0.4)
+            if self._stop.wait(self.team_interval):
+                return
 
     # ------------------------------------------------------------------ 提醒
     def _alert_loop(self) -> None:

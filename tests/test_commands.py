@@ -224,6 +224,11 @@ class ParseTest(unittest.TestCase):
     def test_wf_alias(self):
         self.assertEqual(self.router.parse("#wf Mesa"), ("warframe", "Mesa"))
 
+    def test_team_aliases(self):
+        """组队面板：几个说法都进同一条命令，入口由命令层发认证链接。"""
+        for alias in ("组队", "队伍", "车队", "开车", "组队面板"):
+            self.assertEqual(self.router.parse("#" + alias), ("team", ""))
+
     def test_help(self):
         self.assertEqual(self.router.parse("#帮助"), ("help", ""))
         # 帮助只认「帮助」：问号、菜单之类的词不再触发
@@ -741,8 +746,9 @@ class CommandMenuTest(unittest.TestCase):
         self.assertTrue(rows["riven_market"]["description"])
         self.assertEqual(rows["circuit"]["label"], "无尽回廊")
         self.assertNotIn("circuit_list", rows)
-        self.assertEqual(len(rows), 66)
+        self.assertEqual(len(rows), 67)
         self.assertEqual(rows["circuit_table"]["label"], "灵化列表")
+        self.assertEqual(rows["team"]["label"], "组队")
 
     def test_alias_conflict_is_rejected(self):
         with self.assertRaises(ValueError):

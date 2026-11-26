@@ -221,6 +221,18 @@ DEFAULTS: Dict[str, Any] = {
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/126.0.0.0 Safari/537.36"),
     },
+    # 组队：入口是 QQ 内打开的 H5 面板（web 服务同时提供 /team）。
+    # public_url 必须填手机能访问到的公网地址，否则卡片上的按钮没有链接。
+    "teams": {
+        "enabled": True,
+        "file": "data/teams.json",
+        "public_url": "",
+        "size": 4,
+        "token_seconds": 1800,
+        "session_days": 30,
+        "check_seconds": 30,
+        "secret": "",
+    },
     "web": {
         "enabled": True,
         "host": "127.0.0.1",
@@ -329,6 +341,9 @@ _ENV_OVERRIDES = {
     "QQWF_WEB_HOST": ("web", "host", "str"),
     "QQWF_WEB_PORT": ("web", "port", "str"),
     "QQWF_WEB_TOKEN": ("web", "token", "str"),
+    "QQWF_TEAMS": ("teams", "enabled", "bool"),
+    "QQWF_TEAM_URL": ("teams", "public_url", "str"),
+    "QQWF_TEAM_SIZE": ("teams", "size", "str"),
     "QQWF_NET_AUTO": ("network", "auto_adapt", "bool"),
     "QQWF_NET_PROXIES": ("network", "proxies", "str"),
     "QQWF_NET_PREFER": ("network", "prefer", "str"),

@@ -109,6 +109,9 @@ COMMANDS: Dict[str, str] = {
     "回廊轮换": "circuit_table", "灵化之源": "circuit_table",
     "回廊灵化": "circuit_table",
     "执刑官": "archon", "执刑官猎杀": "archon",
+    # 组队面板：入口卡片带一次性 QQ 认证链接（只发给发命令的人）
+    "组队": "team", "队伍": "team", "车队": "team", "开车": "team",
+    "组队面板": "team", "team": "team",
     "裂缝": "fissures", "钢铁裂缝": "steel_fissures", "钢铁裂隙": "steel_fissures",
     "虚空风暴": "storms", "九重天": "storms", "风暴": "storms",
     "赏金": "bounties", "平原赏金": "bounties",
@@ -272,7 +275,8 @@ class CommandRouter:
                  rotation=None,
                  subscriptions: Optional[SubscriptionService] = None,
                  database=None,
-                 relics: Optional[RelicClient] = None):
+                 relics: Optional[RelicClient] = None,
+                 teams=None):
         self.market = market
         self.wiki = wiki
         self.cfg = config
@@ -297,6 +301,7 @@ class CommandRouter:
         self.rotation = rotation
         self.subscriptions = subscriptions
         self.relics = relics
+        self.teams = teams
         command_config = config.get("behavior", {}) or {}
         self.command_store = CommandStore(
             str(command_config.get("commands_file") or "data/commands.json"),
@@ -584,6 +589,9 @@ class CommandRouter:
                 return [present.circuit_table_reply(
                     self._ws("duviriCycle"),
                     keyboard=keyboards.circuit_keyboard(back=True))]
+            if command == "team":
+                return [present.team_reply(self.teams, ctx.group_id,
+                                           ctx.user_id)]
             if command == "archon":
                 return [present.archon_reply(self._ws("archonHunt"))]
             if command == "fissures":

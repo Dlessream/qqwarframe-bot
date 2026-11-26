@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
 from . import qqsignature
+from .teams import TeamError
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(ROOT, "web")
@@ -61,13 +62,16 @@ class AdminServer:
                 return supplied == server.token
 
             def _json(self, payload: Dict[str, Any],
-                      status: int = HTTPStatus.OK) -> None:
+                      status: int = HTTPStatus.OK,
+                      headers: Optional[list] = None) -> None:
                 body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
+                for key, value in (headers or []):
+                    self.send_header(key, value)
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -91,6 +95,150 @@ class AdminServer:
                 self.end_headers()
                 self.wfile.write(body)
 
+            # ------------------------------------------------------ 组队面板
+            def _cookie(self, name: str) -> str:
+                for part in (self.headers.get("Cookie") or "").split(";"):
+                    if "=" in part:
+                        key, value = part.split("=", 1)
+                        if key.strip() == name:
+                            return value.strip()
+                return ""
+
+            def _team_profile(self):
+                service = getattr(server.app, "teams", None)
+                if service is None:
+                    return None
+                sid = self._cookie("qqwf_team")
+                return service.profile(sid) if sid else None
+
+            def _json_body(self, limit: int = 8192) -> Dict[str, Any]:
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = 0
+                if length > limit:
+                    raise ValueError("请求体过大")
+                raw = self.rfile.read(length) if length else b"{}"
+                try:
+                    data = json.loads(raw.decode("utf-8")) if raw else {}
+                except Exception:
+                    raise ValueError("JSON 格式错误")
+                return data if isinstance(data, dict) else {}
+
+            def _need_team(self):
+                profile = self._team_profile()
+                if profile is None:
+                    self._json({"ok": False, "need_login": True,
+                                "message": "请在群里发送 #组队 重新打开面板"},
+                               HTTPStatus.UNAUTHORIZED)
+                    return None
+                return profile
+
+            def _team_get(self, parsed) -> bool:
+                path = parsed.path
+                if not path.startswith("/api/team/"):
+                    return False
+                service = getattr(server.app, "teams", None)
+                if service is None:
+                    self._json({"ok": False, "message": "组队功能未开启"},
+                               HTTPStatus.SERVICE_UNAVAILABLE)
+                    return True
+                if path == "/api/team/me":
+                    self._json({"ok": True, "profile": self._team_profile()})
+                    return True
+                profile = self._need_team()
+                if profile is None:
+                    return True
+                if path == "/api/team/state":
+                    payload = service.state(profile["group"], profile["openid"])
+                    self._json({"ok": True, "profile": profile, **payload})
+                    return True
+                if path == "/api/team/missions":
+                    query = parse_qs(parsed.query)
+                    category = (query.get("category") or ["fissure"])[0]
+                    try:
+                        data = service.missions(category)
+                    except TeamError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return True
+                    self._json({"ok": True, **data})
+                    return True
+                self._json({"ok": False, "message": "未知接口"},
+                           HTTPStatus.NOT_FOUND)
+                return True
+
+            def _team_post(self, parsed) -> bool:
+                path = parsed.path
+                if not path.startswith("/api/team/"):
+                    return False
+                service = getattr(server.app, "teams", None)
+                if service is None:
+                    self._json({"ok": False, "message": "组队功能未开启"},
+                               HTTPStatus.SERVICE_UNAVAILABLE)
+                    return True
+                try:
+                    data = self._json_body()
+                except ValueError as exc:
+                    self._json({"ok": False, "message": str(exc)},
+                               HTTPStatus.BAD_REQUEST)
+                    return True
+
+                if path == "/api/team/login":
+                    try:
+                        result = service.redeem(data.get("token"))
+                        profile = service.profile(result["sid"])
+                    except TeamError as exc:
+                        self._json({"ok": False, "message": str(exc)},
+                                   HTTPStatus.BAD_REQUEST)
+                        return True
+                    cookie = ("qqwf_team=%s; Path=/; Max-Age=%d; HttpOnly; "
+                              "SameSite=Lax" % (result["sid"],
+                                                service.session_days * 86400))
+                    state = (service.state(profile["group"], profile["openid"])
+                             if profile else {})
+                    self._json({"ok": True, "profile": profile, "state": state},
+                               headers=[("Set-Cookie", cookie)])
+                    return True
+
+                profile = self._need_team()
+                if profile is None:
+                    return True
+                group, openid = profile["group"], profile["openid"]
+                try:
+                    if path == "/api/team/name":
+                        profile = service.rename(
+                            self._cookie("qqwf_team"), data.get("name"))
+                        self._json({"ok": True, "profile": profile})
+                        return True
+                    if path == "/api/team/create":
+                        team = service.create(group, openid, data)
+                    elif path == "/api/team/join":
+                        team = service.join(group, openid,
+                                            str(data.get("id") or ""))
+                    elif path == "/api/team/leave":
+                        team = service.leave(group, openid,
+                                             str(data.get("id") or ""))
+                    elif path == "/api/team/close":
+                        team = service.close(group, openid,
+                                             str(data.get("id") or ""))
+                    else:
+                        self._json({"ok": False, "message": "未知接口"},
+                                   HTTPStatus.NOT_FOUND)
+                        return True
+                except TeamError as exc:
+                    self._json({"ok": False, "message": str(exc)},
+                               HTTPStatus.BAD_REQUEST)
+                    return True
+                except Exception as exc:  # noqa: BLE001 - 不让异常打穿到浏览器
+                    server.log.exception("组队操作失败：%s", exc)
+                    self._json({"ok": False, "message": "操作失败，请稍后再试"},
+                               HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return True
+                state = service.state(group, openid)
+                self._json({"ok": True, "team": team, "state": state})
+                return True
+
             def do_GET(self):
                 parsed = urlparse(self.path)
                 path = parsed.path
@@ -109,6 +257,20 @@ class AdminServer:
                 if path == "/favicon.ico":
                     self.send_response(HTTPStatus.NO_CONTENT)
                     self.end_headers()
+                    return
+                if path in ("/team", "/team/", "/team/index.html"):
+                    self._file(os.path.join(WEB_DIR, "team.html"),
+                               "text/html; charset=utf-8")
+                    return
+                if path == "/static/team.css":
+                    self._file(os.path.join(WEB_DIR, "team.css"),
+                               "text/css; charset=utf-8")
+                    return
+                if path == "/static/team.js":
+                    self._file(os.path.join(WEB_DIR, "team.js"),
+                               "application/javascript; charset=utf-8")
+                    return
+                if self._team_get(parsed):
                     return
                 if path == "/api/status":
                     if not self._authorized():
@@ -433,6 +595,8 @@ class AdminServer:
             def do_POST(self):
                 parsed = urlparse(self.path)
                 if self._qq_callback(parsed.path):
+                    return
+                if self._team_post(parsed):
                     return
                 if not self._authorized():
                     self._unauthorized()

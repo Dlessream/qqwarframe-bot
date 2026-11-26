@@ -2608,6 +2608,46 @@ def help_reply(prefix: str, disabled=(), bg_provider=None,
 
     return Reply(text=render.render_help(prefix, disabled), image=_image)
 
+def team_reply(teams, group_id: str, openid: str) -> Reply:
+    """组队入口卡：群内车队一览 + 打开 QQ 内组队面板的按钮。
+
+    面板链接带一次性 token（绑定 openid 与群），所以这张卡本身就是认证入口。
+    """
+    if teams is None:
+        return error_reply("组队功能未开启（config.teams.enabled）。")
+    if not group_id:
+        return error_reply("组队面板只能在群里打开：在群里发 #组队。")
+    url = teams.entry_url(group_id, openid)
+    state = teams.state(group_id, openid)
+    rows = state.get("teams") or []
+    lines: List[str] = ["【组队 · 本群车队】"]
+    if rows:
+        lines.append("进行中 %d 支：" % len(rows))
+        for row in rows[:6]:
+            slots = "%d/%d" % (row.get("count") or 0, row.get("size") or 4)
+            host = next((member.get("name") for member in row.get("members") or []
+                         if member.get("host")), "车头")
+            tail = row.get("left") or row.get("start_text") or ""
+            lines.append("· %s · %s（%s）车头 %s%s" % (
+                row.get("label") or "组队", row.get("title") or "",
+                slots, host, (" · " + tail) if tail else ""))
+        if len(rows) > 6:
+            lines.append("… 还有 %d 支，面板里看全。" % (len(rows) - 6))
+    else:
+        lines.append("本群现在没有车队。打开面板挑一条任务就能开车。")
+    if url:
+        lines.append("")
+        lines.append("面板：%s" % url)
+        lines.append("（链接 30 分钟有效、只能用一次；打不开就再发一次 #组队）")
+    else:
+        lines.append("面板地址未配置：在控制台把 teams.public_url 设成公网地址。")
+    lines.append("满 4 人自动锁队；任务到场时机器人在群里 @ 全队。")
+    return Reply(
+        text="\n".join(lines),
+        keyboard=keyboards.team_keyboard(url),
+        button_hint="▼ 点「打开组队面板」进队 / 开车")
+
+
 def error_reply(message: str) -> Reply:
     return Reply(text=message)
 

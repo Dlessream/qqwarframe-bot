@@ -24,6 +24,20 @@ def button(button_id: str, label: str, data: str,
     }
 
 
+def link_button(button_id: str, label: str, url: str) -> Dict[str, Any]:
+    """跳转按钮：QQ 内置浏览器打开链接（组队面板靠它进小窗）。"""
+    return {
+        "id": button_id,
+        "render_data": {"label": label, "visited_label": label, "style": 1},
+        "action": {
+            "type": 0,  # 跳转按钮
+            "permission": {"type": 2},
+            "data": str(url or ""),
+            "unsupport_tips": "请升级 QQ 后重试",
+        },
+    }
+
+
 def keyboard(rows: Sequence[Sequence[Dict[str, Any]]]) -> Dict[str, Any]:
     return {"content": {"rows": [{"buttons": list(row)} for row in rows]}}
 
@@ -59,3 +73,12 @@ def circuit_keyboard(back: bool = False) -> Dict[str, Any]:
     if back:
         return keyboard([[button("circuit-now", "本周回廊", "a:回廊", 0)]])
     return keyboard([[button("circuit-list", "灵化列表", "a:灵化列表", 1)]])
+
+
+def team_keyboard(url: str) -> Dict[str, Any]:
+    """组队入口：主按钮跳 H5 面板，次按钮刷新群里的车队列表。"""
+    rows: List[List[Dict[str, Any]]] = []
+    if url:
+        rows.append([link_button("team-open", "打开组队面板", url)])
+    rows.append([button("team-refresh", "刷新队伍", "a:组队", 0)])
+    return keyboard(rows)

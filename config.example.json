@@ -11,7 +11,10 @@
     "callback_path": "/qq/callback",
     "self_id": "",
     "intents": 100663296,
-    "shard": [0, 1],
+    "shard": [
+      0,
+      1
+    ],
     "proxy": "none",
     "api_timeout_seconds": 15,
     "reconnect_min_seconds": 1,
@@ -246,5 +249,15 @@
     "probe_ttl_seconds": 1800,
     "probe_cache_file": "data/net_probe.json",
     "prefer": "order"
+  },
+  "teams": {
+    "enabled": true,
+    "file": "data/teams.json",
+    "public_url": "http://你的公网地址:8080",
+    "size": 4,
+    "token_seconds": 1800,
+    "session_days": 30,
+    "check_seconds": 30,
+    "secret": ""
   }
 }
