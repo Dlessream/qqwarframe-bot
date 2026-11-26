@@ -1046,45 +1046,6 @@ def events_reply(raw) -> Reply:
         ratios=[2.0, 1.2, 0.9, 0.9], accent=imagecard.PURPLE)
 
 
-def circuit_reply(raw) -> Reply:
-    """无尽回廊本周灵化：普通模式给战甲、钢铁模式给武器。
-
-    战甲显示「别名（English）」（女枪（Mesa）），武器显示国服中文名；
-    认不出的名字保留英文。
-    """
-    if not isinstance(raw, dict):
-        raw = {}
-    rows = []
-    lines = []
-    for group in _as_list(raw.get("choices")):
-        hard = str(group.get("category") or "").lower() != "normal"
-        picked = [str(item) for item in group.get("choices") or []]
-        kinds = {names_db.kind(name) for name in picked}
-        kind = kinds.pop() if len(kinds) == 1 else ""
-        mode = "钢铁" if hard else "普通"
-        label = "%s · %s" % (mode, kind) if kind else mode
-        # 卡面：战甲写「别名（English）」（女枪（Mesa）），武器写中文名，一行放得下
-        if kind == "战甲":
-            cells = "、".join(names_db.alias_label(name) for name in picked)
-        else:
-            cells = "、".join(names_db.chinese(name) for name in picked)
-        rows.append([label, cells])
-        lines.append("%s：%s" % (
-            label, "、".join(
-                names_db.alias_label(name) if kind == "战甲" else names_db.label(name)
-                for name in picked)))
-    state = str(raw.get("state") or "").strip()
-    subtitle = _state_label(state) if state and state != "本周" else ""
-    title = "本周灵化 · %s" % subtitle if subtitle else "本周灵化"
-    return _world_reply(
-        "无尽回廊", title,
-        ["模式", "可选"], rows,
-        "数据 世界状态聚合源 · 国服译名 / 别名", "回廊", text_lines=lines,
-        ratios=[0.8, 2.8], accent=imagecard.PURPLE,
-        keyboard=keyboards.circuit_keyboard("now"),
-        note="想看完整轮换点下面「灵化列表」")
-
-
 def _cycle_span(start: float, end: float) -> str:
     """周期时间：本机时区的 月/日–月/日（本周 = 周一 08:00 → 下周一 08:00）。"""
     left = time.localtime(start)
@@ -1093,77 +1054,114 @@ def _cycle_span(start: float, end: float) -> str:
                             right.tm_mon, right.tm_mday)
 
 
-def circuit_rotation_reply(raw) -> Reply:
-    """点「灵化列表」：钢铁回廊灵化之源 9 组 + 普通回廊战甲 11 周，当周高亮。"""
-    data = circuit_rotation.rotation(raw)
-    groups = [("incarnon", "钢铁回廊 · 灵化之源", "组", "每周 5 选 2"),
-              ("warframe", "普通回廊 · 战甲", "周", "每周 3 选 1")]
+#: 回廊两段轮换表：(key, 小标题, 内容列表头, 每周规则, 是否用英文名)
+_ROTATION_SECTIONS = (
+    ("incarnon", "钢铁回廊 · 灵化之源", "可拿灵化之源", "5 选 2", False),
+    ("warframe", "普通回廊 · 战甲", "可选战甲", "3 选 1", True),
+)
 
-    lines: List[str] = []
-    sections: List[Dict] = []
+
+def _rotation_ordinal(view: Dict) -> str:
+    """本周落在表里第几周（「第四周」）；对不上表时返回空串。"""
+    for cycle in view.get("cycles") or []:
+        if cycle.get("current"):
+            return circuit_rotation.ordinal_label(int(cycle.get("ordinal") or 0))
+    return ""
+
+
+def circuit_reply(raw) -> Reply:
+    """无尽回廊：本周可选 + 完整轮换表，一张卡里带完。
+
+    周期按「第一周、第二周……」往后列（灵化之源 9 周、战甲 11 周），当周那一行
+    铺底色；钢铁给灵化之源中文名，战甲统一用英文原名。
+    """
+    if not isinstance(raw, dict):
+        raw = {}
+    data = circuit_rotation.rotation(raw)
+    week_end = float(data.get("week_end") or 0)
+    rest = countdown(week_end) if week_end else ""
+
+    # ---- 本周可选：钢铁给灵化之源、普通给战甲
+    now_rows: List[List] = []
+    now_lines: List[str] = []
+    for group in _as_list(raw.get("choices")):
+        hard = str(group.get("category") or "").lower() != "normal"
+        picked = [str(item) for item in group.get("choices") or []]
+        kinds = {names_db.kind(name) for name in picked}
+        kind = kinds.pop() if len(kinds) == 1 else ""
+        mode = "钢铁" if hard else "普通"
+        label = "%s · %s" % (mode, kind) if kind else mode
+        if kind == "战甲":
+            cells = "、".join(picked)
+        else:
+            cells = "、".join(names_db.chinese(name) for name in picked)
+        now_rows.append([label, cells])
+        now_lines.append("%s：%s" % (label, cells))
+    if not now_rows:
+        now_rows = [["—", "本周数据还没取到，稍后再试"]]
+        now_lines = list(now_rows[0])
+
+    sections: List[Dict] = [{
+        "label": "本周可选",
+        "badge": ("剩 %s" % rest) if rest else "本周",
+        "columns": [("模式", 0.62), ("可选", 3.3)],
+        "rows": now_rows,
+    }]
+    lines: List[str] = ["本周可选："] + ["  " + line for line in now_lines]
+
     degraded = False
-    for key, name, unit, rule in groups:
+    for key, name, column, rule, english in _ROTATION_SECTIONS:
         view = data.get(key) or {}
         degraded = degraded or bool(view.get("degraded"))
-        current = str(view.get("key") or "")
-        badge = ("本周 %s%s" % (current, unit)) if current else "本周未取到"
-        rows = []
-        block: List[str] = ["%s（%d %s循环 · %s）" % (
-            name, int(view.get("total") or 0),
-            "组" if unit == "组" else "周", rule)]
-        for cycle in view.get("cycles") or []:
-            when = circuit_rotation.offset_label(int(cycle.get("offset") or 0))
+        ordinal = _rotation_ordinal(view)
+        rows: List[List] = []
+        block: List[str] = ["%s（%d 周一轮 · 每周 %s）" % (
+            name, int(view.get("total") or 0), rule)]
+        highlight: List[int] = []
+        for index, cycle in enumerate(view.get("cycles") or []):
             span = _cycle_span(float(cycle.get("start") or 0),
                                float(cycle.get("end") or 0))
-            key_text = str(cycle.get("key") or "")
-            if not key_text:
-                unit_text = ""
-            elif unit == "组":
-                unit_text = "%s 组" % key_text
-            else:
-                unit_text = "第 %s 周" % key_text
-            label = ("%s %s" % (when, unit_text)).strip() if unit_text else when
-            cells = [names_db.chinese(nm) for nm in cycle.get("names") or []]
-            text = "、".join(cells) if cells else "—"
-            # 卡片里用中点分隔：一行要塞 5 把武器，全角顿号会被挤到截断
-            packed = "·".join(cells) if cells else "—"
+            label = circuit_rotation.ordinal_label(
+                int(cycle.get("ordinal") or 0)) or "本周"
+            if key == "incarnon" and cycle.get("key"):
+                # 组号跟着周次一起给（第四周就是 D 组），和站外工具对得上
+                label = "%s（%s）" % (label, cycle.get("key"))
+            names = [str(nm) for nm in cycle.get("names") or []]
+            cells = names if english else [names_db.chinese(nm) for nm in names]
+            shown = " · ".join(cells) if cells else "—"
+            if cycle.get("current"):
+                highlight.append(index)
             rows.append([
                 imagecard.Cell(label, bold=True,
                                color=imagecard.PURPLE if cycle.get("current")
                                else None),
-                span, packed,
+                span, shown,
             ])
-            block.append("%s（%s）：%s" % (label, span, text))
+            line = "%s %s：%s" % (label, span, "、".join(cells))
+            block.append(("▶ 本周  " + line) if cycle.get("current") else line)
         if not rows:
             rows = [["—", "—", "本周数据还没取到，稍后再试"]]
             block.append("本周数据还没取到，稍后再试")
         sections.append({
             "label": name,
-            "badge": badge,
-            "columns": [("周期", 1.45), ("时间", 1.32),
-                        ("可拿灵化之源" if key == "incarnon" else "可选战甲", 3.45)],
+            "badge": ("本周 %s" % ordinal) if ordinal else "本周未取到",
+            "columns": [("周期", 1.5), ("下次日期", 1.28), (column, 3.5)],
             "rows": rows,
-            "highlight_rows": [index for index, cycle
-                               in enumerate(view.get("cycles") or [])
-                               if cycle.get("current")],
+            "highlight_rows": highlight,
         })
         lines.extend(block)
         lines.append("")
 
-    week_end = float(data.get("week_end") or 0)
-    rest = countdown(week_end) if week_end else ""
-    subtitle = "按周轮换 · 本周高亮" + (" · 剩 %s" % rest if rest else "")
-    note = "每周一 08:00（北京时间）刷新，带底色那一行就是本周。"
+    subtitle = "完整轮换 · 当周高亮" + (" · 剩 %s" % rest if rest else "")
+    note = ("每周一 08:00（北京时间）刷新；铺紫色底的那一行就是本周，"
+            "日期列是各周期下一次出现的那一周。")
     if degraded:
         note = "官方给的本周名单和本地轮换表对不上（可能刚更新过池子），只列本周。"
-
     return Reply(
         text="【无尽回廊 · 灵化轮换】\n" + "\n".join(lines).strip() + "\n" + note,
-        keyboard=keyboards.circuit_keyboard("list"),
-        button_hint="▼ 切换回本周灵化",
         image=lambda: imagecard.sections_table(
             "无尽回廊 · 灵化轮换", subtitle, sections,
-            "数据 官方 EndlessXpSchedule + 轮换表 · 国服译名", accent=imagecard.PURPLE,
+            "数据 官方 EndlessXpSchedule + 轮换表", accent=imagecard.PURPLE,
             chip="回廊", note=note))
 
 

@@ -109,7 +109,7 @@ def _build(table: Sequence[Sequence[Any]], choices: Optional[Sequence[str]],
         if choices:
             # 对不上表就别硬猜第几组，只把本周官方给的名字给出去
             cycles.append({
-                "key": "", "offset": 0, "start": start,
+                "key": "", "ordinal": 0, "offset": 0, "start": start,
                 "end": start + WEEK, "names": [str(x) for x in choices],
                 "current": True,
             })
@@ -122,6 +122,7 @@ def _build(table: Sequence[Sequence[Any]], choices: Optional[Sequence[str]],
         cycle_start = start + offset * WEEK
         cycles.append({
             "key": str(key),
+            "ordinal": position + 1,
             "offset": offset,
             "start": cycle_start,
             "end": cycle_start + WEEK,
@@ -169,10 +170,22 @@ def rotation(raw: Any, now: Optional[float] = None) -> Dict[str, Any]:
     }
 
 
-def offset_label(offset: int) -> str:
-    """相对本周的说法：本周 / 下周 / N 周后。"""
-    if offset <= 0:
-        return "本周"
-    if offset == 1:
-        return "下周"
-    return "%d 周后" % offset
+_CN_DIGITS = "零一二三四五六七八九"
+
+
+def cn_number(number: int) -> str:
+    """1 → 一、10 → 十、11 → 十一、21 → 二十一（够用到两位数的周期表）。"""
+    value = int(number)
+    if value <= 0:
+        return ""
+    if value < 10:
+        return _CN_DIGITS[value]
+    tens, ones = divmod(value, 10)
+    head = "" if tens == 1 else _CN_DIGITS[tens]
+    return head + "十" + (_CN_DIGITS[ones] if ones else "")
+
+
+def ordinal_label(number: int) -> str:
+    """周期名：第 N 周（按表内顺序，A→I 就是第一周→第九周）。"""
+    text = cn_number(number)
+    return "第%s周" % text if text else ""
