@@ -26,7 +26,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import terms
+from . import bounties, bountystatic, terms
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ BOUNTY_AREAS: Tuple[Tuple[str, str], ...] = (
     ("The Hex", "霍瓦尼亚"),
 )
 
-BOUNTY_NUMBERS = ["一", "二", "三", "四", "五", "六", "七", "八"]
+BOUNTY_NUMBERS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
 
 ACTIVE_STATUS = ("open", "full")
 DEFAULT_SIZE = 4
@@ -457,9 +457,9 @@ class TeamService:
         for start, end, node, tier in entries[:2]:
             if end <= now:
                 continue
-            mission = terms.localize_mission(
-                _text(getattr(node, "mission_type", "") or
-                      getattr(node, "mission", "")))
+            # node.mission 是中文（防御/拦截），mission_type 是 MT_DEFENSE 这种枚举
+            mission = _text(getattr(node, "mission", "")) or terms.localize_mission(
+                _text(getattr(node, "mission_type", "")))
             level = _text(getattr(node, "level_text", ""))
             label = " · ".join([part for part in (
                 getattr(node, "display_name", ""), mission,
@@ -562,40 +562,60 @@ class TeamService:
         by_name = {_text(row.get("syndicate")): row for row in rows
                    if isinstance(row, dict)}
         items: List[Dict[str, Any]] = []
-        for syndicate, area in BOUNTY_AREAS:
-            row = by_name.get(syndicate)
-            if not row:
-                continue
+        for area_index, (syndicate, area) in enumerate(BOUNTY_AREAS):
+            row = by_name.get(syndicate) or {}
             jobs = [job for job in (row.get("jobs") or [])
                     if isinstance(job, dict)]
-            for index, job in enumerate(jobs):
-                end = _parse_ts(job.get("expiry") or row.get("expiry"))
-                if end <= now:
+            fallback_end = _parse_ts(row.get("expiry"))
+            entries: List[Tuple[str, str, str, float, str]] = []
+            if jobs:
+                for index, job in enumerate(jobs):
+                    end = _parse_ts(job.get("expiry") or row.get("expiry"))
+                    if end <= now:
+                        continue
+                    raw = _text(job.get("type"))
+                    objective = (bounties.objective_by_en(raw)
+                                 or terms.localize_bounty(raw) or raw)
+                    entries.append((str(index), objective, "", end, ""))
+            else:
+                # 官方这批没给 jobs（圣所 / 1999 / 扎里曼常这样），退回本地档位表
+                for tier in bountystatic.tiers(syndicate):
+                    objective = " / ".join(
+                        _text(name) for name in (tier.get("missions") or [])
+                        if _text(name)) or "赏金"
+                    entries.append((str(tier.get("tier") or 0), objective,
+                                    _text(tier.get("level")), fallback_end,
+                                    _text(tier.get("reward"))))
+            for index, (order, objective, level, end, extra) in enumerate(entries):
+                if not end or end <= now:
                     continue
-                objective = terms.localize_bounty(_text(job.get("type")))
                 title = "%s · 赏金%s" % (area, _cn_number(index + 1))
+                subtitle = objective + ((" ｜ L%s" % level) if level else "")
                 label = "%s %s（%s）" % (title, objective, left_text(end, now))
+                key = "bounty:%s:%s" % (syndicate, order)
                 items.append({
-                    "key": "bounty:%s:%d:%s" % (syndicate, index, objective),
+                    "key": key,
                     "category": "bounty",
                     "badge": area,
                     "mission": objective,
-                    "tier": "",
+                    "tier": level,
                     "node": area,
                     "enemy": terms.localize_syndicate(syndicate),
                     "hard": False,
                     "start": 0.0,
                     "end": end,
                     "title": title,
-                    "subtitle": objective,
-                    "meta": left_text(end, now),
+                    "subtitle": subtitle,
+                    "meta": ("%s ｜ 剩 %s" % (extra, left_text(end, now))
+                             if extra else left_text(end, now)),
+                    "order": area_index * 100 + index,
                     "target": {
                         "label": label, "mission": objective, "node": area,
                         "syndicate": syndicate, "start": 0.0, "end": end,
-                        "key": "bounty:%s:%d" % (syndicate, index),
+                        "key": key,
                     },
                 })
-        items.sort(key=lambda item: (item["badge"], item["title"]))
+        items.sort(key=lambda item: item["order"])
         return items
 
     def missions(self, category: str) -> Dict[str, Any]:
