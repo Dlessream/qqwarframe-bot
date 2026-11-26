@@ -522,7 +522,9 @@ class TeamService:
             start, end, meta = expiry, 0.0, "%s 入夜" % _day_clock(expiry)
         else:
             start, end, meta = now, expiry, "夜晚中 · %s" % left_text(expiry, now)
-        key = "tridolon:%d" % int(start)
+        # key 必须跟这一轮日夜周期绑定：夜里 start 取的是 now，若拿 start 做 key，
+        # 面板刷新一次 key 就变一次，点「开车」时后端找不到条目会误报任务已结束
+        key = "tridolon:%d" % int(expiry)
         return {
             "key": key,
             "category": "tridolon",

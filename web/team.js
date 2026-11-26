@@ -250,8 +250,9 @@
         var slotCls = "slot filled";
         if (member.host) { slotCls += " host"; }
         if (member.you) { slotCls += " you"; }
-        slots += '<div class="' + slotCls + '">' + (member.host ? "★ " : "") +
-          esc(member.name) + "</div>";
+        // 星号会占掉一格里的宽度，把「虚空老司机」挤成「虚空…」；
+        // 车头靠金色描边 + 下方「车头 某某」标识，格子只放昵称
+        slots += '<div class="' + slotCls + '">' + esc(member.name) + "</div>";
       } else {
         slots += '<div class="slot empty-slot">空位</div>';
       }

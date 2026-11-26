@@ -238,6 +238,25 @@ class TeamFlowTest(TeamTestBase):
         self.assertEqual(notices[0]["kind"], "arrive")
         self.assertIn("三傻", notices[0]["text"])
 
+    def test_tridolon_key_is_stable_while_night(self):
+        # 夜里 start 取的是 now，key 必须绑周期而不是 now，否则点「开车」会找不到条目
+        self.world.cetus = {"state": "night", "isDay": False,
+                            "expiry": FakeWorld.iso(self.now + 1200)}
+        self.service._cache.clear()
+        original = team_mod._now
+        try:
+            team_mod._now = lambda: self.now
+            first = self.service.missions("tridolon")["items"][0]
+            team_mod._now = lambda: self.now + 1.7
+            second = self.service.missions("tridolon")["items"][0]
+            self.assertEqual(first["key"], second["key"])
+            self.assertEqual(first["badge"], "夜晚")
+            team = self.service.create("g1", "host", {
+                "category": "tridolon", "mission_key": second["key"]})
+            self.assertEqual(team["mode"], "now")
+        finally:
+            team_mod._now = original
+
     def test_only_host_can_close(self):
         item = self.fissure_item("生存")
         team = self.service.create("g1", "host", {

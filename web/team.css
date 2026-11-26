@@ -345,17 +345,18 @@ body {
   display: grid;
   /* minmax(0,1fr)：不给 1fr 留 min-content 下限，否则「队员xxxx」会把卡撑宽 */
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   margin: 14px 0 12px;
 }
 .slot {
   min-width: 0;
-  padding: 9px 6px;
+  padding: 9px 4px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(255, 255, 255, .03);
   text-align: center;
-  font-size: 11.5px;
+  font-size: 11px;
+  letter-spacing: -.2px;
   color: var(--dim);
   overflow: hidden;
   text-overflow: ellipsis;
